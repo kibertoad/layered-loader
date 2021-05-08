@@ -13,7 +13,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: unit-tests
 
     strategy:
       matrix:
@@ -49,7 +48,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: fastify/github-action-merge-dependabot@v1.1.1
-        if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
+      - uses: fastify/github-action-merge-dependabot@v2.0.0
         with:
-          github-token: ${{secrets.github_token}}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
