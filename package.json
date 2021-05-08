@@ -35,6 +35,9 @@
     "source"
   ],
   "homepage": "http://github.com/kibertoad/layered-loader",
+  "dependencies": {
+    "tiny-lru": "^7.0.6"
+  },
   "devDependencies": {
     "@types/jest": "26.0.23",
     "@types/node": "^15.0.2",
