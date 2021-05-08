@@ -13,6 +13,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "docker:start": "docker-compose -f docker-compose.yml up --build -d redis && docker-compose -f docker-compose.yml up --build -d wait_for_redis",
+    "docker:stop": "docker-compose -f docker-compose.yml down",
     "test": "jest --config=jest.config.json",
     "test:everything": "npm run lint && npm run test:coverage",
     "test:coverage": "jest --config=jest.config.json --coverage",
@@ -40,12 +42,14 @@
   },
   "devDependencies": {
     "@types/jest": "26.0.23",
+    "@types/ioredis": "^4.26.1",
     "@types/node": "^15.0.2",
     "@typescript-eslint/eslint-plugin": "^4.22.1",
     "@typescript-eslint/parser": "^4.22.1",
     "eslint": "^7.26.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^3.4.0",
+    "ioredis": "^4.27.2",
     "jest": "26.6.3",
     "prettier": "^2.2.1",
     "ts-jest": "26.5.6",
