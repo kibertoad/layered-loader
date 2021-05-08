@@ -1,5 +1,5 @@
 export interface CacheConfiguration {
-  ttlInMsecs: number
+  ttlInMsecs?: number
 }
 
 export interface Cache<T> {

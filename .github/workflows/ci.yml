@@ -1,6 +1,6 @@
 ---
 
-name: unit-tests
+name: ci
 
 on:
   push:
@@ -34,11 +34,16 @@ jobs:
       - name: Run npm install
         run: npm install
 
+      - name: Start Docker
+        run: npm run docker:start
+
       - name: Run Tests
         run: npm run test
         env:
           CI: true
 
+      - name: Stop Docker
+        run: npm run docker:stop
 
   automerge:
     needs: build
