@@ -28,13 +28,19 @@ jobs:
           always-auth: false
           node-version: ${{ matrix.node-version }}
 
-      - name: Run npm install
+      - name: Install dependencies
         run: npm install
+
+      - name: Start Docker
+        run: npm run docker:start
 
       - name: Run Tests
         run: npm run test:coverage
         env:
           CI: true
+
+      - name: Stop Docker
+        run: npm run docker:stop
 
       - name: Coveralls
         uses: coverallsapp/github-action@master

@@ -31,7 +31,7 @@ jobs:
           always-auth: false
           node-version: ${{ matrix.node-version }}
 
-      - name: Run npm install
+      - name: Install dependencies
         run: npm install
 
       - name: Start Docker
