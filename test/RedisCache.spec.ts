@@ -11,7 +11,6 @@ describe('RedisCache', () => {
   let redis: Redis.Redis
   beforeEach(async () => {
     redis = new Redis(redisOptions)
-    //await redis.connect()
   })
   afterEach(async () => {
     await redis.disconnect()
