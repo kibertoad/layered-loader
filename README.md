@@ -4,19 +4,19 @@
 ![](https://github.com/kibertoad/layered-loader/workflows/ci/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/kibertoad/layered-loader/badge.svg?branch=main)](https://coveralls.io/r/kibertoad/layered-loader?branch=main)
 
-Data loader with support for caching and fallback data sources
+Data source agnostic data loader with support for caching and fallback data sources.
 
 ## Use-cases
 
-This library is mainly aimed to address three different issues:
+This library has three main goals:
 
 1. Provide transparent, highly flexible caching mechanism for data retrieval operations;
-2. Enable fallback mechanisms for retrieving data when alternate sources exist;
-3. Avoid redundant data retrieval in high-load systems.
+2. Enable fallback mechanism for retrieving data when alternate sources exist;
+3. Prevent redundant data retrieval in high-load systems.
 
 ## Basic concepts
 
-There are three entity types defined by `layered-loader`:
+There are three entity types used by `layered-loader`:
 
 1. **LoadingOperation** - defined procedure of retrieving data from one or more data sources, using a single key. LoadingOperation is composed of Loaders and Caches.
 2. **Loader** - data source, capable of retrieving data for a given key, synchronously or asynchronously.
