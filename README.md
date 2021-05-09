@@ -22,15 +22,15 @@ There are three entity types used by `layered-loader`:
 2. **Loader** - data source, capable of retrieving data for a given key, synchronously or asynchronously.
 3. **Cache** - data source, capable of both storing and retrieving data for a given key, synchronously or asynchronously.
 
-- `layered-loader` will try loading the data from the first cache or loader defined for the LoadingOperation. In case `undefined` value is the result of retrieval, next cache or loader in sequence will be attempted, until there is either a value or there are no more sources avaialble;
-- `null` is considered to be a value, and if data source returns it, subsequent data source will not be queried for data;
-- If non-last data source throws an error, it is handled using configured ErrorHandler. If last data source throws an error and there are no remaining fallback data sources, an error will be thrown.
+- `layered-loader` will try loading the data from the first cache or loader defined for the LoadingOperation. In case `undefined` value is the result of retrieval, next data source in sequence will be used, until there is either a value, or there are no more sources available;
+- `null` is considered to be a value, and if the data source returns it, subsequent data source will not be queried for data;
+- If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the LoadingOperation.
 - If there are any caches preceding the data source that returned a value, all of them will be updated with that value;
 - If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loadingOperation.get`, instead of starting a new retrieval.
 
 ## Basic example
 
-Let's define two levels of cache and a primary source of truth:
+Let's define a loader, which will be the primary source of truth, and two levels of caching:
 
 ```ts
 import Redis from 'ioredis'
@@ -66,12 +66,12 @@ const operation = new LoadingOperation<string>([
   new InMemoryCache<string>({
     ttlInMsecs: 1000 * 60,
     maxItems: 100,
-  }),
+  }), // this cache will be checked first
   new RedisCache(ioRedis, {
     json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
     ttlInMsecs: 1000 * 60 * 10,
-  }),
-  new ClassifiersLoader(db),
+  }), // this cache will be checked second
+  new ClassifiersLoader(db), // this will be used if neither cache has the requested data
 ])
 
 // If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
