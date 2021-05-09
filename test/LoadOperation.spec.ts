@@ -89,6 +89,21 @@ describe('LoadOperation', () => {
       expect(valuePost2).toBe('value')
     })
 
+    it('correctly reuses value from cache', async () => {
+      const cache1 = new InMemoryCache<string>()
+      const cache2 = new InMemoryCache<string>()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new LoadOperation<string>([cache1, cache2, loader1, loader2])
+      const valuePre = await operation.load('key')
+      const valuePost = await operation.load('key')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(1)
+    })
+
     it('batches identical retrievals together', async () => {
       const loader = new CountingLoader('value')
 
@@ -102,6 +117,42 @@ describe('LoadOperation', () => {
       expect(value).toBe('value')
       expect(value2).toBe('value')
       expect(loader.counter).toBe(1)
+    })
+
+    describe('invalidateCacheFor', () => {
+      it('correctly invalidates cache', async () => {
+        const cache1 = new InMemoryCache<string>()
+        const cache2 = new InMemoryCache<string>()
+        const loader1 = new CountingLoader(undefined)
+        const loader2 = new CountingLoader('value')
+
+        const operation = new LoadOperation<string>([cache1, cache2, loader1, loader2])
+        const valuePre = await operation.load('key')
+
+        operation.invalidateCacheFor('key')
+        const valuePost = await operation.load('key')
+
+        expect(valuePre).toBe('value')
+        expect(valuePost).toBe('value')
+        expect(loader2.counter).toBe(2)
+      })
+
+      it('correctly handles errors during invalidation', async () => {
+        const cache1 = new InMemoryCache<string>()
+        const cache2 = new ThrowingCache()
+        const loader1 = new CountingLoader(undefined)
+        const loader2 = new CountingLoader('value')
+
+        const operation = new LoadOperation<string>([cache1, cache2, loader1, loader2])
+        const valuePre = await operation.load('key')
+
+        operation.invalidateCacheFor('key')
+        const valuePost = await operation.load('key')
+
+        expect(valuePre).toBe('value')
+        expect(valuePost).toBe('value')
+        expect(loader2.counter).toBe(2)
+      })
     })
   })
 })

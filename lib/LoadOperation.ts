@@ -44,6 +44,18 @@ export class LoadOperation<LoadedValue> {
     }, [] as number[])
   }
 
+  public invalidateCacheFor(key: string) {
+    this.cacheIndexes.forEach((cacheIndex) => {
+      Promise.resolve()
+        .then(() => {
+          return ((this.loaders[cacheIndex] as unknown) as Cache<LoadedValue>).delete(key)
+        })
+        .catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex])
+        })
+    })
+  }
+
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
     for (let index = 0; index < this.loaders.length; index++) {
       const resolvedValue = await Promise.resolve()
