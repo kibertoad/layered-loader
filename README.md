@@ -113,3 +113,10 @@ It has following configuration options:
 
 * `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
 * `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`.
+
+## Supported environments
+
+`LoadingOperation` and `InMemoryCache` support both browser and Node.js (ES6 support is required);
+`RedisCache` only works in Node.js;
+Tree-shaking should work correctly, but wasn't tested.
+
