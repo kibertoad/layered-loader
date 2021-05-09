@@ -2,8 +2,14 @@ import { LoadOperation } from '../lib/LoadOperation'
 import { InMemoryCache } from '../lib/InMemoryCache'
 import { DummyLoader } from './utils/DummyLoader'
 import { CountingLoader } from './utils/CountingLoader'
+import { ThrowingLoader } from './utils/ThrowingLoader'
+import { ThrowingCache } from './utils/ThrowingCache'
 
 describe('LoadOperation', () => {
+  beforeEach(() => {
+    jest.resetAllMocks()
+  })
+
   describe('load', () => {
     it('returns undefined when fails to resolve value', async () => {
       const operation = new LoadOperation([])
@@ -21,6 +27,24 @@ describe('LoadOperation', () => {
       await expect(() => {
         return operation.load('value')
       }).rejects.toThrow(/Failed to resolve value for key "value"/)
+    })
+
+    it('correctly handles error during load', async () => {
+      const consoleSpy = jest.spyOn(console, 'error')
+      const operation = new LoadOperation([new ThrowingLoader()])
+
+      await expect(() => {
+        return operation.load('value')
+      }).rejects.toThrow(/Error has occurred/)
+      expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('correctly handles error during cache update', async () => {
+      const consoleSpy = jest.spyOn(console, 'error')
+      const operation = new LoadOperation([new ThrowingCache(), new DummyLoader('value')])
+      const value = await operation.load('value')
+      expect(value).toBe('value')
+      expect(consoleSpy).toHaveBeenCalledTimes(2)
     })
 
     it('returns value when resolved via single loader', async () => {

@@ -2,6 +2,7 @@ import { Loader } from '../../lib/Loader'
 
 export class DummyLoader implements Loader<string> {
   private readonly value: string | undefined
+  name = 'Dummy loader'
   isCache = false
 
   constructor(returnedValue: string | undefined) {

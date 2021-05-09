@@ -10,5 +10,7 @@ export interface Cache<T> {
 
 export interface Loader<T> {
   get: (key: string) => Promise<T | undefined | null>
+
   isCache: boolean
+  name: string
 }

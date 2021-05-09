@@ -13,6 +13,7 @@ const DefaultConfiguration: InMemoryCacheConfiguration = {
 
 export class InMemoryCache<T> implements Cache<T>, Loader<T> {
   private readonly cache: Lru
+  name = 'In-memory cache'
   isCache = true
 
   constructor(config: InMemoryCacheConfiguration = DefaultConfiguration) {

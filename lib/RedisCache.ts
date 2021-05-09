@@ -13,6 +13,7 @@ const DefaultConfiguration: RedisCacheConfiguration = {
 export class RedisCache<T> implements Cache<T>, Loader<T> {
   private readonly redis: Redis.Redis
   private readonly config: RedisCacheConfiguration
+  name = 'Redis cache'
   isCache = true
 
   constructor(redis: Redis.Redis, config: RedisCacheConfiguration = DefaultConfiguration) {
