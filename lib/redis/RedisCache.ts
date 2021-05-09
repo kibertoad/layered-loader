@@ -41,11 +41,11 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
       return undefined
     }
 
-    return (redisResult as unknown) as T
+    return redisResult as unknown as T
   }
 
   async set(key: string, value: T | null): Promise<void> {
-    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : ((value as unknown) as string)
+    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
 
     if (this.config.ttlInMsecs) {
       await this.redis.set(key, resolvedValue, 'PX', this.config.ttlInMsecs)

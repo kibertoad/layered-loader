@@ -48,7 +48,7 @@ export class LoadingOperation<LoadedValue> {
     this.cacheIndexes.forEach((cacheIndex) => {
       Promise.resolve()
         .then(() => {
-          return ((this.loaders[cacheIndex] as unknown) as Cache<LoadedValue>).delete(key)
+          return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).delete(key)
         })
         .catch((err) => {
           this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex])
@@ -80,7 +80,7 @@ export class LoadingOperation<LoadedValue> {
           .forEach((cacheIndex) => {
             Promise.resolve()
               .then(() => {
-                return ((this.loaders[cacheIndex] as unknown) as Cache<LoadedValue>).set(key, resolvedValue)
+                return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).set(key, resolvedValue)
               })
               .catch((err) => {
                 this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex])
