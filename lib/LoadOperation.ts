@@ -12,10 +12,12 @@ export class LoadOperation<LoadedValue> {
   private readonly params: LoadOperationConfig
   private readonly loaders: readonly Loader<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
+  private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
   constructor(loaders: readonly Loader<LoadedValue>[], params: LoadOperationConfig = DEFAULT_CONFIG) {
     this.params = params
     this.loaders = loaders
+    this.runningLoads = new Map()
 
     this.cacheIndexes = loaders.reduce((result, value, index) => {
       if (value.isCache) {
@@ -25,7 +27,7 @@ export class LoadOperation<LoadedValue> {
     }, [] as number[])
   }
 
-  async load(key: string): Promise<LoadedValue | undefined | null> {
+  private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
     for (let index = 0; index < this.loaders.length; index++) {
       const resolvedValue = await this.loaders[index].get(key)
       if (resolvedValue) {
@@ -36,16 +38,33 @@ export class LoadOperation<LoadedValue> {
           })
           .forEach((cacheIndex) => {
             ;((this.loaders[cacheIndex] as unknown) as Cache<LoadedValue>).set(key, resolvedValue)
+            // ToDo add catch block
           })
 
         return resolvedValue
       }
     }
+    return undefined
+  }
 
-    if (this.params.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}"`)
+  async load(key: string): Promise<LoadedValue | undefined | null> {
+    const existingLoad = this.runningLoads.get(key)
+    if (existingLoad) {
+      return existingLoad
     }
 
-    return undefined
+    const loadingPromise = new Promise<LoadedValue | undefined | null>((resolve, reject) => {
+      this.resolveValue(key).then((resolvedValue) => {
+        this.runningLoads.set(key, undefined)
+
+        if (resolvedValue === undefined && this.params.throwIfUnresolved) {
+          return reject(new Error(`Failed to resolve value for key "${key}"`))
+        }
+        return resolve(resolvedValue)
+      })
+    })
+
+    this.runningLoads.set(key, loadingPromise)
+    return loadingPromise
   }
 }

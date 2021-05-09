@@ -1,6 +1,7 @@
 import { LoadOperation } from '../lib/LoadOperation'
 import { InMemoryCache } from '../lib/InMemoryCache'
 import { DummyLoader } from './utils/DummyLoader'
+import { CountingLoader } from './utils/CountingLoader'
 
 describe('LoadOperation', () => {
   describe('load', () => {
@@ -62,6 +63,21 @@ describe('LoadOperation', () => {
       expect(valuePre).toBe(undefined)
       expect(valuePost).toBe('value')
       expect(valuePost2).toBe('value')
+    })
+
+    it('batches identical retrievals together', async () => {
+      const loader = new CountingLoader('value')
+
+      const operation = new LoadOperation<string>([loader])
+      const valuePromise = operation.load('key')
+      const valuePromise2 = operation.load('key')
+
+      const value = await valuePromise
+      const value2 = await valuePromise2
+
+      expect(value).toBe('value')
+      expect(value2).toBe('value')
+      expect(loader.counter).toBe(1)
     })
   })
 })
