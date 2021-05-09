@@ -30,11 +30,14 @@
     "data",
     "loader",
     "load",
+    "loading",
     "cache",
     "caching",
     "fallback",
     "alternate",
-    "source"
+    "source",
+    "redis",
+    "memory"
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {

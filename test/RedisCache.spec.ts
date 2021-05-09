@@ -1,5 +1,5 @@
 import Redis from 'ioredis'
-import { RedisCache } from '../lib/RedisCache'
+import { RedisCache } from '../lib/redis/RedisCache'
 
 const redisOptions: Redis.RedisOptions = {
   host: 'localhost',

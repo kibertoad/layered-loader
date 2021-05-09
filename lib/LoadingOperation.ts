@@ -1,6 +1,6 @@
 import { Loader, Cache } from './Loader'
 
-export type LoadOperationConfig = {
+export type LoadingOperationConfig = {
   throwIfUnresolved: boolean
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
@@ -16,19 +16,19 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache)
   console.error(`Error while caching "${key}" with ${cache.name}: ${err.message}`)
 }
 
-const DEFAULT_CONFIG: LoadOperationConfig = {
+const DEFAULT_CONFIG: LoadingOperationConfig = {
   throwIfUnresolved: false,
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
 }
 
-export class LoadOperation<LoadedValue> {
-  private readonly params: LoadOperationConfig
+export class LoadingOperation<LoadedValue> {
+  private readonly params: LoadingOperationConfig
   private readonly loaders: readonly Loader<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
   private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
-  constructor(loaders: readonly Loader<LoadedValue>[], params: Partial<LoadOperationConfig> = DEFAULT_CONFIG) {
+  constructor(loaders: readonly Loader<LoadedValue>[], params: Partial<LoadingOperationConfig> = DEFAULT_CONFIG) {
     this.params = {
       ...DEFAULT_CONFIG,
       ...params,
@@ -93,7 +93,7 @@ export class LoadOperation<LoadedValue> {
     return undefined
   }
 
-  async load(key: string): Promise<LoadedValue | undefined | null> {
+  public async get(key: string): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad

@@ -1,4 +1,4 @@
-import { InMemoryCache } from '../lib/InMemoryCache'
+import { InMemoryCache } from '../lib/memory/InMemoryCache'
 
 describe('InMemoryCache', () => {
   describe('clear', () => {

@@ -1,8 +1,3 @@
-export { LoadOperation } from './lib/LoadOperation'
-export type { LoadOperationConfig } from './lib/LoadOperation'
-
-export { InMemoryCache } from './lib/InMemoryCache'
-export type { InMemoryCacheConfiguration } from './lib/InMemoryCache'
-
-export { RedisCache } from './lib/RedisCache'
-export type { RedisCacheConfiguration } from './lib/RedisCache'
+export { LoadingOperation } from './lib/LoadingOperation'
+export type { LoadingOperationConfig } from './lib/LoadingOperation'
+export type { Loader, Cache, CacheConfiguration } from './lib/Loader'
