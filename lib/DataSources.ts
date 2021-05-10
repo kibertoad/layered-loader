@@ -2,7 +2,7 @@ export interface CacheConfiguration {
   ttlInMsecs?: number
 }
 
-export interface Cache<T> {
+export interface Cache<T> extends Loader<T> {
   set: (key: string, value: T | null, config?: CacheConfiguration) => Promise<void>
   clear: () => Promise<void>
   delete: (key: string) => Promise<void>

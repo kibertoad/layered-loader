@@ -1,4 +1,4 @@
-import { Cache } from '../../lib/Loader'
+import { Cache } from '../../lib/DataSources'
 
 export class ThrowingCache implements Cache<string> {
   name = 'Throwing cache'

@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration, Loader } from '../Loader'
+import { Cache, CacheConfiguration, Loader } from '../DataSources'
 import type Redis from 'ioredis'
 
 export interface RedisCacheConfiguration extends CacheConfiguration {

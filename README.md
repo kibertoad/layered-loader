@@ -34,8 +34,8 @@ Let's define a loader, which will be the primary source of truth, and two levels
 
 ```ts
 import Redis from 'ioredis'
-import { RedisCache } from 'layered-loader/redis'
-import { InMemoryCache } from 'layered-loader/memory'
+import { RedisCache } from 'layered-loader/dist/lib/redis'
+import { InMemoryCache } from "layered-loader/dist/lib/memory";
 import type { Loader } from 'layered-loader'
 
 const ioRedis = new Redis({

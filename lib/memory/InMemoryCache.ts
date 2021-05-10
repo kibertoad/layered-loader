@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration, Loader } from '../Loader'
+import { Cache, CacheConfiguration, Loader } from '../DataSources'
 import { Lru } from 'tiny-lru'
 let TinyLru: any
 

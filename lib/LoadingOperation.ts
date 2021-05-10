@@ -1,4 +1,4 @@
-import { Loader, Cache } from './Loader'
+import { Loader, Cache } from './DataSources'
 
 export type LoadingOperationConfig = {
   throwIfUnresolved: boolean
