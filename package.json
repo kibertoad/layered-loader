@@ -42,7 +42,7 @@
   "homepage": "https://github.com/kibertoad/layered-loader",
   "devDependencies": {
     "@types/ioredis": "^4.26.4",
-    "@types/jest": "^26.0.23",
+    "@types/jest": "^27.0.0",
     "@types/node": "^16.0.0",
     "@typescript-eslint/eslint-plugin": "^4.22.1",
     "@typescript-eslint/parser": "^4.22.1",
