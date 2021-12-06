@@ -118,41 +118,77 @@ describe('LoadingOperation', () => {
       expect(value2).toBe('value')
       expect(loader.counter).toBe(1)
     })
+  })
 
-    describe('invalidateCacheFor', () => {
-      it('correctly invalidates cache', async () => {
-        const cache1 = new InMemoryCache<string>()
-        const cache2 = new InMemoryCache<string>()
-        const loader1 = new CountingLoader(undefined)
-        const loader2 = new CountingLoader('value')
+  describe('invalidateCacheFor', () => {
+    it('correctly invalidates cache', async () => {
+      const cache1 = new InMemoryCache<string>()
+      const cache2 = new InMemoryCache<string>()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
 
-        const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
-        const valuePre = await operation.get('key')
+      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const valuePre = await operation.get('key')
 
-        operation.invalidateCacheFor('key')
-        const valuePost = await operation.get('key')
+      await operation.invalidateCacheFor('key')
+      const valuePost = await operation.get('key')
 
-        expect(valuePre).toBe('value')
-        expect(valuePost).toBe('value')
-        expect(loader2.counter).toBe(2)
-      })
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(2)
+    })
 
-      it('correctly handles errors during invalidation', async () => {
-        const cache1 = new InMemoryCache<string>()
-        const cache2 = new ThrowingCache()
-        const loader1 = new CountingLoader(undefined)
-        const loader2 = new CountingLoader('value')
+    it('correctly handles errors during invalidation', async () => {
+      const cache1 = new InMemoryCache<string>()
+      const cache2 = new ThrowingCache()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
 
-        const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
-        const valuePre = await operation.get('key')
+      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const valuePre = await operation.get('key')
 
-        operation.invalidateCacheFor('key')
-        const valuePost = await operation.get('key')
+      await operation.invalidateCacheFor('key')
+      const valuePost = await operation.get('key')
 
-        expect(valuePre).toBe('value')
-        expect(valuePost).toBe('value')
-        expect(loader2.counter).toBe(2)
-      })
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(2)
+    })
+  })
+
+  describe('invalidateCache', () => {
+    it('correctly invalidates cache', async () => {
+      const cache1 = new InMemoryCache<string>()
+      const cache2 = new InMemoryCache<string>()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const valuePre = await operation.get('key')
+
+      await operation.invalidateCache()
+      const valuePost = await operation.get('key')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(2)
+    })
+
+    it('correctly handles errors during invalidation', async () => {
+      const cache1 = new InMemoryCache<string>()
+      const cache2 = new ThrowingCache()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const valuePre = await operation.get('key')
+
+      await operation.invalidateCache()
+      const valuePost = await operation.get('key')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(2)
     })
   })
 })

@@ -89,6 +89,7 @@ LoadingOperation has the following config parameters:
 LoadingOperation provides following methods:
 
 * `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this LoadingOperation;
+* `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
 * `get(key: string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
 
 ## Provided caches

@@ -6,7 +6,7 @@ export type LoadingOperationConfig = {
   loadErrorHandler: LoaderErrorHandler
 }
 
-export type LoaderErrorHandler = (err: Error, key: string, loader: Loader<any>) => void
+export type LoaderErrorHandler = (err: Error, key: string | undefined, loader: Loader<any>) => void
 
 export const DEFAULT_LOAD_ERROR_HANDLER: LoaderErrorHandler = (err, key, loader) => {
   console.error(`Error while loading "${key}" with ${loader.name}: ${err.message}`)
@@ -44,16 +44,39 @@ export class LoadingOperation<LoadedValue> {
     }, [] as number[])
   }
 
-  public invalidateCacheFor(key: string) {
+  public invalidateCache() {
+    const promises: Promise<any>[] = []
+
     this.cacheIndexes.forEach((cacheIndex) => {
-      Promise.resolve()
-        .then(() => {
-          return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).delete(key)
-        })
-        .catch((err) => {
-          this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex])
-        })
+      promises.push(
+        Promise.resolve()
+          .then(() => {
+            return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).clear()
+          })
+          .catch((err) => {
+            this.params.cacheUpdateErrorHandler(err, undefined, this.loaders[cacheIndex])
+          })
+      )
     })
+
+    return Promise.all(promises)
+  }
+
+  public invalidateCacheFor(key: string) {
+    const promises: Promise<any>[] = []
+
+    this.cacheIndexes.forEach((cacheIndex) => {
+      promises.push(
+        Promise.resolve()
+          .then(() => {
+            return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).delete(key)
+          })
+          .catch((err) => {
+            this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex])
+          })
+      )
+    })
+    return Promise.all(promises)
   }
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
