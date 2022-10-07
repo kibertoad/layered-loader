@@ -1,14 +1,14 @@
-import Redis from 'ioredis'
+import Redis, { RedisOptions } from 'ioredis'
 import { RedisCache } from '../lib/redis/RedisCache'
 
-const redisOptions: Redis.RedisOptions = {
+const redisOptions: RedisOptions = {
   host: 'localhost',
   port: 6379,
   password: 'sOmE_sEcUrE_pAsS',
 }
 
 describe('RedisCache', () => {
-  let redis: Redis.Redis
+  let redis: Redis
   beforeEach(async () => {
     redis = new Redis(redisOptions)
   })
@@ -52,6 +52,8 @@ describe('RedisCache', () => {
     it('sets json values correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
+        prefix: 'cache',
+        ttlInMsecs: 5000,
       })
       await cache.set('key', { value: 'value' })
       await cache.set('key2', { value: 'value2' })
@@ -67,6 +69,7 @@ describe('RedisCache', () => {
       const cache = new RedisCache(redis, {
         json: true,
         ttlInMsecs: 10000,
+        prefix: 'cache:',
       })
       await cache.set('key', { value: 'value' })
       await cache.set('key2', { value: 'value2' })
