@@ -53,7 +53,6 @@ describe('RedisCache', () => {
       const cache = new RedisCache(redis, {
         json: true,
         prefix: 'cache',
-        ttlInMsecs: 5000,
       })
       await cache.set('key', { value: 'value' })
       await cache.set('key2', { value: 'value2' })
