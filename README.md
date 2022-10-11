@@ -120,4 +120,3 @@ It has following configuration options:
 `LoadingOperation` and `InMemoryCache` support both browser and Node.js (ES6 support is required);
 `RedisCache` only works in Node.js;
 Tree-shaking should work correctly, but wasn't tested.
-
