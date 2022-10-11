@@ -97,6 +97,30 @@ LoadingOperation provides following methods:
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
 - `get(key: string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
 
+## Cache-only operations
+
+Sometimes you may want to avoid implementing loader in the chain (e. g. when retrieval is too complex to be fit into a single key paradigm),
+while still having a sequence of caches. In that case you can define a caching operation:
+
+```ts
+const operation = new CachingOperation<string>([
+  new InMemoryCache<string>({
+    ttlInMsecs: 1000 * 60,
+    maxItems: 100,
+  }), // this cache will be checked first
+  new RedisCache(ioRedis, {
+    json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+    ttlInMsecs: 1000 * 60 * 10,
+  }), // this cache will be checked second
+])
+
+// this will populate all caches
+await operation.set('1', 'someValue')
+
+// If any of the caches are still populated at the moment of this operation, 'someValue' will propagate across all caches 
+const classifier = await operation.get('1')
+```
+
 ## Provided caches
 
 ### InMemoryCache
