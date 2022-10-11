@@ -22,6 +22,9 @@
     "prettier": "prettier --write \"{lib,test}/**/*.{js,ts}\" index.ts",
     "prepublishOnly": "npm run build"
   },
+  "engines": {
+    "node": ">=16"
+  },
   "repository": {
     "type": "git",
     "url": "git://github.com/kibertoad/layered-loader.git"

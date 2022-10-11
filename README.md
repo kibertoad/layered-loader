@@ -6,6 +6,10 @@
 
 Data source agnostic data loader with support for caching and fallback data sources.
 
+## Prerequisites
+
+Node: 16+
+
 ## Use-cases
 
 This library has three main goals:
@@ -35,32 +39,33 @@ Let's define a loader, which will be the primary source of truth, and two levels
 ```ts
 import Redis from 'ioredis'
 import { RedisCache } from 'layered-loader/dist/lib/redis'
-import { InMemoryCache } from "layered-loader/dist/lib/memory";
+import { InMemoryCache } from 'layered-loader/dist/lib/memory'
 import type { Loader } from 'layered-loader'
 
 const ioRedis = new Redis({
-    host: 'localhost',
-    port: 6379,
-    password: 'sOmE_sEcUrE_pAsS',
+  host: 'localhost',
+  port: 6379,
+  password: 'sOmE_sEcUrE_pAsS',
 })
 
 class ClassifiersLoader implements Loader<Record<string, any>> {
-    private readonly db: Knex
-    name = 'Classifiers DB loader'
-    isCache = false
+  private readonly db: Knex
+  name = 'Classifiers DB loader'
+  isCache = false
 
-    constructor(db: Knex) {
-        this.db = db
-    }
+  constructor(db: Knex) {
+    this.db = db
+  }
 
-    async get(key: string): Promise<Record<string, any> | undefined | null> {
-        const results = await this.db('classifiers').select('*').where({
-            id: parseInt(key),
-        })
-        return results[0]
-    }
+  async get(key: string): Promise<Record<string, any> | undefined | null> {
+    const results = await this.db('classifiers')
+      .select('*')
+      .where({
+        id: parseInt(key),
+      })
+    return results[0]
+  }
 }
-
 
 const operation = new LoadingOperation<string>([
   new InMemoryCache<string>({
@@ -82,21 +87,22 @@ const classifier = await operation.get('1')
 
 LoadingOperation has the following config parameters:
 
-* `throwIfUnresolved: boolean` - if true, error will be thrown if all data sources return `undefined`;
-* `cacheUpdateErrorHandler: LoaderErrorHandler` - error handler to use when cache throws an error during update;
-* `loadErrorHandler: LoaderErrorHandler` - error handler to use when non-last data source throws an error during data retrieval. 
+- `throwIfUnresolved: boolean` - if true, error will be thrown if all data sources return `undefined`;
+- `cacheUpdateErrorHandler: LoaderErrorHandler` - error handler to use when cache throws an error during update;
+- `loadErrorHandler: LoaderErrorHandler` - error handler to use when non-last data source throws an error during data retrieval.
 
 LoadingOperation provides following methods:
 
-* `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this LoadingOperation;
-* `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
-* `get(key: string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
+- `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this LoadingOperation;
+- `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
+- `get(key: string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
 
 ## Provided caches
 
 ### InMemoryCache
 
 In order to use `InMemoryCache`, please install `tiny-lru`:
+
 ```shell
 npm install 'tiny-lru' --save
 ```
@@ -104,16 +110,16 @@ npm install 'tiny-lru' --save
 `InMemoryCache` stores data in-memory, and as such is not recommended for usage in highly-distributed systems for data that is modified frequently.
 It has following configuration options:
 
-* `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
-* `maxItems: number` - what is the maximum amount of items that can be retained in cache at the same time. Entries are being evoked based on LRU (least recently used) principle.
+- `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
+- `maxItems: number` - what is the maximum amount of items that can be retained in cache at the same time. Entries are being evoked based on LRU (least recently used) principle.
 
 ### RedisCache
 
 `RedisCache` uses Redis for caching data, and is recommended for highly distributed systems. It requires an active instance of `ioredis`, and it does not perform any connection/disconnection operations on its own.
 It has following configuration options:
 
-* `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
-* `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`.
+- `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
+- `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`.
 
 ## Supported environments
 
