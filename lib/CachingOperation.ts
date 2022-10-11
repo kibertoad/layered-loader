@@ -20,8 +20,9 @@ export class CachingOperation<LoadedValue> {
   private readonly cacheIndexes: readonly number[]
   private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
-  constructor(caches: readonly Cache<LoadedValue>[], params: CachingOperationConfig = DEFAULT_CONFIG) {
+  constructor(caches: readonly Cache<LoadedValue>[], params: Partial<CachingOperationConfig> = DEFAULT_CONFIG) {
     this.params = {
+      ...DEFAULT_CONFIG,
       ...params,
     }
     this.caches = caches
