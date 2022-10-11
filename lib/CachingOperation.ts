@@ -1,24 +1,27 @@
 import { Cache } from './DataSources'
 import { DEFAULT_CACHE_ERROR_HANDLER, DEFAULT_LOAD_ERROR_HANDLER, LoaderErrorHandler } from './LoadingOperation'
 import { defaultLogger, Logger } from './Logger'
+import { LRU, lru } from 'tiny-lru'
 
 export type CachingOperationConfig = {
   logger: Logger
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
+  loadingOperationMemorySize: number
 }
 
 const DEFAULT_CONFIG: CachingOperationConfig = {
   logger: defaultLogger,
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
+  loadingOperationMemorySize: 100,
 }
 
 export class CachingOperation<LoadedValue> {
   private readonly params: CachingOperationConfig
   private readonly caches: readonly Cache<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
-  private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
+  private readonly runningLoads: LRU<Promise<LoadedValue | undefined | null> | undefined>
 
   constructor(caches: readonly Cache<LoadedValue>[], params: Partial<CachingOperationConfig> = DEFAULT_CONFIG) {
     this.params = {
@@ -26,7 +29,7 @@ export class CachingOperation<LoadedValue> {
       ...params,
     }
     this.caches = caches
-    this.runningLoads = new Map()
+    this.runningLoads = lru(params.loadingOperationMemorySize, 0)
     this.cacheIndexes = caches.reduce((result, _value, index) => {
       result.push(index)
       return result

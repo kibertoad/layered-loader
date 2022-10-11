@@ -1,6 +1,6 @@
 import { Cache, CacheConfiguration, Loader } from '../DataSources'
 import type { LRU } from 'tiny-lru'
-let TinyLru: any
+import { lru } from 'tiny-lru'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
   maxItems: number
@@ -17,16 +17,7 @@ export class InMemoryCache<T> implements Cache<T>, Loader<T> {
   isCache = true
 
   constructor(config: InMemoryCacheConfiguration = DefaultConfiguration) {
-    /* istanbul ignore next */
-    if (!TinyLru) {
-      try {
-        TinyLru = require('tiny-lru').lru
-      } catch (err) {
-        throw new Error("In order to use InMemoryCache, please run \n$ npm install 'tiny-lru' --save")
-      }
-    }
-
-    this.cache = TinyLru(config.maxItems, config.ttlInMsecs)
+    this.cache = lru(config.maxItems, config.ttlInMsecs)
   }
 
   async clear(): Promise<void> {
