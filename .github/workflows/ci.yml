@@ -2,9 +2,6 @@
 name: ci
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -24,7 +21,7 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v3.3.0
+        uses: actions/setup-node@v3
         with:
           always-auth: false
           node-version: ${{ matrix.node-version }}
