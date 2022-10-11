@@ -90,7 +90,7 @@ export class LoadingOperation<LoadedValue> {
 
           // if last loader, fail
           if (index === this.loaders.length - 1) {
-            throw new Error(`Failed to resolve value for key "${key}": ${err.message}`)
+            throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
           }
         })
 
