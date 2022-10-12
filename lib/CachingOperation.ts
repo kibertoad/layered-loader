@@ -8,6 +8,7 @@ export type CachingOperationConfig = {
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
   loadingOperationMemorySize: number
+  loadingOperationMememoryTtl: number
 }
 
 const DEFAULT_CONFIG: CachingOperationConfig = {
@@ -15,6 +16,7 @@ const DEFAULT_CONFIG: CachingOperationConfig = {
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
   loadingOperationMemorySize: 100,
+  loadingOperationMememoryTtl: 1000 * 30,
 }
 
 export class CachingOperation<LoadedValue> {
@@ -29,7 +31,7 @@ export class CachingOperation<LoadedValue> {
       ...params,
     }
     this.caches = caches
-    this.runningLoads = lru(params.loadingOperationMemorySize, 0)
+    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMememoryTtl)
     this.cacheIndexes = caches.reduce((result, _value, index) => {
       result.push(index)
       return result
@@ -38,6 +40,7 @@ export class CachingOperation<LoadedValue> {
 
   public invalidateCache() {
     const promises: Promise<any>[] = []
+    this.runningLoads.clear()
 
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
@@ -56,6 +59,7 @@ export class CachingOperation<LoadedValue> {
 
   public invalidateCacheFor(key: string) {
     const promises: Promise<any>[] = []
+    this.runningLoads.delete(key)
 
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
@@ -114,21 +118,15 @@ export class CachingOperation<LoadedValue> {
       return existingLoad
     }
 
-    const loadingPromise = new Promise<LoadedValue | undefined | null>((resolve, reject) => {
-      this.resolveValue(key)
-        .then((resolvedValue) => {
-          this.runningLoads.set(key, undefined)
-          return resolve(resolvedValue)
-        })
-        .catch(reject)
-    })
-
+    const loadingPromise = this.resolveValue(key)
     this.runningLoads.set(key, loadingPromise)
     return loadingPromise
   }
 
   public async set(key: string, resolvedValue: LoadedValue): Promise<void> {
     const promises = []
+    this.runningLoads.delete(key)
+
     for (let cache of this.caches) {
       const promise = Promise.resolve()
         .then(() => {
