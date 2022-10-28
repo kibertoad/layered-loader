@@ -44,7 +44,7 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "tiny-lru": "^9.0.3"
+    "tiny-lru": "^10.0.0"
   },
   "devDependencies": {
     "@types/jest": "^29.1.2",
