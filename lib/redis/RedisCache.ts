@@ -32,12 +32,20 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
       return originalPromise
     }
 
-    const timeout = new Promise((resolve) => setTimeout(resolve, this.config.timeout, TIMEOUT))
+    let storedReject: (reason?: any) => void
+    let storedTimeout: any
+    const timeout = new Promise((resolve, reject) => {
+      storedReject = reject
+      storedTimeout = setTimeout(resolve, this.config.timeout, TIMEOUT)
+    })
     const result = await Promise.race([timeout, originalPromise])
 
     if (result === TIMEOUT) {
       throw new RedisTimeoutError()
     }
+    // @ts-ignore
+    storedReject(undefined)
+    clearTimeout(storedTimeout)
     return result as T
   }
 
