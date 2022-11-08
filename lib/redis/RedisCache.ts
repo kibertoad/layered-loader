@@ -43,9 +43,11 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     if (result === TIMEOUT) {
       throw new RedisTimeoutError()
     }
-    // @ts-ignore
-    storedReject(undefined)
-    clearTimeout(storedTimeout)
+
+    if (storedReject) {
+      storedReject(undefined)
+      clearTimeout(storedTimeout)
+    }
     return result as T
   }
 
