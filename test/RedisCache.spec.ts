@@ -16,6 +16,24 @@ describe('RedisCache', () => {
     await redis.disconnect()
   })
 
+  describe('get', () => {
+    it('retrieves value with timeout', async () => {
+      const cache = new RedisCache(redis, {
+        json: false,
+        timeout: 9999999,
+        prefix: 'cache',
+      })
+      await cache.set('key', 'value')
+      await cache.set('key2', 'value2')
+
+      const value1 = await cache.get('key')
+      const value2 = await cache.get('key2')
+
+      expect(value1).toEqual('value')
+      expect(value2).toEqual('value2')
+    })
+  })
+
   describe('clear', () => {
     it('clears values correctly', async () => {
       const cache = new RedisCache(redis)

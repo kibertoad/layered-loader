@@ -144,6 +144,7 @@ It has following configuration options:
 
 - `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
 - `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`.
+- `timeout?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 
 ## Supported environments
 
