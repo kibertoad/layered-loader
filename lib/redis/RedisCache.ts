@@ -33,10 +33,8 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     }
 
     const timeout = new Promise((resolve) => setTimeout(resolve, this.config.timeout, TIMEOUT))
+    const result = await Promise.race([timeout, originalPromise])
 
-    const wrappedPromise = Promise.race([timeout, originalPromise])
-
-    const result = await wrappedPromise
     if (result === TIMEOUT) {
       throw new RedisTimeoutError()
     }
