@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration, Loader } from '../DataSources'
+import {Cache, CacheConfiguration, KeyConfiguration, Loader} from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 
@@ -55,12 +55,17 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     await this.executeWithTimeout(this.redis.flushdb())
   }
 
-  async delete(key: string): Promise<void> {
-    await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
+  async delete(key: string, config?: KeyConfiguration): Promise<void> {
+    if (!config?.group) {
+      await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
+    } else {
+      const itemsInGroup = await this.executeWithTimeout(this.redis.keys(this.resolveKeyGroupPattern(config.group)))
+      await this.executeWithTimeout(this.redis.del(itemsInGroup))
+    }
   }
 
-  async get(key: string): Promise<T | undefined> {
-    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKey(key)))
+  async get(key: string, config?: KeyConfiguration): Promise<T | undefined> {
+    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKey(key, config?.group)))
     if (redisResult && this.config.json) {
       return JSON.parse(redisResult)
     }
@@ -74,17 +79,21 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     return redisResult as unknown as T
   }
 
-  async set(key: string, value: T | null): Promise<void> {
+  async set(key: string, value: T | null, config?: CacheConfiguration): Promise<void> {
     const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
 
     if (this.config.ttlInMsecs) {
-      await this.executeWithTimeout(this.redis.set(this.resolveKey(key), resolvedValue, 'PX', this.config.ttlInMsecs))
+      await this.executeWithTimeout(this.redis.set(this.resolveKey(key, config?.group), resolvedValue, 'PX', this.config.ttlInMsecs))
       return
     }
-    await this.executeWithTimeout(this.redis.set(this.resolveKey(key), resolvedValue))
+    await this.executeWithTimeout(this.redis.set(this.resolveKey(key, config?.group), resolvedValue))
   }
 
-  resolveKey(key: string) {
-    return `${this.config.prefix}${key}`
+  resolveKey(key: string, group = '') {
+    return `${this.config.prefix}${group}${key}`
+  }
+
+  resolveKeyGroupPattern(group: string) {
+    return `${this.config.prefix}${group}*`
   }
 }

@@ -64,6 +64,26 @@ describe('RedisCache', () => {
       expect(value1).toBeUndefined()
       expect(value2).toBe('value2')
     })
+
+    it('deletes values matching the group pattern', async () => {
+      const cache = new RedisCache(redis)
+      await cache.set('key', 'value', { group: 'team1:' })
+      await cache.set('key2', 'value2', { group: 'team1:' })
+      await cache.set('key', 'value', { group: 'team2:' })
+      await cache.set('key2', 'value2', { group: 'team2:' })
+
+      await cache.delete('key', { group: 'team2:' })
+
+      const value1t1 = await cache.get('key', { group: 'team1:' })
+      const value2t1 = await cache.get('key2', { group: 'team1:' })
+      const value1t2 = await cache.get('key', { group: 'team2:' })
+      const value2t2 = await cache.get('key2', { group: 'team2:' })
+
+      expect(value1t1).toBe('value')
+      expect(value2t1).toBe('value2')
+      expect(value1t2).toBeUndefined()
+      expect(value2t2).toBeUndefined()
+    })
   })
 
   describe('set', () => {
