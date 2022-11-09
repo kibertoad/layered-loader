@@ -21,9 +21,7 @@ describe('RedisCache timeout', () => {
       })
 
       const promise = cache.get('dummy')
-
       jest.advanceTimersByTime(30000)
-      await Promise.resolve()
 
       await expect(promise).rejects.toThrow('Redis timeout')
     })
@@ -38,9 +36,7 @@ describe('RedisCache timeout', () => {
       })
 
       const promise = cache.set('dummy', 'dummy')
-
       jest.advanceTimersByTime(30000)
-      await Promise.resolve()
 
       await expect(promise).rejects.toThrow('Redis timeout')
     })
@@ -55,9 +51,7 @@ describe('RedisCache timeout', () => {
       })
 
       const promise = cache.delete('dummy')
-
       jest.advanceTimersByTime(30000)
-      await Promise.resolve()
 
       await expect(promise).rejects.toThrow('Redis timeout')
     })
@@ -72,9 +66,7 @@ describe('RedisCache timeout', () => {
       })
 
       const promise = cache.clear()
-
       jest.advanceTimersByTime(30000)
-      await Promise.resolve()
 
       await expect(promise).rejects.toThrow('Redis timeout')
     })
