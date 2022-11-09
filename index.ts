@@ -1,5 +1,6 @@
 export { LoadingOperation } from './lib/LoadingOperation'
 export { CachingOperation } from './lib/CachingOperation'
+export { RedisTimeoutError } from './lib/redis/RedisTimeoutError'
 export type { LoadingOperationConfig } from './lib/LoadingOperation'
 export type { CachingOperationConfig } from './lib/CachingOperation'
 export type { Loader, Cache, CacheConfiguration } from './lib/DataSources'
