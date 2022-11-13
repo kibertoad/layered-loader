@@ -4,11 +4,13 @@ import { lru } from 'tiny-lru'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
   maxItems: number
+  maxGroups: number
 }
 
 const DefaultConfiguration: InMemoryCacheConfiguration = {
   ttlInMsecs: 1000 * 60 * 10,
   maxItems: 500,
+  maxGroups: 1000,
 }
 
 export class InMemoryCache<T> implements Cache<T>, Loader<T> {

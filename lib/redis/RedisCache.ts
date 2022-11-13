@@ -1,4 +1,4 @@
-import {Cache, CacheConfiguration, KeyConfiguration, Loader} from '../DataSources'
+import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 
@@ -8,23 +8,28 @@ export interface RedisCacheConfiguration extends CacheConfiguration {
   prefix: string
   json: boolean
   timeout?: number
+  separator?: string
 }
 
 const DefaultConfiguration: RedisCacheConfiguration = {
   json: false,
   prefix: 'layered-cache:',
   ttlInMsecs: 1000 * 60 * 10,
+  separator: ':',
 }
 
-export class RedisCache<T> implements Cache<T>, Loader<T> {
+export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   private readonly redis: Redis
   private readonly config: RedisCacheConfiguration
   name = 'Redis cache'
   isCache = true
 
-  constructor(redis: Redis, config: RedisCacheConfiguration = DefaultConfiguration) {
+  constructor(redis: Redis, config: Partial<RedisCacheConfiguration> = DefaultConfiguration) {
     this.redis = redis
-    this.config = config
+    this.config = {
+      ...DefaultConfiguration,
+      ...config,
+    }
   }
 
   private async executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
@@ -32,7 +37,7 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
       return originalPromise
     }
 
-    let storedReject: (reason?: any) => void
+    let storedReject = null
     let storedTimeout: any
     const timeout = new Promise((resolve, reject) => {
       storedReject = reject
@@ -45,27 +50,15 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     }
 
     if (storedReject) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
       storedReject(undefined)
       clearTimeout(storedTimeout)
     }
     return result as T
   }
 
-  async clear(): Promise<void> {
-    await this.executeWithTimeout(this.redis.flushdb())
-  }
-
-  async delete(key: string, config?: KeyConfiguration): Promise<void> {
-    if (!config?.group) {
-      await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
-    } else {
-      const itemsInGroup = await this.executeWithTimeout(this.redis.keys(this.resolveKeyGroupPattern(config.group)))
-      await this.executeWithTimeout(this.redis.del(itemsInGroup))
-    }
-  }
-
-  async get(key: string, config?: KeyConfiguration): Promise<T | undefined> {
-    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKey(key, config?.group)))
+  private postprocessResult(redisResult: string | null) {
     if (redisResult && this.config.json) {
       return JSON.parse(redisResult)
     }
@@ -79,21 +72,55 @@ export class RedisCache<T> implements Cache<T>, Loader<T> {
     return redisResult as unknown as T
   }
 
-  async set(key: string, value: T | null, config?: CacheConfiguration): Promise<void> {
-    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
-
-    if (this.config.ttlInMsecs) {
-      await this.executeWithTimeout(this.redis.set(this.resolveKey(key, config?.group), resolvedValue, 'PX', this.config.ttlInMsecs))
-      return
-    }
-    await this.executeWithTimeout(this.redis.set(this.resolveKey(key, config?.group), resolvedValue))
+  async clear(): Promise<void> {
+    await this.executeWithTimeout(this.redis.flushdb())
   }
 
-  resolveKey(key: string, group = '') {
-    return `${this.config.prefix}${group}${key}`
+  async deleteGroup(group: string) {
+    const itemsInGroup = await this.executeWithTimeout(this.redis.keys(this.resolveKeyGroupPattern(group)))
+    await this.executeWithTimeout(this.redis.del(itemsInGroup))
+  }
+
+  async delete(key: string): Promise<void> {
+    await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
+  }
+
+  async getFromGroup(key: string, group: string): Promise<T | undefined | null> {
+    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKeyWithGroup(key, group)))
+    return this.postprocessResult(redisResult)
+  }
+
+  async get(key: string): Promise<T | undefined> {
+    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKey(key)))
+    return this.postprocessResult(redisResult)
+  }
+
+  async set(key: string, value: T | null): Promise<void> {
+    await this.internalSet(this.resolveKey(key), value)
+  }
+
+  async setForGroup(key: string, value: T | null, group: string): Promise<void> {
+    await this.internalSet(this.resolveKeyWithGroup(key, group), value)
+  }
+
+  private async internalSet(resolvedKey: string, value: T | null) {
+    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
+    if (this.config.ttlInMsecs) {
+      await this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs))
+      return
+    }
+    await this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue))
+  }
+
+  resolveKey(key: string) {
+    return `${this.config.prefix}${this.config.separator}${key}`
+  }
+
+  resolveKeyWithGroup(key: string, group: string) {
+    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}${key}`
   }
 
   resolveKeyGroupPattern(group: string) {
-    return `${this.config.prefix}${group}*`
+    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}*`
   }
 }
