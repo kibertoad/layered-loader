@@ -1,4 +1,4 @@
-import Redis, { Callback, RedisKey, Result } from 'ioredis'
+import Redis, { Result } from 'ioredis'
 
 function createLongDelayPromise() {
   return new Promise((resolve) => setTimeout(resolve, 9999999))
@@ -9,19 +9,19 @@ export class FakeRedis extends Redis {
     super()
   }
 
-  connect(callback?: Callback<void>): Promise<void> {
+  connect(): Promise<void> {
     return Promise.resolve()
   }
 
-  get(key: RedisKey, callback?: Callback<string | null>): Result<any, any> {
+  get(): Result<any, any> {
     return createLongDelayPromise()
   }
 
-  set(key: RedisKey, value: string | Buffer | number): Result<any, any> {
+  set(): Result<any, any> {
     return createLongDelayPromise()
   }
 
-  del(...args): Result<number, any> {
+  del(): Result<number, any> {
     return createLongDelayPromise()
   }
 

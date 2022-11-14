@@ -8,15 +8,15 @@ export type CachingOperationConfig = {
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
   loadingOperationMemorySize: number
-  loadingOperationMememoryTtl: number
+  loadingOperationMemoryTtl: number
 }
 
-const DEFAULT_CONFIG: CachingOperationConfig = {
+export const DEFAULT_CACHING_OPERATION_CONFIG: CachingOperationConfig = {
   logger: defaultLogger,
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
   loadingOperationMemorySize: 100,
-  loadingOperationMememoryTtl: 1000 * 30,
+  loadingOperationMemoryTtl: 1000 * 30,
 }
 
 export class CachingOperation<LoadedValue> {
@@ -25,13 +25,16 @@ export class CachingOperation<LoadedValue> {
   private readonly cacheIndexes: readonly number[]
   private readonly runningLoads: LRU<Promise<LoadedValue | undefined | null> | undefined>
 
-  constructor(caches: readonly Cache<LoadedValue>[], params: Partial<CachingOperationConfig> = DEFAULT_CONFIG) {
+  constructor(
+    caches: readonly Cache<LoadedValue>[],
+    params: Partial<CachingOperationConfig> = DEFAULT_CACHING_OPERATION_CONFIG
+  ) {
     this.params = {
-      ...DEFAULT_CONFIG,
+      ...DEFAULT_CACHING_OPERATION_CONFIG,
       ...params,
     }
     this.caches = caches
-    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMememoryTtl)
+    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMemoryTtl)
     this.cacheIndexes = caches.reduce((result, _value, index) => {
       result.push(index)
       return result

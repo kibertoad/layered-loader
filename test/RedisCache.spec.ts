@@ -1,16 +1,12 @@
-import Redis, { RedisOptions } from 'ioredis'
+import Redis from 'ioredis'
 import { RedisCache } from '../lib/redis/RedisCache'
-
-const redisOptions: RedisOptions = {
-  host: 'localhost',
-  port: 6379,
-  password: 'sOmE_sEcUrE_pAsS',
-}
+import { redisOptions } from './utils/TestRedisConfig'
 
 describe('RedisCache', () => {
   let redis: Redis
   beforeEach(async () => {
     redis = new Redis(redisOptions)
+    await redis.flushall()
   })
   afterEach(async () => {
     await redis.disconnect()
@@ -22,6 +18,7 @@ describe('RedisCache', () => {
         json: false,
         timeout: 9999999,
         prefix: 'cache',
+        ttlInMsecs: undefined,
       })
       await cache.set('key', 'value')
       await cache.set('key2', 'value2')
@@ -63,6 +60,28 @@ describe('RedisCache', () => {
 
       expect(value1).toBeUndefined()
       expect(value2).toBe('value2')
+    })
+  })
+
+  describe('deleteGroup', () => {
+    it('deletes values matching the group pattern', async () => {
+      const cache = new RedisCache(redis)
+      await cache.setForGroup('key', 'value', 'team1')
+      await cache.setForGroup('key2', 'value2', 'team1')
+      await cache.setForGroup('key', 'value', 'team2')
+      await cache.setForGroup('key2', 'value2', 'team2')
+
+      await cache.deleteGroup('team2')
+
+      const value1t1 = await cache.getFromGroup('key', 'team1')
+      const value2t1 = await cache.getFromGroup('key2', 'team1')
+      const value1t2 = await cache.getFromGroup('key', 'team2')
+      const value2t2 = await cache.getFromGroup('key2', 'team2')
+
+      expect(value1t1).toBe('value')
+      expect(value2t1).toBe('value2')
+      expect(value1t2).toBeUndefined()
+      expect(value2t2).toBeUndefined()
     })
   })
 

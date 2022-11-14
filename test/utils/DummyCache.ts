@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration } from '../../lib/DataSources'
+import { Cache } from '../../lib/DataSources'
 
 export class DummyCache implements Cache<string> {
   private value: string | undefined
@@ -23,7 +23,7 @@ export class DummyCache implements Cache<string> {
     return Promise.resolve(undefined)
   }
 
-  set(_key: string, value: string | null, _config: CacheConfiguration | undefined): Promise<void> {
+  set(_key: string, value: string | null): Promise<void> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
   }
