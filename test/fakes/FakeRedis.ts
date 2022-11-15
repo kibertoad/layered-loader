@@ -25,6 +25,10 @@ export class FakeRedis extends Redis {
     return createLongDelayPromise()
   }
 
+  keys(): Result<number, any> {
+    return createLongDelayPromise()
+  }
+
   flushdb(): Result<any, any> {
     return createLongDelayPromise()
   }

@@ -1,6 +1,7 @@
 import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
+import { chunk } from '../utils/chunkUtils'
 
 const TIMEOUT = Symbol()
 
@@ -73,12 +74,19 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async clear(): Promise<void> {
-    await this.executeWithTimeout(this.redis.flushdb())
+    const cacheItems = await this.executeWithTimeout(this.redis.keys(this.resolveCachePattern()))
+    const chunks = chunk(cacheItems, 1000)
+    for (let chunk of chunks) {
+      await this.executeWithTimeout(this.redis.del(chunk))
+    }
   }
 
   async deleteGroup(group: string) {
     const itemsInGroup = await this.executeWithTimeout(this.redis.keys(this.resolveKeyGroupPattern(group)))
-    await this.executeWithTimeout(this.redis.del(itemsInGroup))
+    const chunks = chunk(itemsInGroup, 1000)
+    for (let chunk of chunks) {
+      await this.executeWithTimeout(this.redis.del(chunk))
+    }
   }
 
   async delete(key: string): Promise<void> {
@@ -122,5 +130,9 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
 
   resolveKeyGroupPattern(group: string) {
     return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}*`
+  }
+
+  resolveCachePattern() {
+    return `${this.config.prefix}${this.config.separator}*`
   }
 }
