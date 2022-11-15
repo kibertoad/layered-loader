@@ -32,7 +32,7 @@ describe('RedisCache', () => {
   })
 
   describe('clear', () => {
-    it('clears values correctly', async () => {
+    it('clears values', async () => {
       const cache = new RedisCache(redis)
       await cache.set('key', 'value')
       await cache.set('key2', 'value2')
@@ -45,10 +45,31 @@ describe('RedisCache', () => {
       expect(value1).toBeUndefined()
       expect(value2).toBeUndefined()
     })
+
+    it('does not clear values from other caches', async () => {
+      const cache = new RedisCache(redis, { prefix: 'c1' })
+      const cache2 = new RedisCache(redis, { prefix: 'c2' })
+      await cache.set('key', 'value')
+      await cache.set('key2', 'value2')
+      await cache2.set('key', 'value')
+      await cache2.set('key2', 'value2')
+
+      await cache.clear()
+
+      const valuec1v1 = await cache.get('key')
+      const valuec1v2 = await cache.get('key2')
+      const valuec2v1 = await cache2.get('key')
+      const valuec2v2 = await cache2.get('key2')
+
+      expect(valuec1v1).toBeUndefined()
+      expect(valuec1v2).toBeUndefined()
+      expect(valuec2v1).toBe('value')
+      expect(valuec2v2).toBe('value2')
+    })
   })
 
   describe('delete', () => {
-    it('deletes values correctly', async () => {
+    it('deletes values', async () => {
       const cache = new RedisCache(redis)
       await cache.set('key', 'value')
       await cache.set('key2', 'value2')

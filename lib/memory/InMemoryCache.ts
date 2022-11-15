@@ -54,6 +54,7 @@ export class InMemoryCache<T> implements Cache<T>, GroupedCache<T>, Loader<T> {
 
   async clear(): Promise<void> {
     this.cache.clear()
+    this.groups.clear()
   }
 
   async delete(key: string): Promise<void> {
