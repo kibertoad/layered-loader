@@ -22,10 +22,13 @@ export class InMemoryCache<T> implements Cache<T>, GroupedCache<T>, Loader<T> {
   name = 'In-memory cache'
   isCache = true
 
-  constructor(config: InMemoryCacheConfiguration = DefaultConfiguration) {
+  constructor(config: Partial<InMemoryCacheConfiguration> = DefaultConfiguration) {
     this.cache = lru(config.maxItems, config.ttlInMsecs)
     this.groups = lru(config.maxGroups)
-    this.config = config
+    this.config = {
+      ...DefaultConfiguration,
+      ...config,
+    }
   }
 
   private resolveGroup(groupId: string) {

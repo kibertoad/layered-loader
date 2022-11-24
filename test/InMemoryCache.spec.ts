@@ -3,7 +3,9 @@ import { InMemoryCache } from '../lib/memory/InMemoryCache'
 describe('InMemoryCache', () => {
   describe('clear', () => {
     it('clears values correctly', async () => {
-      const cache = new InMemoryCache()
+      const cache = new InMemoryCache({
+        ttlInMsecs: 9999,
+      })
       await cache.set('key', 'value')
       await cache.set('key2', 'value2')
 
