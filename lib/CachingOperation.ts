@@ -93,7 +93,7 @@ export class CachingOperation<LoadedValue> {
           }
         })
 
-      if (resolvedValue) {
+      if (resolvedValue !== undefined) {
         // update caches
         this.cacheIndexes
           .filter((cacheIndex) => {
@@ -109,9 +109,11 @@ export class CachingOperation<LoadedValue> {
               })
           })
 
+        this.runningLoads.delete(key)
         return resolvedValue
       }
     }
+    this.runningLoads.delete(key)
     return undefined
   }
 

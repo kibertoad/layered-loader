@@ -3,6 +3,7 @@ import { ThrowingCache } from './utils/ThrowingCache'
 import { CachingOperation } from '../lib/CachingOperation'
 import { DummyCache } from './utils/DummyCache'
 import { CountingCache } from './utils/CountingCache'
+import { TemporaryThrowingCache } from './utils/TemporaryThrowingCache'
 
 describe('CachingOperation', () => {
   beforeEach(() => {
@@ -29,7 +30,7 @@ describe('CachingOperation', () => {
       expect(result).toBe(undefined)
     })
 
-    it('correctly handles error during load', async () => {
+    it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new CachingOperation([new ThrowingCache()])
 
@@ -37,6 +38,39 @@ describe('CachingOperation', () => {
         return operation.get('value')
       }).rejects.toThrow(/Error has occurred/)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets loading operation after value was not found previously', async () => {
+      const cache = new DummyCache(undefined)
+      const operation = new CachingOperation([cache], {
+        loadingOperationMemoryTtl: 999999,
+      })
+
+      const value = await operation.get('dummy')
+      expect(value).toBeUndefined()
+
+      cache.value = null
+      const value2 = await operation.get('dummy')
+      expect(value2).toBeNull()
+
+      cache.value = 'value'
+      const value3 = await operation.get('dummy')
+      expect(value3).toBe('value')
+    })
+
+    it('resets loading operation after error during load', async () => {
+      const cache = new TemporaryThrowingCache('value')
+      const operation = new CachingOperation([cache], {
+        loadingOperationMemoryTtl: 999999,
+      })
+
+      await expect(() => {
+        return operation.get('value')
+      }).rejects.toThrow(/Error has occurred/)
+
+      cache.isThrowing = false
+      const value = await operation.get('dummy')
+      expect(value).toBe('value')
     })
 
     it('correctly handles error during cache update', async () => {

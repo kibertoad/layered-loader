@@ -1,7 +1,7 @@
 import { Loader } from '../../lib/DataSources'
 
 export class DummyLoader implements Loader<string> {
-  private readonly value: string | undefined
+  value: string | undefined | null
   name = 'Dummy loader'
   isCache = false
 

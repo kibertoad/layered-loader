@@ -8,7 +8,7 @@ export type LoadingOperationConfig = {
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
   loadingOperationMemorySize: number
-  loadingOperationMememoryTtl: number
+  loadingOperationMemoryTtl: number
 }
 
 export type LoaderErrorHandler = (err: Error, key: string | undefined, loader: Loader<any>, logger: Logger) => void
@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: LoadingOperationConfig = {
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
   loadingOperationMemorySize: 100,
-  loadingOperationMememoryTtl: 1000 * 30,
+  loadingOperationMemoryTtl: 1000 * 30,
 }
 
 export class LoadingOperation<LoadedValue> {
@@ -42,7 +42,7 @@ export class LoadingOperation<LoadedValue> {
       ...params,
     }
     this.loaders = loaders
-    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMememoryTtl)
+    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMemoryTtl)
 
     this.cacheIndexes = loaders.reduce((result, value, index) => {
       if (value.isCache) {
@@ -104,7 +104,7 @@ export class LoadingOperation<LoadedValue> {
           }
         })
 
-      if (resolvedValue) {
+      if (resolvedValue !== undefined) {
         // update caches
         this.cacheIndexes
           .filter((cacheIndex) => {
@@ -138,7 +138,8 @@ export class LoadingOperation<LoadedValue> {
           if (resolvedValue === undefined && this.params.throwIfUnresolved) {
             return reject(new Error(`Failed to resolve value for key "${key}"`))
           }
-          return resolve(resolvedValue)
+          resolve(resolvedValue)
+          this.runningLoads.delete(key)
         })
         .catch(reject)
     })
