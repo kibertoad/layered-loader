@@ -4,6 +4,7 @@ import { DummyLoader } from './utils/DummyLoader'
 import { CountingLoader } from './utils/CountingLoader'
 import { ThrowingLoader } from './utils/ThrowingLoader'
 import { ThrowingCache } from './utils/ThrowingCache'
+import { TemporaryThrowingLoader } from './utils/TemporaryThrowingLoader'
 
 describe('LoadingOperation', () => {
   beforeEach(() => {
@@ -29,7 +30,7 @@ describe('LoadingOperation', () => {
       }).rejects.toThrow(/Failed to resolve value for key "value"/)
     })
 
-    it('correctly handles error during load', async () => {
+    it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new LoadingOperation([new ThrowingLoader()])
 
@@ -37,6 +38,39 @@ describe('LoadingOperation', () => {
         return operation.get('value')
       }).rejects.toThrow(/Error has occurred/)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets loading operation after value was not found previously', async () => {
+      const loader = new DummyLoader(undefined)
+      const operation = new LoadingOperation([loader], {
+        loadingOperationMemoryTtl: 999999,
+      })
+
+      const value = await operation.get('value')
+      expect(value).toBeUndefined()
+
+      loader.value = null
+      const value2 = await operation.get('value')
+      expect(value2).toBeNull()
+
+      loader.value = 'value'
+      const value3 = await operation.get('dummy')
+      expect(value3).toBe('value')
+    })
+
+    it('resets loading operation after error during load', async () => {
+      const loader = new TemporaryThrowingLoader('value')
+      const operation = new LoadingOperation([loader], {
+        loadingOperationMemoryTtl: 999999,
+      })
+
+      await expect(() => {
+        return operation.get('value')
+      }).rejects.toThrow(/Error has occurred/)
+
+      loader.isThrowing = false
+      const value = await operation.get('dummy')
+      expect(value).toBe('value')
     })
 
     it('correctly handles error during cache update', async () => {

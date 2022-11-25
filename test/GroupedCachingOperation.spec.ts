@@ -34,6 +34,21 @@ const userValues = {
   },
 }
 
+const userValuesUndefined = {
+  [user1.companyId]: {},
+  [user3.companyId]: {},
+}
+
+const userValuesNull = {
+  [user1.companyId]: {
+    [user1.userId]: null,
+    [user2.userId]: null,
+  },
+  [user3.companyId]: {
+    [user3.userId]: null,
+  },
+}
+
 describe('GroupedCachingOperation', () => {
   let redis: Redis
 
@@ -70,7 +85,7 @@ describe('GroupedCachingOperation', () => {
       expect(result).toBe(undefined)
     })
 
-    it('handles error during load', async () => {
+    it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new GroupedCachingOperation([new ThrowingGroupedCache()])
 
@@ -78,6 +93,24 @@ describe('GroupedCachingOperation', () => {
         return operation.get('value', 'fake group')
       }).rejects.toThrow(/Error has occurred/)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets loading operation after value was not found previously', async () => {
+      const cache = new DummyGroupedCache(userValuesUndefined)
+      const operation = new GroupedCachingOperation([cache], {
+        loadingOperationMemoryTtl: 999999,
+      })
+
+      const value = await operation.get(user1.userId, user1.companyId)
+      expect(value).toBeUndefined()
+
+      cache.groupValues = userValuesNull
+      const value2 = await operation.get(user1.userId, user1.companyId)
+      expect(value2).toBeNull()
+
+      cache.groupValues = userValues
+      const value3 = await operation.get(user1.userId, user1.companyId)
+      expect(value3).toEqual({ companyId: '1', userId: '1' })
     })
 
     it('handles error during cache update', async () => {

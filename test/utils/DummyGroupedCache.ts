@@ -4,7 +4,7 @@ import { cloneDeep } from './cloneUtils'
 
 export class DummyGroupedCache implements GroupedCache<User> {
   private value: User | undefined
-  private groupValues: GroupValues
+  groupValues: GroupValues
 
   name = 'Dummy cache'
   isCache = true

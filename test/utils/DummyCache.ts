@@ -1,7 +1,7 @@
 import { Cache } from '../../lib/DataSources'
 
 export class DummyCache implements Cache<string> {
-  private value: string | undefined
+  value: string | undefined | null
   name = 'Dummy cache'
   isCache = true
 
