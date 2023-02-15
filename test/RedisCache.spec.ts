@@ -122,6 +122,40 @@ describe('RedisCache', () => {
       expect(value2).toEqual({ value: 'value2' })
     })
 
+    it('sets non-json boolean values correctly', async () => {
+      const cache = new RedisCache(redis, {
+        json: false,
+        prefix: 'cache',
+      })
+      await cache.set('key', true)
+      await cache.set('key2', false)
+
+      const value1 = await cache.get('key')
+      const value2 = await cache.get('key2')
+      const value3 = await cache.get('key3')
+
+      expect(value1).toEqual('true')
+      expect(value2).toEqual('false')
+      expect(value3).toEqual(undefined)
+    })
+
+    it('sets json boolean values correctly', async () => {
+      const cache = new RedisCache(redis, {
+        json: true,
+        prefix: 'cache',
+      })
+      await cache.set('key', true)
+      await cache.set('key2', false)
+
+      const value1 = await cache.get('key')
+      const value2 = await cache.get('key2')
+      const value3 = await cache.get('key3')
+
+      expect(value1).toEqual(true)
+      expect(value2).toEqual(false)
+      expect(value3).toEqual(undefined)
+    })
+
     it('sets expiration correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
