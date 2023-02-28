@@ -9,7 +9,7 @@ local current_value = redis.call('GET', key)
 -- If the field is not set, set it to 0 and return that value
 if current_value == false then
     redis.call('SET', key, 0)
-    redis.call('EXPIRE', key, ttl)
+    redis.call('PEXPIRE', key, ttl)
     return 0
 end
 
