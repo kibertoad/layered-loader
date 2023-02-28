@@ -34,8 +34,6 @@ jobs:
 
       - name: Run Tests
         run: npm run test
-        env:
-          CI: true
 
       - name: Stop Docker
         run: npm run docker:stop
