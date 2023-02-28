@@ -92,7 +92,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async deleteGroup(group: string) {
-    await this.redis.incrby(this.resolveGroupIndexPrefix(group), 1)
+    await this.redis.incr(this.resolveGroupIndexPrefix(group))
   }
 
   async delete(key: string): Promise<void> {
