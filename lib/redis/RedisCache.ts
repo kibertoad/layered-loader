@@ -1,7 +1,6 @@
 import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
-import { chunk } from '../utils/chunkUtils'
 
 const TIMEOUT = Symbol()
 
@@ -74,19 +73,25 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async clear(): Promise<void> {
-    const cacheItems = await this.executeWithTimeout(this.redis.keys(this.resolveCachePattern()))
-    const chunks = chunk(cacheItems, 1000)
-    for (let chunk of chunks) {
-      await this.executeWithTimeout(this.redis.del(chunk))
-    }
+    const pattern = this.resolveCachePattern()
+    let cursor = '0'
+    do {
+      const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
+
+      cursor = scanResults[0]
+      await this.executeWithTimeout(this.redis.del(scanResults[1]))
+    } while (cursor !== '0')
   }
 
   async deleteGroup(group: string) {
-    const itemsInGroup = await this.executeWithTimeout(this.redis.keys(this.resolveKeyGroupPattern(group)))
-    const chunks = chunk(itemsInGroup, 1000)
-    for (let chunk of chunks) {
-      await this.executeWithTimeout(this.redis.del(chunk))
-    }
+    const pattern = this.resolveKeyGroupPattern(group)
+    let cursor = '0'
+    do {
+      const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
+
+      cursor = scanResults[0]
+      await this.executeWithTimeout(this.redis.del(scanResults[1]))
+    } while (cursor !== '0')
   }
 
   async delete(key: string): Promise<void> {
