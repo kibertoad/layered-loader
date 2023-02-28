@@ -1,7 +1,7 @@
 import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
-import { SET_GROUP_INDEX_ATOMIC_SCRIPT } from './lua'
+import { SET_GROUP_INDEX_ATOMIC_SCRIPT_WITH_TTL, SET_GROUP_INDEX_ATOMIC_SCRIPT_WITHOUT_TTL } from './lua'
 
 const TIMEOUT = Symbol()
 const GROUP_INDEX_KEY = 'group-index'
@@ -32,8 +32,12 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       ...DefaultConfiguration,
       ...config,
     }
-    this.redis.defineCommand('getGroupIndexAtomic', {
-      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT,
+    this.redis.defineCommand('getGroupIndexAtomicWithTtl', {
+      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT_WITH_TTL,
+      numberOfKeys: 1,
+    })
+    this.redis.defineCommand('getGroupIndexAtomicWithoutTtl', {
+      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT_WITHOUT_TTL,
       numberOfKeys: 1,
     })
   }
@@ -127,11 +131,15 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async setForGroup(key: string, value: T | null, group: string): Promise<void> {
-    const currentGroupKey = await this.executeWithTimeout<string>(
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      this.redis.getGroupIndexAtomic(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
-    )
+    const getGroupKeyPromise = this.config.ttlInMsecs
+      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.redis.getGroupIndexAtomicWithTtl(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
+      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.redis.getGroupIndexAtomicWithoutTtl(this.resolveGroupIndexPrefix(group))
+
+    const currentGroupKey = await this.executeWithTimeout<string>(getGroupKeyPromise)
 
     const entryKey = this.resolveKeyWithGroup(key, group, currentGroupKey)
     await this.internalSet(entryKey, value)

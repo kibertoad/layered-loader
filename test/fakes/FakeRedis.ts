@@ -25,7 +25,11 @@ export class FakeRedis extends Redis {
     return createLongDelayPromise()
   }
 
-  getGroupIndexAtomic(): Result<number, any> {
+  getGroupIndexAtomicWithTtl(): Result<number, any> {
+    return createLongDelayPromise()
+  }
+
+  getGroupIndexAtomicWithoutTtl(): Result<number, any> {
     return createLongDelayPromise()
   }
 
