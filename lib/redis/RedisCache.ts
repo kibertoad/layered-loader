@@ -1,8 +1,10 @@
 import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
+import { SET_GROUP_INDEX_ATOMIC_SCRIPT } from './lua'
 
 const TIMEOUT = Symbol()
+const GROUP_INDEX_KEY = 'group-index'
 
 export interface RedisCacheConfiguration extends CacheConfiguration {
   prefix: string
@@ -30,6 +32,10 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       ...DefaultConfiguration,
       ...config,
     }
+    this.redis.defineCommand('getGroupIndexAtomic', {
+      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT,
+      numberOfKeys: 1,
+    })
   }
 
   private async executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
@@ -86,16 +92,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async deleteGroup(group: string) {
-    const pattern = this.resolveKeyGroupPattern(group)
-    let cursor = '0'
-    do {
-      const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
-
-      cursor = scanResults[0]
-      if (scanResults[1].length > 0) {
-        await this.executeWithTimeout(this.redis.del(scanResults[1]))
-      }
-    } while (cursor !== '0')
+    await this.redis.incrby(this.resolveGroupIndexPrefix(group), 1)
   }
 
   async delete(key: string): Promise<void> {
@@ -103,7 +100,14 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async getFromGroup(key: string, group: string): Promise<T | undefined | null> {
-    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKeyWithGroup(key, group)))
+    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(group)))
+    if (!currentGroupKey) {
+      return undefined
+    }
+
+    const redisResult = await this.executeWithTimeout(
+      this.redis.get(this.resolveKeyWithGroup(key, group, currentGroupKey))
+    )
     return this.postprocessResult(redisResult)
   }
 
@@ -117,7 +121,14 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   async setForGroup(key: string, value: T | null, group: string): Promise<void> {
-    await this.internalSet(this.resolveKeyWithGroup(key, group), value)
+    const currentGroupKey = await this.executeWithTimeout<string>(
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      this.redis.getGroupIndexAtomic(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
+    )
+
+    const entryKey = this.resolveKeyWithGroup(key, group, currentGroupKey)
+    await this.internalSet(entryKey, value)
   }
 
   private async internalSet(resolvedKey: string, value: T | null) {
@@ -133,15 +144,15 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return `${this.config.prefix}${this.config.separator}${key}`
   }
 
-  resolveKeyWithGroup(key: string, group: string) {
-    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}${key}`
-  }
-
-  resolveKeyGroupPattern(group: string) {
-    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}*`
+  resolveKeyWithGroup(key: string, group: string, groupIndexKey: string) {
+    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}${groupIndexKey}${this.config.separator}${key}`
   }
 
   resolveCachePattern() {
     return `${this.config.prefix}${this.config.separator}*`
+  }
+
+  resolveGroupIndexPrefix(group: string) {
+    return `${this.config.prefix}${this.config.separator}${GROUP_INDEX_KEY}${this.config.separator}${group}`
   }
 }

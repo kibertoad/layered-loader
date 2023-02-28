@@ -126,6 +126,7 @@ describe('RedisCache', () => {
 
     it('deletes values matching the group pattern', async () => {
       const cache = new RedisCache(redis)
+
       await cache.setForGroup('key', 'value', 'team1')
       await cache.setForGroup('key2', 'value2', 'team1')
       await cache.setForGroup('key', 'value', 'team2')
