@@ -1,7 +1,7 @@
 import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
-import { SET_GROUP_INDEX_ATOMIC_SCRIPT_WITH_TTL, SET_GROUP_INDEX_ATOMIC_SCRIPT_WITHOUT_TTL } from './lua'
+import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 
 const TIMEOUT = Symbol()
 const GROUP_INDEX_KEY = 'group-index'
@@ -32,12 +32,12 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       ...DefaultConfiguration,
       ...config,
     }
-    this.redis.defineCommand('getGroupIndexAtomicWithTtl', {
-      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT_WITH_TTL,
+    this.redis.defineCommand('getOrSetZeroWithTtl', {
+      lua: GET_OR_SET_ZERO_WITH_TTL,
       numberOfKeys: 1,
     })
-    this.redis.defineCommand('getGroupIndexAtomicWithoutTtl', {
-      lua: SET_GROUP_INDEX_ATOMIC_SCRIPT_WITHOUT_TTL,
+    this.redis.defineCommand('getOrSetZeroWithoutTtl', {
+      lua: GET_OR_SET_ZERO_WITHOUT_TTL,
       numberOfKeys: 1,
     })
   }
@@ -134,10 +134,10 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     const getGroupKeyPromise = this.config.ttlInMsecs
       ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getGroupIndexAtomicWithTtl(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
+        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
       : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getGroupIndexAtomicWithoutTtl(this.resolveGroupIndexPrefix(group))
+        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(group))
 
     const currentGroupKey = await this.executeWithTimeout<string>(getGroupKeyPromise)
 
