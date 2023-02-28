@@ -115,6 +115,15 @@ describe('RedisCache', () => {
   })
 
   describe('deleteGroup', () => {
+    it('clears empty group', async () => {
+      const cache = new RedisCache(redis)
+
+      await cache.deleteGroup('group2')
+
+      const value = await cache.getFromGroup('dummy', 'group2')
+      expect(value).toBeUndefined()
+    })
+
     it('deletes values matching the group pattern', async () => {
       const cache = new RedisCache(redis)
       await cache.setForGroup('key', 'value', 'team1')
