@@ -25,7 +25,7 @@ export class FakeRedis extends Redis {
     return createLongDelayPromise()
   }
 
-  keys(): Result<number, any> {
+  scan(): Result<number, any> {
     return createLongDelayPromise()
   }
 

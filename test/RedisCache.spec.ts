@@ -46,6 +46,15 @@ describe('RedisCache', () => {
       expect(value2).toBeUndefined()
     })
 
+    it('clears empty storage', async () => {
+      const cache = new RedisCache(redis)
+      await cache.clear()
+
+      const value1 = await cache.get('key')
+
+      expect(value1).toBeUndefined()
+    })
+
     it('clears chunked values', async () => {
       const cache = new RedisCache(redis)
       for (let x = 0; x < 1500; x++) {

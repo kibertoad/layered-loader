@@ -79,6 +79,9 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
 
       cursor = scanResults[0]
+      if (scanResults[1].length === 0) {
+        return
+      }
       await this.executeWithTimeout(this.redis.del(scanResults[1]))
     } while (cursor !== '0')
   }
@@ -90,6 +93,9 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
 
       cursor = scanResults[0]
+      if (scanResults[1].length === 0) {
+        return
+      }
       await this.executeWithTimeout(this.redis.del(scanResults[1]))
     } while (cursor !== '0')
   }
