@@ -126,6 +126,32 @@ describe('RedisCache', () => {
 
     it('deletes values matching the group pattern', async () => {
       const cache = new RedisCache(redis)
+
+      await cache.setForGroup('key', 'value', 'team1')
+      await cache.setForGroup('key2', 'value2', 'team1')
+      await cache.setForGroup('key', 'value', 'team2')
+      await cache.setForGroup('key2', 'value2', 'team2')
+
+      await cache.deleteGroup('team2')
+
+      const value1t1 = await cache.getFromGroup('key', 'team1')
+      const value2t1 = await cache.getFromGroup('key2', 'team1')
+      const value1t2 = await cache.getFromGroup('key', 'team2')
+      const value2t2 = await cache.getFromGroup('key2', 'team2')
+
+      expect(value1t1).toBe('value')
+      expect(value2t1).toBe('value2')
+      expect(value1t2).toBeUndefined()
+      expect(value2t2).toBeUndefined()
+    })
+
+    it('deletes values matching the group pattern without ttl', async () => {
+      const cache = new RedisCache(redis, {
+        json: false,
+        prefix: 'prefix',
+        ttlInMsecs: undefined,
+      })
+
       await cache.setForGroup('key', 'value', 'team1')
       await cache.setForGroup('key2', 'value2', 'team1')
       await cache.setForGroup('key', 'value', 'team2')

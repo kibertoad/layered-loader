@@ -25,6 +25,14 @@ export class FakeRedis extends Redis {
     return createLongDelayPromise()
   }
 
+  getOrSetZeroWithTtl(): Result<number, any> {
+    return createLongDelayPromise()
+  }
+
+  getOrSetZeroWithoutTtl(): Result<number, any> {
+    return createLongDelayPromise()
+  }
+
   scan(): Result<number, any> {
     return createLongDelayPromise()
   }
