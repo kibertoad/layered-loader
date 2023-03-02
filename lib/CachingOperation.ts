@@ -36,10 +36,8 @@ export class CachingOperation<LoadedValue> {
     }, [] as number[])
   }
 
-  public invalidateCache() {
+  public async invalidateCache() {
     const promises: Promise<any>[] = []
-    this.runningLoads.clear()
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -52,13 +50,12 @@ export class CachingOperation<LoadedValue> {
       )
     })
 
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.clear()
   }
 
-  public invalidateCacheFor(key: string) {
+  public async invalidateCacheFor(key: string) {
     const promises: Promise<any>[] = []
-    this.runningLoads.delete(key)
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -70,7 +67,8 @@ export class CachingOperation<LoadedValue> {
           })
       )
     })
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.delete(key)
   }
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {

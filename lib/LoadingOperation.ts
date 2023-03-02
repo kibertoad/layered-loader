@@ -47,10 +47,8 @@ export class LoadingOperation<LoadedValue> {
     }, [] as number[])
   }
 
-  public invalidateCache() {
+  public async invalidateCache() {
     const promises: Promise<any>[] = []
-    this.runningLoads.clear()
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -63,13 +61,12 @@ export class LoadingOperation<LoadedValue> {
       )
     })
 
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.clear()
   }
 
-  public invalidateCacheFor(key: string) {
+  public async invalidateCacheFor(key: string) {
     const promises: Promise<any>[] = []
-    this.runningLoads.delete(key)
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -81,7 +78,8 @@ export class LoadingOperation<LoadedValue> {
           })
       )
     })
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.delete(key)
   }
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
@@ -127,16 +125,12 @@ export class LoadingOperation<LoadedValue> {
       return existingLoad
     }
 
-    const loadingPromise = new Promise<LoadedValue | undefined | null>((resolve, reject) => {
-      this.resolveValue(key)
-        .then((resolvedValue) => {
-          if (resolvedValue === undefined && this.params.throwIfUnresolved) {
-            return reject(new Error(`Failed to resolve value for key "${key}"`))
-          }
-          resolve(resolvedValue)
-          this.runningLoads.delete(key)
-        })
-        .catch(reject)
+    const loadingPromise = this.resolveValue(key).then((resolvedValue) => {
+      if (resolvedValue === undefined && this.params.throwIfUnresolved) {
+        throw new Error(`Failed to resolve value for key "${key}"`)
+      }
+      this.runningLoads.delete(key)
+      return resolvedValue
     })
 
     this.runningLoads.set(key, loadingPromise)
