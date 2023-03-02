@@ -1,14 +1,11 @@
 import { Loader, Cache } from './DataSources'
 import { defaultLogger, Logger } from './Logger'
-import { lru, LRU } from 'tiny-lru'
 
 export type LoadingOperationConfig = {
   logger: Logger
   throwIfUnresolved: boolean
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
-  loadingOperationMemorySize: number
-  loadingOperationMemoryTtl: number
 }
 
 export type LoaderErrorHandler = (err: Error, key: string | undefined, loader: Loader<any>, logger: Logger) => void
@@ -26,15 +23,13 @@ const DEFAULT_CONFIG: LoadingOperationConfig = {
   throwIfUnresolved: false,
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
-  loadingOperationMemorySize: 100,
-  loadingOperationMemoryTtl: 1000 * 30,
 }
 
 export class LoadingOperation<LoadedValue> {
   private readonly params: LoadingOperationConfig
   private readonly loaders: readonly Loader<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
-  private readonly runningLoads: LRU<Promise<LoadedValue | undefined | null> | undefined>
+  private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
   constructor(loaders: readonly Loader<LoadedValue>[], params: Partial<LoadingOperationConfig> = DEFAULT_CONFIG) {
     this.params = {
@@ -42,7 +37,7 @@ export class LoadingOperation<LoadedValue> {
       ...params,
     }
     this.loaders = loaders
-    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMemoryTtl)
+    this.runningLoads = new Map()
 
     this.cacheIndexes = loaders.reduce((result, value, index) => {
       if (value.isCache) {

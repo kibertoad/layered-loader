@@ -1,23 +1,17 @@
 import { GroupedCache } from './DataSources'
-import { LRU, lru } from 'tiny-lru'
 import { CachingOperationConfig, DEFAULT_CACHING_OPERATION_CONFIG } from './CachingOperation'
 
-export type GroupedCachingOperationConfig = CachingOperationConfig & {
-  loadingOperationGroupsMemorySize: number
-  loadingOperationGroupsMemoryTtl: number
-}
+export type GroupedCachingOperationConfig = CachingOperationConfig
 
 export const DEFAULT_GROUPED_CACHING_OPERATION_CONFIG: GroupedCachingOperationConfig = {
   ...DEFAULT_CACHING_OPERATION_CONFIG,
-  loadingOperationGroupsMemorySize: 100,
-  loadingOperationGroupsMemoryTtl: 1000 * 30,
 }
 
 export class GroupedCachingOperation<LoadedValue> {
   private readonly params: GroupedCachingOperationConfig
   private readonly caches: readonly GroupedCache<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
-  private readonly runningLoads: LRU<LRU<Promise<LoadedValue | undefined | null> | undefined>>
+  private readonly runningLoads: Map<string, Map<string, Promise<LoadedValue | undefined | null> | undefined>>
 
   constructor(
     caches: readonly GroupedCache<LoadedValue>[],
@@ -28,7 +22,7 @@ export class GroupedCachingOperation<LoadedValue> {
       ...params,
     }
     this.caches = caches
-    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMemoryTtl)
+    this.runningLoads = new Map()
     this.cacheIndexes = caches.reduce((result, _value, index) => {
       result.push(index)
       return result
@@ -107,11 +101,11 @@ export class GroupedCachingOperation<LoadedValue> {
               })
           })
 
-        this.runningLoads.delete(key)
+        this.deleteGroupKey(group, key)
         return resolvedValue
       }
     }
-    this.runningLoads.delete(key)
+    this.deleteGroupKey(group, key)
     return undefined
   }
 
@@ -134,15 +128,22 @@ export class GroupedCachingOperation<LoadedValue> {
       return load
     }
 
-    const loadCache = lru(this.params.loadingOperationGroupsMemorySize, this.params.loadingOperationGroupsMemoryTtl)
+    const loadCache = new Map()
     this.runningLoads.set(group, loadCache)
     return loadCache
   }
 
-  public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {
-    const promises = []
+  private deleteGroupKey(group: string, key: string) {
     const groupLoads = this.resolveGroupLoads(group)
     groupLoads.delete(key)
+    if (groupLoads.size === 0) {
+      this.runningLoads.delete(group)
+    }
+  }
+
+  public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {
+    const promises = []
+    this.deleteGroupKey(group, key)
 
     for (let cache of this.caches) {
       const promise = Promise.resolve()

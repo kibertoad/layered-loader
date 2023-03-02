@@ -125,12 +125,6 @@ const classifier = await operation.get('1')
 
 ### InMemoryCache
 
-In order to use `InMemoryCache`, please install `tiny-lru`:
-
-```shell
-npm install 'tiny-lru' --save
-```
-
 `InMemoryCache` stores data in-memory, and as such is not recommended for usage in highly-distributed systems for data that is modified frequently.
 It has following configuration options:
 
