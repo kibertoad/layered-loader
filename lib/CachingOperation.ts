@@ -125,8 +125,6 @@ export class CachingOperation<LoadedValue> {
 
   public async set(key: string, resolvedValue: LoadedValue): Promise<void> {
     const promises = []
-    this.runningLoads.delete(key)
-
     for (let cache of this.caches) {
       const promise = Promise.resolve()
         .then(() => {
@@ -138,5 +136,6 @@ export class CachingOperation<LoadedValue> {
       promises.push(promise)
     }
     await Promise.all(promises)
+    this.runningLoads.delete(key)
   }
 }

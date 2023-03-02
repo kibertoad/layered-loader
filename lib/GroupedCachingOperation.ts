@@ -143,8 +143,6 @@ export class GroupedCachingOperation<LoadedValue> {
 
   public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {
     const promises = []
-    this.deleteGroupKey(group, key)
-
     for (let cache of this.caches) {
       const promise = Promise.resolve()
         .then(() => {
@@ -156,5 +154,6 @@ export class GroupedCachingOperation<LoadedValue> {
       promises.push(promise)
     }
     await Promise.all(promises)
+    this.deleteGroupKey(group, key)
   }
 }
