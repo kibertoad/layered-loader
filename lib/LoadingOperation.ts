@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: LoadingOperationConfig = {
 
 export class LoadingOperation<LoadedValue> {
   private readonly params: LoadingOperationConfig
-  private readonly loaders: readonly Loader<LoadedValue>[]
+  private readonly loaders: readonly (Loader<LoadedValue> | Cache<LoadedValue>)[]
   private readonly cacheIndexes: readonly number[]
   private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
@@ -36,6 +36,7 @@ export class LoadingOperation<LoadedValue> {
       ...DEFAULT_CONFIG,
       ...params,
     }
+    // @ts-ignore
     this.loaders = loaders
     this.runningLoads = new Map()
 
@@ -51,13 +52,10 @@ export class LoadingOperation<LoadedValue> {
     const promises: Promise<any>[] = []
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).clear()
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, undefined, this.loaders[cacheIndex], this.params.logger)
-          })
+        // @ts-ignore
+        this.loaders[cacheIndex].clear?.().catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, undefined, this.loaders[cacheIndex], this.params.logger)
+        })
       )
     })
 
@@ -69,13 +67,10 @@ export class LoadingOperation<LoadedValue> {
     const promises: Promise<any>[] = []
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).delete(key)
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex], this.params.logger)
-          })
+        // @ts-ignore
+        this.loaders[cacheIndex].delete?.(key).catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex], this.params.logger)
+        })
       )
     })
     await Promise.all(promises)
@@ -84,34 +79,27 @@ export class LoadingOperation<LoadedValue> {
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
     for (let index = 0; index < this.loaders.length; index++) {
-      const resolvedValue = await Promise.resolve()
-        .then(() => {
-          return this.loaders[index].get(key)
-        })
-        .catch((err) => {
-          this.params.loadErrorHandler(err, key, this.loaders[index], this.params.logger)
+      const resolvedValue = await this.loaders[index].get(key).catch((err) => {
+        this.params.loadErrorHandler(err, key, this.loaders[index], this.params.logger)
 
-          // if last loader, fail
-          if (index === this.loaders.length - 1) {
-            throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
-          }
-        })
+        // if last loader, fail
+        if (index === this.loaders.length - 1) {
+          throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
+        }
+      })
 
       if (resolvedValue !== undefined) {
+        const updatePromises = []
         // update caches
-        this.cacheIndexes
-          .filter((cacheIndex) => {
-            return cacheIndex < index
-          })
-          .forEach((cacheIndex) => {
-            Promise.resolve()
-              .then(() => {
-                return (this.loaders[cacheIndex] as unknown as Cache<LoadedValue>).set(key, resolvedValue)
-              })
-              .catch((err) => {
-                this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex], this.params.logger)
-              })
-          })
+        for (var cacheIndex = 0; cacheIndex < index; cacheIndex++) {
+          updatePromises.push(
+            // @ts-ignore
+            this.loaders[cacheIndex].set?.(key, resolvedValue).catch((err) => {
+              this.params.cacheUpdateErrorHandler(err, key, this.loaders[cacheIndex], this.params.logger)
+            })
+          )
+        }
+        await Promise.all(updatePromises)
 
         return resolvedValue
       }

@@ -12,7 +12,9 @@ export class TemporaryThrowingLoader implements Loader<string> {
 
   async get(): Promise<string | undefined | null> {
     if (this.isThrowing) {
-      throw new Error('Error has occurred')
+      return Promise.resolve().then(() => {
+        throw new Error('Error has occurred')
+      })
     }
     return this.returnedValue
   }

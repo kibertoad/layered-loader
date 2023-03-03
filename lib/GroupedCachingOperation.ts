@@ -35,17 +35,13 @@ export class GroupedCachingOperation<LoadedValue> {
 
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.caches[cacheIndex] as unknown as GroupedCache<LoadedValue>).clear()
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, undefined, this.caches[cacheIndex], this.params.logger)
-          })
+        this.caches[cacheIndex].clear().catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, undefined, this.caches[cacheIndex], this.params.logger)
+        })
       )
-    })
 
-    return Promise.all(promises)
+      return Promise.all(promises)
+    })
   }
 
   public invalidateCacheForGroup(group: string) {
@@ -54,13 +50,9 @@ export class GroupedCachingOperation<LoadedValue> {
 
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.caches[cacheIndex] as unknown as GroupedCache<LoadedValue>).deleteGroup(group)
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, `group: ${group}`, this.caches[cacheIndex], this.params.logger)
-          })
+        this.caches[cacheIndex].deleteGroup(group).catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, `group: ${group}`, this.caches[cacheIndex], this.params.logger)
+        })
       )
     })
     return Promise.all(promises)
@@ -68,44 +60,32 @@ export class GroupedCachingOperation<LoadedValue> {
 
   private async resolveValue(key: string, group: string): Promise<LoadedValue | undefined | null> {
     for (let index = 0; index < this.caches.length; index++) {
-      const resolvedValue = await Promise.resolve()
-        .then(() => {
-          return this.caches[index].getFromGroup(key, group)
-        })
-        .catch((err) => {
-          this.params.loadErrorHandler(err, key, this.caches[index], this.params.logger)
+      const resolvedValue = await this.caches[index].getFromGroup(key, group).catch((err) => {
+        this.params.loadErrorHandler(err, key, this.caches[index], this.params.logger)
 
-          // if last loader, fail
-          if (index === this.caches.length - 1) {
-            throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
-          }
-        })
+        // if last loader, fail
+        if (index === this.caches.length - 1) {
+          throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
+        }
+      })
 
       if (resolvedValue !== undefined) {
         // update caches
-        this.cacheIndexes
-          .filter((cacheIndex) => {
-            return cacheIndex < index
-          })
-          .forEach((cacheIndex) => {
-            Promise.resolve()
-              .then(() => {
-                return (this.caches[cacheIndex] as unknown as GroupedCache<LoadedValue>).setForGroup(
-                  key,
-                  resolvedValue,
-                  group
-                )
-              })
-              .catch((err) => {
-                this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
-              })
-          })
+        const updatePromises = []
+        for (var cacheIndex = 0; cacheIndex < index; cacheIndex++) {
+          updatePromises.push(
+            this.caches[cacheIndex].setForGroup(key, resolvedValue, group).catch((err) => {
+              this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
+            })
+          )
+        }
+        await Promise.all(updatePromises)
+        this.deleteGroupRunningLoad(group, key)
 
-        this.deleteGroupKey(group, key)
         return resolvedValue
       }
     }
-    this.deleteGroupKey(group, key)
+    this.deleteGroupRunningLoad(group, key)
     return undefined
   }
 
@@ -133,7 +113,7 @@ export class GroupedCachingOperation<LoadedValue> {
     return loadCache
   }
 
-  private deleteGroupKey(group: string, key: string) {
+  private deleteGroupRunningLoad(group: string, key: string) {
     const groupLoads = this.resolveGroupLoads(group)
     groupLoads.delete(key)
     if (groupLoads.size === 0) {
@@ -144,16 +124,12 @@ export class GroupedCachingOperation<LoadedValue> {
   public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {
     const promises = []
     for (let cache of this.caches) {
-      const promise = Promise.resolve()
-        .then(() => {
-          return cache.setForGroup(key, resolvedValue, group)
-        })
-        .catch((err) => {
-          this.params.cacheUpdateErrorHandler(err, key, cache, this.params.logger)
-        })
+      const promise = cache.setForGroup(key, resolvedValue, group).catch((err) => {
+        this.params.cacheUpdateErrorHandler(err, key, cache, this.params.logger)
+      })
       promises.push(promise)
     }
     await Promise.all(promises)
-    this.deleteGroupKey(group, key)
+    this.deleteGroupRunningLoad(group, key)
   }
 }

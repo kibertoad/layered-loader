@@ -97,9 +97,7 @@ describe('GroupedCachingOperation', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const cache = new DummyGroupedCache(userValuesUndefined)
-      const operation = new GroupedCachingOperation([cache], {
-        loadingOperationMemoryTtl: 999999,
-      })
+      const operation = new GroupedCachingOperation([cache], {})
 
       const value = await operation.get(user1.userId, user1.companyId)
       expect(value).toBeUndefined()

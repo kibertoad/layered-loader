@@ -40,13 +40,9 @@ export class CachingOperation<LoadedValue> {
     const promises: Promise<any>[] = []
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.caches[cacheIndex] as unknown as Cache<LoadedValue>).clear()
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, undefined, this.caches[cacheIndex], this.params.logger)
-          })
+        this.caches[cacheIndex].clear().catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, undefined, this.caches[cacheIndex], this.params.logger)
+        })
       )
     })
 
@@ -58,13 +54,9 @@ export class CachingOperation<LoadedValue> {
     const promises: Promise<any>[] = []
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
-        Promise.resolve()
-          .then(() => {
-            return (this.caches[cacheIndex] as unknown as Cache<LoadedValue>).delete(key)
-          })
-          .catch((err) => {
-            this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
-          })
+        this.caches[cacheIndex].delete(key).catch((err) => {
+          this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
+        })
       )
     })
     await Promise.all(promises)
@@ -73,36 +65,28 @@ export class CachingOperation<LoadedValue> {
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
     for (let index = 0; index < this.caches.length; index++) {
-      const resolvedValue = await Promise.resolve()
-        .then(() => {
-          return this.caches[index].get(key)
-        })
-        .catch((err) => {
-          this.params.loadErrorHandler(err, key, this.caches[index], this.params.logger)
+      const resolvedValue = await this.caches[index].get(key).catch((err) => {
+        this.params.loadErrorHandler(err, key, this.caches[index], this.params.logger)
 
-          // if last loader, fail
-          if (index === this.caches.length - 1) {
-            throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
-          }
-        })
+        // if last loader, fail
+        if (index === this.caches.length - 1) {
+          throw new Error(`Failed to resolve value for key "${key}": ${err.message}`, { cause: err })
+        }
+      })
 
       if (resolvedValue !== undefined) {
+        const updatePromises = []
         // update caches
-        this.cacheIndexes
-          .filter((cacheIndex) => {
-            return cacheIndex < index
-          })
-          .forEach((cacheIndex) => {
-            Promise.resolve()
-              .then(() => {
-                return (this.caches[cacheIndex] as unknown as Cache<LoadedValue>).set(key, resolvedValue)
-              })
-              .catch((err) => {
-                this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
-              })
-          })
-
+        for (var cacheIndex = 0; cacheIndex < index; cacheIndex++) {
+          updatePromises.push(
+            this.caches[cacheIndex].set(key, resolvedValue).catch((err) => {
+              this.params.cacheUpdateErrorHandler(err, key, this.caches[cacheIndex], this.params.logger)
+            })
+          )
+        }
+        await Promise.all(updatePromises)
         this.runningLoads.delete(key)
+
         return resolvedValue
       }
     }
@@ -124,13 +108,9 @@ export class CachingOperation<LoadedValue> {
   public async set(key: string, resolvedValue: LoadedValue): Promise<void> {
     const promises = []
     for (let cache of this.caches) {
-      const promise = Promise.resolve()
-        .then(() => {
-          return cache.set(key, resolvedValue)
-        })
-        .catch((err) => {
-          this.params.cacheUpdateErrorHandler(err, key, cache, this.params.logger)
-        })
+      const promise = cache.set(key, resolvedValue).catch((err) => {
+        this.params.cacheUpdateErrorHandler(err, key, cache, this.params.logger)
+      })
       promises.push(promise)
     }
     await Promise.all(promises)
