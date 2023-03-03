@@ -1,14 +1,11 @@
 import { Loader, Cache } from './DataSources'
 import { defaultLogger, Logger } from './Logger'
-import { lru, LRU } from 'tiny-lru'
 
 export type LoadingOperationConfig = {
   logger: Logger
   throwIfUnresolved: boolean
   cacheUpdateErrorHandler: LoaderErrorHandler
   loadErrorHandler: LoaderErrorHandler
-  loadingOperationMemorySize: number
-  loadingOperationMemoryTtl: number
 }
 
 export type LoaderErrorHandler = (err: Error, key: string | undefined, loader: Loader<any>, logger: Logger) => void
@@ -26,15 +23,13 @@ const DEFAULT_CONFIG: LoadingOperationConfig = {
   throwIfUnresolved: false,
   cacheUpdateErrorHandler: DEFAULT_CACHE_ERROR_HANDLER,
   loadErrorHandler: DEFAULT_LOAD_ERROR_HANDLER,
-  loadingOperationMemorySize: 100,
-  loadingOperationMemoryTtl: 1000 * 30,
 }
 
 export class LoadingOperation<LoadedValue> {
   private readonly params: LoadingOperationConfig
   private readonly loaders: readonly Loader<LoadedValue>[]
   private readonly cacheIndexes: readonly number[]
-  private readonly runningLoads: LRU<Promise<LoadedValue | undefined | null> | undefined>
+  private readonly runningLoads: Map<string, Promise<LoadedValue | undefined | null> | undefined>
 
   constructor(loaders: readonly Loader<LoadedValue>[], params: Partial<LoadingOperationConfig> = DEFAULT_CONFIG) {
     this.params = {
@@ -42,7 +37,7 @@ export class LoadingOperation<LoadedValue> {
       ...params,
     }
     this.loaders = loaders
-    this.runningLoads = lru(params.loadingOperationMemorySize, params.loadingOperationMemoryTtl)
+    this.runningLoads = new Map()
 
     this.cacheIndexes = loaders.reduce((result, value, index) => {
       if (value.isCache) {
@@ -52,10 +47,8 @@ export class LoadingOperation<LoadedValue> {
     }, [] as number[])
   }
 
-  public invalidateCache() {
+  public async invalidateCache() {
     const promises: Promise<any>[] = []
-    this.runningLoads.clear()
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -68,13 +61,12 @@ export class LoadingOperation<LoadedValue> {
       )
     })
 
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.clear()
   }
 
-  public invalidateCacheFor(key: string) {
+  public async invalidateCacheFor(key: string) {
     const promises: Promise<any>[] = []
-    this.runningLoads.delete(key)
-
     this.cacheIndexes.forEach((cacheIndex) => {
       promises.push(
         Promise.resolve()
@@ -86,7 +78,8 @@ export class LoadingOperation<LoadedValue> {
           })
       )
     })
-    return Promise.all(promises)
+    await Promise.all(promises)
+    this.runningLoads.delete(key)
   }
 
   private async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
@@ -132,16 +125,12 @@ export class LoadingOperation<LoadedValue> {
       return existingLoad
     }
 
-    const loadingPromise = new Promise<LoadedValue | undefined | null>((resolve, reject) => {
-      this.resolveValue(key)
-        .then((resolvedValue) => {
-          if (resolvedValue === undefined && this.params.throwIfUnresolved) {
-            return reject(new Error(`Failed to resolve value for key "${key}"`))
-          }
-          resolve(resolvedValue)
-          this.runningLoads.delete(key)
-        })
-        .catch(reject)
+    const loadingPromise = this.resolveValue(key).then((resolvedValue) => {
+      if (resolvedValue === undefined && this.params.throwIfUnresolved) {
+        throw new Error(`Failed to resolve value for key "${key}"`)
+      }
+      this.runningLoads.delete(key)
+      return resolvedValue
     })
 
     this.runningLoads.set(key, loadingPromise)
