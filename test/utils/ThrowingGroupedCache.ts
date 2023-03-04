@@ -1,4 +1,4 @@
-import { GroupedCache } from '../../lib/DataSources'
+import { GroupedCache } from '../../lib/types/DataSources'
 import { User } from './Types'
 
 export class ThrowingGroupedCache implements GroupedCache<User> {

@@ -19,6 +19,7 @@
     "test:everything": "npm run lint && npm run test:coverage",
     "test:coverage": "jest --coverage --runInBand",
     "lint": "eslint \"lib/**/*.ts\" \"test/**/*.ts\"",
+    "lint:fix": "eslint --fix \"lib/**/*.ts\" \"test/**/*.ts\"",
     "prettier": "prettier --write \"{lib,test}/**/*.{js,ts}\" index.ts",
     "prepublishOnly": "npm run build"
   },
@@ -53,6 +54,7 @@
     "@typescript-eslint/parser": "^5.54.0",
     "eslint": "^8.35.0",
     "eslint-config-prettier": "^8.6.0",
+    "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.2.1",
     "ioredis": "^5.3.1",
     "jest": "29.4.3",

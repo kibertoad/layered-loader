@@ -1,4 +1,6 @@
-import { InMemoryCache } from '../lib/memory/InMemoryCache'
+import { InMemoryCache, InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+
+const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('InMemoryCache', () => {
   describe('clear', () => {
@@ -21,7 +23,7 @@ describe('InMemoryCache', () => {
 
   describe('deleteGroup', () => {
     it('deletes values matching the group pattern', async () => {
-      const cache = new InMemoryCache()
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
       await cache.setForGroup('key', 'value', 'team1')
       await cache.setForGroup('key2', 'value2', 'team1')
       await cache.setForGroup('key', 'value', 'team2')
@@ -43,7 +45,7 @@ describe('InMemoryCache', () => {
 
   describe('delete', () => {
     it('deletes values correctly', async () => {
-      const cache = new InMemoryCache()
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
       await cache.set('key', 'value')
       await cache.set('key2', 'value2')
 

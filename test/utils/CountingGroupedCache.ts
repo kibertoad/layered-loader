@@ -1,4 +1,4 @@
-import { GroupedCache } from '../../lib/DataSources'
+import { GroupedCache } from '../../lib/types/DataSources'
 import { GroupValues, User } from './Types'
 import { cloneDeep } from './cloneUtils'
 

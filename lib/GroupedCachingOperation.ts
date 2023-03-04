@@ -1,4 +1,4 @@
-import { GroupedCache } from './DataSources'
+import { GroupedCache } from './types/DataSources'
 import { CachingOperationConfig, DEFAULT_CACHING_OPERATION_CONFIG } from './CachingOperation'
 
 export type GroupedCachingOperationConfig = CachingOperationConfig

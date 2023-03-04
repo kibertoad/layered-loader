@@ -1,6 +1,6 @@
-import { Cache } from './DataSources'
-import { DEFAULT_CACHE_ERROR_HANDLER, DEFAULT_LOAD_ERROR_HANDLER, LoaderErrorHandler } from './LoadingOperation'
+import { Cache } from './types/DataSources'
 import { defaultLogger, Logger } from './Logger'
+import {DEFAULT_CACHE_ERROR_HANDLER, DEFAULT_LOAD_ERROR_HANDLER, LoaderErrorHandler} from "./AbstractOperation";
 
 export type CachingOperationConfig = {
   logger: Logger
