@@ -14,6 +14,40 @@ describe('LoadingOperation', () => {
     jest.resetAllMocks()
   })
 
+  describe('getInMemoryOnly', () => {
+    it('returns undefined when no inmemory cache is configured', () => {
+      const operation = new LoadingOperation({})
+
+      const result = operation.getInMemoryOnly('value')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns undefined when no value is cached', () => {
+      const operation = new LoadingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      })
+
+      const result = operation.getInMemoryOnly('value')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns cached value', async () => {
+      const operation = new LoadingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+      })
+
+      const resultPre = operation.getInMemoryOnly('key')
+      await operation.getAsyncOnly('key')
+      const resultPost = operation.getInMemoryOnly('key')
+
+      expect(resultPre).toBeUndefined()
+      expect(resultPost).toBe('value')
+    })
+  })
+
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
       const operation = new LoadingOperation({})
