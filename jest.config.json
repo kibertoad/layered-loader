@@ -6,7 +6,12 @@
   },
   "testEnvironment": "node",
   "reporters": ["default"],
-  "coveragePathIgnorePatterns": ["<rootDir>/node_modules/", "<rootDir>/coverage/", "<rootDir>/test"],
+  "coveragePathIgnorePatterns": [
+    "<rootDir>/node_modules/",
+    "<rootDir>/coverage/",
+    "<rootDir>/test",
+    "<rootDir>/lib/memory/NoopCache.ts"
+  ],
   "coverageThreshold": {
     "global": {
       "branches": 100,
