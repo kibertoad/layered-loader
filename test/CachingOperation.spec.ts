@@ -42,9 +42,7 @@ describe('CachingOperation', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const cache = new DummyCache(undefined)
-      const operation = new CachingOperation([cache], {
-        loadingOperationMemoryTtl: 999999,
-      })
+      const operation = new CachingOperation([cache], {})
 
       const value = await operation.get('dummy')
       expect(value).toBeUndefined()
@@ -60,9 +58,7 @@ describe('CachingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const cache = new TemporaryThrowingCache('value')
-      const operation = new CachingOperation([cache], {
-        loadingOperationMemoryTtl: 999999,
-      })
+      const operation = new CachingOperation([cache], {})
 
       await expect(() => {
         return operation.get('value')

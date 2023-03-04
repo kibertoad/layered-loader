@@ -42,9 +42,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyLoader(undefined)
-      const operation = new LoadingOperation([loader], {
-        loadingOperationMemoryTtl: 999999,
-      })
+      const operation = new LoadingOperation([loader], {})
 
       const value = await operation.get('value')
       expect(value).toBeUndefined()
@@ -60,9 +58,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingLoader('value')
-      const operation = new LoadingOperation([loader], {
-        loadingOperationMemoryTtl: 999999,
-      })
+      const operation = new LoadingOperation([loader], {})
 
       await expect(() => {
         return operation.get('value')

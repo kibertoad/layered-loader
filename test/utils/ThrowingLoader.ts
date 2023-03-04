@@ -5,6 +5,8 @@ export class ThrowingLoader implements Loader<string> {
   isCache = false
 
   async get(): Promise<string | undefined | null> {
-    throw new Error('Error has occurred')
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 }

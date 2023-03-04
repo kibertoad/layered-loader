@@ -5,18 +5,26 @@ export class ThrowingCache implements Cache<string> {
   isCache = true
 
   get(): Promise<string | undefined | null> {
-    throw new Error('Error has occurred')
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 
   clear(): Promise<void> {
-    throw new Error('Error has occurred')
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 
   delete(): Promise<void> {
-    throw new Error('Error has occurred')
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 
   set(): Promise<void> {
-    throw new Error('Error has occurred')
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 }
