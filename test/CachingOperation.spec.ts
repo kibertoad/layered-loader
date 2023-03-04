@@ -63,11 +63,11 @@ describe('CachingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const cache = new TemporaryThrowingCache('value')
-      const operation = new CachingOperation({ asyncCache: cache })
+      const operation = new CachingOperation({ asyncCache: cache, throwIfUnresolved: true })
 
       await expect(() => {
         return operation.get('value')
-      }).rejects.toThrow(/Error has occurred/)
+      }).rejects.toThrow(/Failed to resolve value for key "value"/)
 
       cache.isThrowing = false
       const value = await operation.get('dummy')
