@@ -18,27 +18,31 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache,
   logger.error(`Error while caching "${key}" with ${cache.name}: ${err.message}`)
 }
 
-export type CommonOperationConfig<T> = {
+export type CommonOperationConfig<T, C extends Cache<T> = Cache<T>> = {
   logger?: Logger
   throwIfUnresolved?: boolean
   cacheUpdateErrorHandler?: LoaderErrorHandler
   loadErrorHandler?: LoaderErrorHandler
   inMemoryCache?: InMemoryCacheConfiguration | false
-  asyncCache?: Cache<T>
+  asyncCache?: C
 }
 
-export abstract class AbstractOperation<T> {
+export abstract class AbstractOperation<
+  T,
+  LoadChildType = Promise<T | undefined | null> | undefined,
+  C extends Cache<T> = Cache<T>
+> {
   protected readonly inMemoryCache: SynchronousGroupedCache<T>
-  protected readonly asyncCache?: Cache<T>
+  protected readonly asyncCache?: C
 
   protected readonly logger: Logger
   protected readonly throwIfUnresolved: boolean
   protected readonly cacheUpdateErrorHandler: LoaderErrorHandler
   protected readonly loadErrorHandler: LoaderErrorHandler
 
-  protected readonly runningLoads: Map<string, Promise<T | undefined | null> | undefined>
+  protected readonly runningLoads: Map<string, LoadChildType>
 
-  constructor(config: CommonOperationConfig<T>) {
+  constructor(config: CommonOperationConfig<T, C>) {
     this.inMemoryCache = config.inMemoryCache ? new InMemoryCache(config.inMemoryCache) : new NoopCache()
     this.asyncCache = config.asyncCache
     this.logger = config.logger ?? defaultLogger
@@ -69,45 +73,5 @@ export abstract class AbstractOperation<T> {
     }
 
     this.runningLoads.delete(key)
-  }
-
-  public async get(key: string): Promise<T | undefined | null> {
-    const inMemoryValue = this.inMemoryCache.get(key)
-    if (inMemoryValue) {
-      return inMemoryValue
-    }
-
-    const existingLoad = this.runningLoads.get(key)
-    if (existingLoad) {
-      return existingLoad
-    }
-
-    const loadingPromise = this.resolveValue(key).then((resolvedValue) => {
-      if (resolvedValue === undefined) {
-        if (this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}"`)
-        }
-      } else {
-        this.inMemoryCache.set(key, resolvedValue)
-      }
-      this.runningLoads.delete(key)
-      return resolvedValue
-    })
-
-    this.runningLoads.set(key, loadingPromise)
-    return loadingPromise
-  }
-
-  protected async resolveValue(key: string): Promise<T | undefined | null> {
-    if (this.asyncCache) {
-      const cachedValue = await this.asyncCache.get(key).catch((err) => {
-        this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
-      })
-      if (cachedValue) {
-        return cachedValue
-      }
-    }
-
-    return undefined
   }
 }

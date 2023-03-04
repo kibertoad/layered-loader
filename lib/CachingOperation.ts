@@ -1,6 +1,6 @@
-import { AbstractOperation } from './AbstractOperation'
+import { AbstractFlatOperation } from './AbstractFlatOperation'
 
-export class CachingOperation<LoadedValue> extends AbstractOperation<LoadedValue> {
+export class CachingOperation<LoadedValue> extends AbstractFlatOperation<LoadedValue> {
   public async set(key: string, newValue: LoadedValue): Promise<void> {
     this.inMemoryCache.set(key, newValue)
     this.runningLoads.delete(key)
