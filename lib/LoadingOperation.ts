@@ -3,14 +3,17 @@ import { Loader } from './types/DataSources'
 
 export type LoadingOperationConfig<T> = {
   loaders?: readonly Loader<T>[]
+  throwIfLoadError?: boolean
 } & CommonOperationConfig<T>
 
 export class LoadingOperation<LoadedValue> extends AbstractOperation<LoadedValue> {
   private readonly loaders: readonly Loader<LoadedValue>[]
+  protected readonly throwIfLoadError: boolean
 
   constructor(config: LoadingOperationConfig<LoadedValue>) {
     super(config)
     this.loaders = config.loaders ?? []
+    this.throwIfLoadError = config.throwIfLoadError ?? true
   }
 
   protected override async resolveValue(key: string): Promise<LoadedValue | undefined | null> {

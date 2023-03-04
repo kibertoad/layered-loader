@@ -21,7 +21,6 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache,
 export type CommonOperationConfig<T> = {
   logger?: Logger
   throwIfUnresolved?: boolean
-  throwIfLoadError?: boolean
   cacheUpdateErrorHandler?: LoaderErrorHandler
   loadErrorHandler?: LoaderErrorHandler
   inMemoryCache?: InMemoryCacheConfiguration | false
@@ -34,7 +33,6 @@ export abstract class AbstractOperation<T> {
 
   protected readonly logger: Logger
   protected readonly throwIfUnresolved: boolean
-  protected readonly throwIfLoadError: boolean
   protected readonly cacheUpdateErrorHandler: LoaderErrorHandler
   protected readonly loadErrorHandler: LoaderErrorHandler
 
@@ -47,7 +45,6 @@ export abstract class AbstractOperation<T> {
     this.cacheUpdateErrorHandler = config.cacheUpdateErrorHandler ?? DEFAULT_CACHE_ERROR_HANDLER
     this.loadErrorHandler = config.loadErrorHandler ?? DEFAULT_LOAD_ERROR_HANDLER
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
-    this.throwIfLoadError = config.throwIfLoadError ?? true
 
     this.runningLoads = new Map()
   }
