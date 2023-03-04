@@ -36,8 +36,8 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
 
     const loadingPromise = this.resolveGroupValue(key, group)
     groupLoads.set(key, loadingPromise)
-    const resolvedValue = await loadingPromise
 
+    const resolvedValue = await loadingPromise
     if (resolvedValue === undefined) {
       if (this.throwIfUnresolved) {
         this.deleteGroupRunningLoad(groupLoads, group, key)
@@ -52,7 +52,7 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
 
   public async get(key: string, group: string): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
-    if (inMemoryValue) {
+    if (inMemoryValue !== undefined) {
       return inMemoryValue
     }
 
@@ -75,16 +75,13 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
       const cachedValue = await this.asyncCache.getFromGroup(key, group).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
       })
-      if (cachedValue !== undefined) {
-        return cachedValue
-      }
+      return cachedValue as LoadedValue | undefined | null
     }
     return undefined
   }
 
   private resolveGroupLoads(group: string) {
     const load = this.runningLoads.get(group)
-
     if (load) {
       return load
     }

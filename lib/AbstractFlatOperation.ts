@@ -29,7 +29,7 @@ export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperati
 
   public async get(key: string): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.get(key)
-    if (inMemoryValue) {
+    if (inMemoryValue !== undefined) {
       return inMemoryValue
     }
 
@@ -41,9 +41,7 @@ export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperati
       const cachedValue = await this.asyncCache.get(key).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
       })
-      if (cachedValue !== undefined) {
-        return cachedValue
-      }
+      return cachedValue as LoadedValue | undefined | null
     }
 
     return undefined
