@@ -2,10 +2,10 @@ import { CommonOperationConfig } from './AbstractOperation'
 import { Loader } from './types/DataSources'
 import { AbstractFlatOperation } from './AbstractFlatOperation'
 
-export type LoadingOperationConfig<T> = {
-  loaders?: readonly Loader<T>[]
+export type LoadingOperationConfig<LoadedValue> = {
+  loaders?: readonly Loader<LoadedValue>[]
   throwIfLoadError?: boolean
-} & CommonOperationConfig<T>
+} & CommonOperationConfig<LoadedValue>
 
 export class LoadingOperation<LoadedValue> extends AbstractFlatOperation<LoadedValue> {
   private readonly loaders: readonly Loader<LoadedValue>[]

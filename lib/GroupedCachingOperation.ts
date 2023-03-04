@@ -1,7 +1,7 @@
 import { GroupedCache } from './types/DataSources'
 import { AbstractOperation, CommonOperationConfig } from './AbstractOperation'
 
-export type GroupedCachingOperationConfig<T> = CommonOperationConfig<T, GroupedCache<T>>
+export type GroupedCachingOperationConfig<LoadedValue> = CommonOperationConfig<LoadedValue, GroupedCache<LoadedValue>>
 
 export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
   LoadedValue,

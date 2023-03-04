@@ -1,11 +1,11 @@
 import { AbstractOperation } from './AbstractOperation'
 
-export abstract class AbstractFlatOperation<T> extends AbstractOperation<T> {
-  public getInMemoryOnly(key: string): T | undefined | null {
+export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperation<LoadedValue> {
+  public getInMemoryOnly(key: string): LoadedValue | undefined | null {
     return this.inMemoryCache.get(key)
   }
 
-  public async getAsyncOnly(key: string): Promise<T | undefined | null> {
+  public async getAsyncOnly(key: string): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
@@ -27,7 +27,7 @@ export abstract class AbstractFlatOperation<T> extends AbstractOperation<T> {
     return resolvedValue
   }
 
-  public async get(key: string): Promise<T | undefined | null> {
+  public async get(key: string): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.get(key)
     if (inMemoryValue) {
       return inMemoryValue
@@ -36,7 +36,7 @@ export abstract class AbstractFlatOperation<T> extends AbstractOperation<T> {
     return this.getAsyncOnly(key)
   }
 
-  protected async resolveValue(key: string): Promise<T | undefined | null> {
+  protected async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.get(key).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)

@@ -28,12 +28,12 @@ export type CommonOperationConfig<T, C extends Cache<T> = Cache<T>> = {
 }
 
 export abstract class AbstractOperation<
-  T,
-  LoadChildType = Promise<T | undefined | null> | undefined,
-  C extends Cache<T> = Cache<T>
+  LoadedValue,
+  LoadChildType = Promise<LoadedValue | undefined | null> | undefined,
+  CacheType extends Cache<LoadedValue> = Cache<LoadedValue>
 > {
-  protected readonly inMemoryCache: SynchronousGroupedCache<T>
-  protected readonly asyncCache?: C
+  protected readonly inMemoryCache: SynchronousGroupedCache<LoadedValue>
+  protected readonly asyncCache?: CacheType
 
   protected readonly logger: Logger
   protected readonly throwIfUnresolved: boolean
@@ -42,7 +42,7 @@ export abstract class AbstractOperation<
 
   protected readonly runningLoads: Map<string, LoadChildType>
 
-  constructor(config: CommonOperationConfig<T, C>) {
+  constructor(config: CommonOperationConfig<LoadedValue, CacheType>) {
     this.inMemoryCache = config.inMemoryCache ? new InMemoryCache(config.inMemoryCache) : new NoopCache()
     this.asyncCache = config.asyncCache
     this.logger = config.logger ?? defaultLogger
