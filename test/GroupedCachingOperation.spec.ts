@@ -79,6 +79,40 @@ describe('GroupedCachingOperation', () => {
     })
   })
 
+  describe('getInMemoryOnly', () => {
+    it('returns undefined when no inmemory cache is configured', () => {
+      const operation = new GroupedCachingOperation({})
+
+      const result = operation.getInMemoryOnly('value', 'group')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns undefined when no value is cached', () => {
+      const operation = new GroupedCachingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      })
+
+      const result = operation.getInMemoryOnly('value', 'group')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns cached value', async () => {
+      const operation = new GroupedCachingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+      })
+
+      const resultPre = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPost = operation.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre).toBeUndefined()
+      expect(resultPost).toEqual(user1)
+    })
+  })
+
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
       const operation = new GroupedCachingOperation({})

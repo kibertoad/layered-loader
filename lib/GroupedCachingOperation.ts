@@ -23,12 +23,11 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     this.runningLoads.delete(group)
   }
 
-  public async get(key: string, group: string): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
-    if (inMemoryValue) {
-      return inMemoryValue
-    }
+  public getInMemoryOnly(key: string, group: string): LoadedValue | undefined | null {
+    return this.inMemoryCache.getFromGroup(key, group)
+  }
 
+  public async getAsyncOnly(key: string, group: string): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
@@ -49,6 +48,15 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     }
     this.deleteGroupRunningLoad(groupLoads, group, key)
     return resolvedValue
+  }
+
+  public async get(key: string, group: string): Promise<LoadedValue | undefined | null> {
+    const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
+    if (inMemoryValue) {
+      return inMemoryValue
+    }
+
+    return this.getAsyncOnly(key, group)
   }
 
   public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {

@@ -1,12 +1,11 @@
 import { AbstractOperation } from './AbstractOperation'
 
 export abstract class AbstractFlatOperation<T> extends AbstractOperation<T> {
-  public async get(key: string): Promise<T | undefined | null> {
-    const inMemoryValue = this.inMemoryCache.get(key)
-    if (inMemoryValue) {
-      return inMemoryValue
-    }
+  public getInMemoryOnly(key: string): T | undefined | null {
+    return this.inMemoryCache.get(key)
+  }
 
+  public async getAsyncOnly(key: string): Promise<T | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
@@ -26,6 +25,15 @@ export abstract class AbstractFlatOperation<T> extends AbstractOperation<T> {
     }
     this.runningLoads.delete(key)
     return resolvedValue
+  }
+
+  public async get(key: string): Promise<T | undefined | null> {
+    const inMemoryValue = this.inMemoryCache.get(key)
+    if (inMemoryValue) {
+      return inMemoryValue
+    }
+
+    return this.getAsyncOnly(key)
   }
 
   protected async resolveValue(key: string): Promise<T | undefined | null> {
