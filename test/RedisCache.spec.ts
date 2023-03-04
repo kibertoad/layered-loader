@@ -31,6 +31,16 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('getFromGroup', () => {
+    it('returns undefined if there is no dynamic group key registered in redis', async () => {
+      const cache = new RedisCache(redis)
+
+      const result = await cache.getFromGroup('dummy', 'fake')
+
+      expect(result).toBeUndefined()
+    })
+  })
+
   describe('clear', () => {
     it('clears values', async () => {
       const cache = new RedisCache(redis)
