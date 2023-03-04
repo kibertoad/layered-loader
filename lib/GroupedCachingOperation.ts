@@ -39,9 +39,8 @@ export class GroupedCachingOperation<LoadedValue> {
           this.params.cacheUpdateErrorHandler(err, undefined, this.caches[cacheIndex], this.params.logger)
         })
       )
-
-      return Promise.all(promises)
     })
+    return Promise.all(promises)
   }
 
   public invalidateCacheForGroup(group: string) {
