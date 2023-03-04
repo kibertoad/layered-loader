@@ -1,4 +1,4 @@
-import { Cache } from '../../lib/DataSources'
+import { Cache } from '../../lib/types/DataSources'
 
 export class DummyCache implements Cache<string> {
   value: string | undefined | null
@@ -9,7 +9,7 @@ export class DummyCache implements Cache<string> {
     this.value = returnedValue
   }
 
-  get(): Promise<string | undefined | null> {
+  get(_key: string): Promise<string | undefined | null> {
     return Promise.resolve(this.value)
   }
 

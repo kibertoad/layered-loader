@@ -1,11 +1,5 @@
 export interface CacheConfiguration {
-  ttlInMsecs?: number
-}
-
-export interface GroupedCache<T> extends Cache<T> {
-  deleteGroup: (group: string) => Promise<void>
-  getFromGroup: (key: string, group: string) => Promise<T | undefined | null>
-  setForGroup: (key: string, value: T | null, group: string) => Promise<void>
+  ttlInMsecs: number | undefined
 }
 
 export interface Cache<T> extends Loader<T> {
@@ -14,9 +8,14 @@ export interface Cache<T> extends Loader<T> {
   delete: (key: string) => Promise<void>
 }
 
+export interface GroupedCache<T> extends Cache<T> {
+  deleteGroup: (group: string) => Promise<void>
+  getFromGroup: (key: string, group: string) => Promise<T | undefined | null>
+  setForGroup: (key: string, value: T | null, group: string) => Promise<void>
+}
+
 export interface Loader<T> {
   get: (key: string) => Promise<T | undefined | null>
 
-  isCache: boolean
   name: string
 }

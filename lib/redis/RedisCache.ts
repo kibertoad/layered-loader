@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
+import { Cache, CacheConfiguration, GroupedCache, Loader } from '../types/DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'

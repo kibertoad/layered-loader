@@ -1,10 +1,13 @@
 import { LoadingOperation } from '../lib/LoadingOperation'
-import { InMemoryCache } from '../lib/memory/InMemoryCache'
+import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { DummyLoader } from './utils/DummyLoader'
 import { CountingLoader } from './utils/CountingLoader'
 import { ThrowingLoader } from './utils/ThrowingLoader'
 import { ThrowingCache } from './utils/ThrowingCache'
 import { TemporaryThrowingLoader } from './utils/TemporaryThrowingLoader'
+import { DummyCache } from './utils/DummyCache'
+
+const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('LoadingOperation', () => {
   beforeEach(() => {
@@ -13,7 +16,7 @@ describe('LoadingOperation', () => {
 
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
-      const operation = new LoadingOperation([])
+      const operation = new LoadingOperation({})
 
       const result = await operation.get('value')
 
@@ -21,7 +24,7 @@ describe('LoadingOperation', () => {
     })
 
     it('throws when fails to resolve value and flag is set', async () => {
-      const operation = new LoadingOperation([], {
+      const operation = new LoadingOperation({
         throwIfUnresolved: true,
       })
 
@@ -32,7 +35,7 @@ describe('LoadingOperation', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new LoadingOperation([new ThrowingLoader()])
+      const operation = new LoadingOperation({ loaders: [new ThrowingLoader()], throwIfLoadError: true })
 
       await expect(() => {
         return operation.get('value')
@@ -42,7 +45,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyLoader(undefined)
-      const operation = new LoadingOperation([loader], {})
+      const operation = new LoadingOperation({ loaders: [loader] })
 
       const value = await operation.get('value')
       expect(value).toBeUndefined()
@@ -58,7 +61,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingLoader('value')
-      const operation = new LoadingOperation([loader], {})
+      const operation = new LoadingOperation({ loaders: [loader] })
 
       await expect(() => {
         return operation.get('value')
@@ -71,16 +74,16 @@ describe('LoadingOperation', () => {
 
     it('correctly handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new LoadingOperation([new ThrowingCache(), new DummyLoader('value')])
+      const operation = new LoadingOperation({ asyncCache: new ThrowingCache(), loaders: [new DummyLoader('value')] })
       const value = await operation.get('value')
       expect(value).toBe('value')
       expect(consoleSpy).toHaveBeenCalledTimes(2)
     })
 
     it('returns value when resolved via single loader', async () => {
-      const cache = new InMemoryCache<string>()
-      const operation = new LoadingOperation<string>([cache])
-      await cache.set('key', 'value')
+      const operation = new LoadingOperation<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      // @ts-ignore
+      operation.inMemoryCache.set('key', 'value')
 
       const result = await operation.get('key')
 
@@ -88,11 +91,13 @@ describe('LoadingOperation', () => {
     })
 
     it('returns value when resolved via multiple loaders', async () => {
-      const cache1 = new InMemoryCache<string>()
-      const cache2 = new InMemoryCache<string>()
+      const asyncCache = new DummyCache(undefined)
 
-      const operation = new LoadingOperation<string>([cache1, cache2])
-      await cache2.set('key', 'value')
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: asyncCache,
+      })
+      await asyncCache.set('key', 'value')
 
       const result = await operation.get('key')
 
@@ -100,15 +105,15 @@ describe('LoadingOperation', () => {
     })
 
     it('updates upper level cache when resolving value downstream', async () => {
-      const cache1 = new InMemoryCache<string>()
-      const cache2 = new InMemoryCache<string>()
+      const cache2 = new DummyCache(undefined)
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [new DummyLoader(undefined), new DummyLoader('value')],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
 
-      const operation = new LoadingOperation<string>([
-        cache1,
-        cache2,
-        new DummyLoader(undefined),
-        new DummyLoader('value'),
-      ])
       const valuePre = await cache1.get('key')
       await operation.get('key')
       const valuePost = await cache1.get('key')
@@ -120,12 +125,16 @@ describe('LoadingOperation', () => {
     })
 
     it('correctly reuses value from cache', async () => {
-      const cache1 = new InMemoryCache<string>()
-      const cache2 = new InMemoryCache<string>()
+      const cache2 = new DummyCache(undefined)
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [loader1, loader2],
+      })
+
       const valuePre = await operation.get('key')
       const valuePost = await operation.get('key')
 
@@ -137,7 +146,7 @@ describe('LoadingOperation', () => {
     it('batches identical retrievals together', async () => {
       const loader = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([loader])
+      const operation = new LoadingOperation<string>({ loaders: [loader] })
       const valuePromise = operation.get('key')
       const valuePromise2 = operation.get('key')
 
@@ -152,14 +161,17 @@ describe('LoadingOperation', () => {
 
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
-      const cache1 = new InMemoryCache<string>()
-      const cache2 = new InMemoryCache<string>()
+      const cache2 = new DummyCache(undefined)
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
-      const valuePre = await operation.get('key')
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [loader1, loader2],
+      })
 
+      const valuePre = await operation.get('key')
       await operation.invalidateCacheFor('key')
       const valuePost = await operation.get('key')
 
@@ -169,12 +181,16 @@ describe('LoadingOperation', () => {
     })
 
     it('correctly handles errors during invalidation', async () => {
-      const cache1 = new InMemoryCache<string>()
       const cache2 = new ThrowingCache()
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [loader1, loader2],
+      })
+
       const valuePre = await operation.get('key')
 
       await operation.invalidateCacheFor('key')
@@ -188,12 +204,16 @@ describe('LoadingOperation', () => {
 
   describe('invalidateCache', () => {
     it('correctly invalidates cache', async () => {
-      const cache1 = new InMemoryCache<string>()
-      const cache2 = new InMemoryCache<string>()
+      const cache2 = new DummyCache(undefined)
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [loader1, loader2],
+      })
+
       const valuePre = await operation.get('key')
 
       await operation.invalidateCache()
@@ -205,12 +225,16 @@ describe('LoadingOperation', () => {
     })
 
     it('correctly handles errors during invalidation', async () => {
-      const cache1 = new InMemoryCache<string>()
       const cache2 = new ThrowingCache()
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>([cache1, cache2, loader1, loader2])
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [loader1, loader2],
+      })
+
       const valuePre = await operation.get('key')
 
       await operation.invalidateCache()

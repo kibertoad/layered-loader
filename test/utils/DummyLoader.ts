@@ -1,4 +1,4 @@
-import { Loader } from '../../lib/DataSources'
+import { Loader } from '../../lib/types/DataSources'
 
 export class DummyLoader implements Loader<string> {
   value: string | undefined | null

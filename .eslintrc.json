@@ -6,7 +6,8 @@
   ],
   "plugins": [
     "@typescript-eslint",
-    "prettier"
+    "prettier",
+    "import"
   ],
   "parser": "@typescript-eslint/parser",
   "env": {

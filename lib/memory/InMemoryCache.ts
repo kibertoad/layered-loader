@@ -1,34 +1,32 @@
-import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
 import type { LRU } from 'tiny-lru'
 import { lru } from 'tiny-lru'
+import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
+import { CacheConfiguration } from '../types/DataSources'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
-  maxItems: number
-  maxGroups: number
-  maxItemsPerGroup: number
+  maxItems?: number
+  maxGroups?: number
+  maxItemsPerGroup?: number
 }
 
-const DefaultConfiguration: InMemoryCacheConfiguration = {
-  ttlInMsecs: 1000 * 60 * 10,
+const DEFAULT_CONFIGURATION = {
   maxItems: 500,
   maxGroups: 1000,
   maxItemsPerGroup: 500,
-}
+} satisfies Omit<InMemoryCacheConfiguration, 'ttlInMsecs'>
 
-export class InMemoryCache<T> implements Cache<T>, GroupedCache<T>, Loader<T> {
+export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
   private readonly cache: LRU<T | null>
   private readonly groups: LRU<LRU<T | null> | undefined | null>
-  private readonly config: InMemoryCacheConfiguration
+  private readonly maxItemsPerGroup: number
   name = 'In-memory cache'
-  isCache = true
+  private readonly ttlInMsecs: number | undefined
 
-  constructor(config: Partial<InMemoryCacheConfiguration> = DefaultConfiguration) {
-    this.cache = lru(config.maxItems, config.ttlInMsecs)
-    this.groups = lru(config.maxGroups)
-    this.config = {
-      ...DefaultConfiguration,
-      ...config,
-    }
+  constructor(config: InMemoryCacheConfiguration) {
+    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs)
+    this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
+    this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
+    this.ttlInMsecs = config.ttlInMsecs
   }
 
   private resolveGroup(groupId: string) {
@@ -37,38 +35,38 @@ export class InMemoryCache<T> implements Cache<T>, GroupedCache<T>, Loader<T> {
       return groupCache
     }
 
-    const newGroupCache = lru(this.config.maxItemsPerGroup, this.config.ttlInMsecs)
+    const newGroupCache = lru(this.maxItemsPerGroup, this.ttlInMsecs)
     this.groups.set(groupId, newGroupCache)
     return newGroupCache
   }
 
-  async deleteGroup(group: string) {
+  deleteGroup(group: string) {
     this.groups.delete(group)
   }
 
-  async getFromGroup(key: string, groupId: string) {
+  getFromGroup(key: string, groupId: string) {
     const group = this.resolveGroup(groupId)
     return group.get(key)
   }
-  async setForGroup(key: string, value: T | null, groupId: string) {
+  setForGroup(key: string, value: T | null, groupId: string) {
     const group = this.resolveGroup(groupId)
     group.set(key, value)
   }
 
-  async clear(): Promise<void> {
+  clear(): void {
     this.cache.clear()
     this.groups.clear()
   }
 
-  async delete(key: string): Promise<void> {
+  delete(key: string): void {
     this.cache.delete(key)
   }
 
-  async get(key: string): Promise<T | null | undefined> {
+  get(key: string): T | null | undefined {
     return this.cache.get(key)
   }
 
-  async set(key: string, value: T | null): Promise<void> {
+  set(key: string, value: T | null): void {
     this.cache.set(key, value)
   }
 }

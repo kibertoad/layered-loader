@@ -1,4 +1,4 @@
-import { Cache } from '../../lib/DataSources'
+import { Cache } from '../../lib/types/DataSources'
 
 export class TemporaryThrowingCache implements Cache<string> {
   name = 'Throwing loader'
