@@ -1,11 +1,11 @@
 import { GroupedCache } from './types/DataSources'
-import { AbstractOperation, CommonOperationConfig } from './AbstractOperation'
+import { AbstractOperation, CommonOperationConfig, LoadEntry } from './AbstractOperation'
 
 export type GroupedCachingOperationConfig<LoadedValue> = CommonOperationConfig<LoadedValue, GroupedCache<LoadedValue>>
 
 export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
   LoadedValue,
-  Map<string, Promise<LoadedValue | undefined | null> | undefined>,
+  Map<string, LoadEntry<LoadedValue | undefined | null, Promise<LoadedValue | undefined | null>>>,
   GroupedCache<LoadedValue>
 > {
   constructor(config: GroupedCachingOperationConfig<LoadedValue>) {
@@ -31,11 +31,15 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
-      return existingLoad
+      existingLoad.counter++
+      if (existingLoad.counter > this.maxBatchedOperationsPerLoad) {
+        this.deleteGroupRunningLoad(groupLoads, group, key)
+      }
+      return existingLoad.promise
     }
 
     const loadingPromise = this.resolveGroupValue(key, group)
-    groupLoads.set(key, loadingPromise)
+    groupLoads.set(key, new LoadEntry(loadingPromise))
 
     const resolvedValue = await loadingPromise
     if (resolvedValue === undefined) {
@@ -80,15 +84,17 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     return undefined
   }
 
-  private resolveGroupLoads(group: string) {
-    const load = this.runningLoads.get(group)
-    if (load) {
-      return load
+  private resolveGroupLoads(
+    group: string
+  ): Map<string, LoadEntry<LoadedValue | undefined | null, Promise<LoadedValue | undefined | null>>> {
+    const groupLoads = this.runningLoads.get(group)
+    if (groupLoads) {
+      return groupLoads
     }
 
-    const loadCache = new Map()
-    this.runningLoads.set(group, loadCache)
-    return loadCache
+    const newGroupLoads = new Map()
+    this.runningLoads.set(group, newGroupLoads)
+    return newGroupLoads
   }
 
   private deleteGroupRunningLoad(groupLoads: Map<string, unknown>, group: string, key: string) {

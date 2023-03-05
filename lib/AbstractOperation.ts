@@ -3,6 +3,16 @@ import { SynchronousGroupedCache } from './types/SyncDataSources'
 import { Cache } from './types/DataSources'
 import { defaultLogger, Logger } from './Logger'
 
+export class LoadEntry<PT, T extends Promise<PT>> {
+  public readonly promise: T
+  public counter: number
+
+  constructor(promise: T) {
+    this.promise = promise
+    this.counter = 0
+  }
+}
+
 export type LoaderErrorHandler = (
   err: Error,
   key: string | undefined,
@@ -25,11 +35,12 @@ export type CommonOperationConfig<T, C extends Cache<T> = Cache<T>> = {
   loadErrorHandler?: LoaderErrorHandler
   inMemoryCache?: InMemoryCacheConfiguration | false
   asyncCache?: C
+  maxBatchedOperationsPerLoad?: number
 }
 
 export abstract class AbstractOperation<
   LoadedValue,
-  LoadChildType = Promise<LoadedValue | undefined | null> | undefined,
+  LoadChildType = LoadEntry<LoadedValue | undefined | null, Promise<LoadedValue | undefined | null>>,
   CacheType extends Cache<LoadedValue> = Cache<LoadedValue>
 > {
   protected readonly inMemoryCache: SynchronousGroupedCache<LoadedValue>
@@ -39,6 +50,7 @@ export abstract class AbstractOperation<
   protected readonly throwIfUnresolved: boolean
   protected readonly cacheUpdateErrorHandler: LoaderErrorHandler
   protected readonly loadErrorHandler: LoaderErrorHandler
+  protected readonly maxBatchedOperationsPerLoad: number
 
   protected readonly runningLoads: Map<string, LoadChildType>
 
@@ -49,6 +61,7 @@ export abstract class AbstractOperation<
     this.cacheUpdateErrorHandler = config.cacheUpdateErrorHandler ?? DEFAULT_CACHE_ERROR_HANDLER
     this.loadErrorHandler = config.loadErrorHandler ?? DEFAULT_LOAD_ERROR_HANDLER
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
+    this.maxBatchedOperationsPerLoad = config.maxBatchedOperationsPerLoad ?? 500
 
     this.runningLoads = new Map()
   }

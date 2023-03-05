@@ -1,4 +1,4 @@
-import { AbstractOperation } from './AbstractOperation'
+import { AbstractOperation, LoadEntry } from './AbstractOperation'
 
 export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperation<LoadedValue> {
   public getInMemoryOnly(key: string): LoadedValue | undefined | null {
@@ -8,11 +8,15 @@ export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperati
   public async getAsyncOnly(key: string): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
-      return existingLoad
+      existingLoad.counter++
+      if (existingLoad.counter > this.maxBatchedOperationsPerLoad) {
+        this.runningLoads.delete(key)
+      }
+      return existingLoad.promise
     }
 
     const loadingPromise = this.resolveValue(key)
-    this.runningLoads.set(key, loadingPromise)
+    this.runningLoads.set(key, new LoadEntry(loadingPromise))
 
     const resolvedValue = await loadingPromise
     if (resolvedValue === undefined) {

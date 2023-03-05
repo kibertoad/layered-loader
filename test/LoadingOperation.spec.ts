@@ -6,6 +6,9 @@ import { ThrowingLoader } from './utils/ThrowingLoader'
 import { ThrowingCache } from './utils/ThrowingCache'
 import { TemporaryThrowingLoader } from './utils/TemporaryThrowingLoader'
 import { DummyCache } from './utils/DummyCache'
+import { RedisCache } from '../lib/redis'
+import Redis from 'ioredis'
+import { redisOptions } from './utils/TestRedisConfig'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
@@ -190,6 +193,35 @@ describe('LoadingOperation', () => {
       expect(value).toBe('value')
       expect(value2).toBe('value')
       expect(loader.counter).toBe(1)
+    })
+
+    it('batches identical retrievals from Redis together', async () => {
+      const redis = new Redis(redisOptions)
+      await redis.flushall()
+      try {
+        const cache = new RedisCache<string>(redis)
+        const loader = new CountingLoader('value')
+
+        const operation = new LoadingOperation<string>({
+          asyncCache: cache,
+          loaders: [loader],
+        })
+        const originalValue = await operation.get('key')
+
+        const promises = []
+        for (let x = 0; x < 1000000; x++) {
+          promises.push(operation.get('key'))
+        }
+
+        const results = await Promise.all(promises)
+        const correctValues = results.filter((entry) => entry === 'value')
+
+        expect(originalValue).toBe('value')
+        expect(correctValues).toHaveLength(1000000)
+        expect(loader.counter).toBe(1)
+      } finally {
+        await redis.disconnect()
+      }
     })
   })
 
