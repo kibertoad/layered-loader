@@ -1,34 +1,30 @@
-import { CommonOperationConfig } from './AbstractOperation'
-import { Cache, Loader } from './types/DataSources'
-import { AbstractFlatOperation } from './AbstractFlatOperation'
+import { GroupedCache, GroupLoader } from './types/DataSources'
+import { LoadingOperationConfig } from './LoadingOperation'
+import { AbstractGroupedOperation } from './AbstractGroupedOperation'
 
-export type LoadingOperationConfig<
+export type GroupedLoadingOperationConfig<LoadedValue> = LoadingOperationConfig<
   LoadedValue,
-  C extends Cache<LoadedValue> = Cache<LoadedValue>,
-  LoaderType = Loader<LoadedValue>
-> = {
-  loaders?: readonly LoaderType[]
-  throwIfLoadError?: boolean
-} & CommonOperationConfig<LoadedValue, C>
-
-export class LoadingOperation<LoadedValue> extends AbstractFlatOperation<LoadedValue> {
-  private readonly loaders: readonly Loader<LoadedValue>[]
+  GroupedCache<LoadedValue>,
+  GroupLoader<LoadedValue>
+>
+export class GroupedLoadingOperation<LoadedValue> extends AbstractGroupedOperation<LoadedValue> {
+  private readonly loaders: readonly GroupLoader<LoadedValue>[]
   protected readonly throwIfLoadError: boolean
 
-  constructor(config: LoadingOperationConfig<LoadedValue>) {
+  constructor(config: GroupedLoadingOperationConfig<LoadedValue>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
   }
 
-  protected override async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
-    const cachedValue = await super.resolveValue(key)
+  protected override async resolveGroupValue(key: string, group: string): Promise<LoadedValue | undefined | null> {
+    const cachedValue = await super.resolveGroupValue(key, group)
     if (cachedValue !== undefined) {
       return cachedValue
     }
 
     for (let index = 0; index < this.loaders.length; index++) {
-      const resolvedValue = await this.loaders[index].get(key).catch((err) => {
+      const resolvedValue = await this.loaders[index].getFromGroup(key, group).catch((err) => {
         this.loadErrorHandler(err, key, this.loaders[index], this.logger)
         if (this.throwIfLoadError) {
           throw err

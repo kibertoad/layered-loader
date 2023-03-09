@@ -52,4 +52,15 @@ export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperati
     }
     return undefined
   }
+
+  public async invalidateCacheFor(key: string) {
+    this.inMemoryCache.delete(key)
+    if (this.asyncCache) {
+      await this.asyncCache.delete(key).catch((err) => {
+        this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
+      })
+    }
+
+    this.runningLoads.delete(key)
+  }
 }

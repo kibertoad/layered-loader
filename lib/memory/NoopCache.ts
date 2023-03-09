@@ -13,6 +13,7 @@ export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupedCach
   clear(): void {}
 
   delete(): void {}
+  deleteFromGroup(): void {}
 
   get(): T | null | undefined {
     return undefined

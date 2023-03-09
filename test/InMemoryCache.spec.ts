@@ -44,7 +44,7 @@ describe('InMemoryCache', () => {
   })
 
   describe('delete', () => {
-    it('deletes values correctly', () => {
+    it('deletes value', () => {
       const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
       cache.set('key', 'value')
       cache.set('key2', 'value2')
@@ -56,6 +56,28 @@ describe('InMemoryCache', () => {
 
       expect(value1).toBeUndefined()
       expect(value2).toBe('value2')
+    })
+  })
+
+  describe('deleteFromGroup', () => {
+    it('deletes value from group', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+      cache.setForGroup('key', 'value', 'group1')
+      cache.setForGroup('key2', 'value2', 'group1')
+      cache.setForGroup('key', 'value', 'group2')
+      cache.setForGroup('key2', 'value2', 'group2')
+
+      cache.deleteFromGroup('key', 'group1')
+
+      const value1group1 = cache.getFromGroup('key', 'group1')
+      const value2group1 = cache.getFromGroup('key2', 'group1')
+      const value1group2 = cache.getFromGroup('key', 'group2')
+      const value2group2 = cache.getFromGroup('key2', 'group2')
+
+      expect(value1group1).toBeUndefined()
+      expect(value2group1).toBe('value2')
+      expect(value1group2).toBe('value')
+      expect(value2group2).toBe('value2')
     })
   })
 })
