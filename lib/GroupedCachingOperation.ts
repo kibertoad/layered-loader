@@ -27,7 +27,7 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     return this.inMemoryCache.getFromGroup(key, group)
   }
 
-  public async getAsyncOnly(key: string, group: string): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(key: string, group: string): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
@@ -37,23 +37,24 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
     const loadingPromise = this.resolveGroupValue(key, group)
     groupLoads.set(key, loadingPromise)
 
-    const resolvedValue = await loadingPromise
-    if (resolvedValue === undefined) {
-      if (this.throwIfUnresolved) {
+    loadingPromise
+      .then((resolvedValue) => {
+        if (resolvedValue !== undefined) {
+          this.inMemoryCache.setForGroup(key, resolvedValue, group)
+        }
         this.deleteGroupRunningLoad(groupLoads, group, key)
-        throw new Error(`Failed to resolve value for key "${key}", group ${group}`)
-      }
-    } else {
-      this.inMemoryCache.setForGroup(key, resolvedValue, group)
-    }
-    this.deleteGroupRunningLoad(groupLoads, group, key)
-    return resolvedValue
+      })
+      .catch(() => {
+        this.deleteGroupRunningLoad(groupLoads, group, key)
+      })
+
+    return loadingPromise
   }
 
-  public async get(key: string, group: string): Promise<LoadedValue | undefined | null> {
+  public get(key: string, group: string): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
     if (inMemoryValue !== undefined) {
-      return inMemoryValue
+      return Promise.resolve(inMemoryValue)
     }
 
     return this.getAsyncOnly(key, group)
@@ -75,7 +76,12 @@ export class GroupedCachingOperation<LoadedValue> extends AbstractOperation<
       const cachedValue = await this.asyncCache.getFromGroup(key, group).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
       })
-      return cachedValue as LoadedValue | undefined | null
+      if (cachedValue !== undefined) {
+        return cachedValue as LoadedValue | undefined | null
+      }
+    }
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}", group ${group}`)
     }
     return undefined
   }
