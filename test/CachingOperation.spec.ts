@@ -240,4 +240,73 @@ describe('CachingOperation', () => {
       expect(valuePost).toBe(undefined)
     })
   })
+
+  describe('setAsync', () => {
+    it('handles error when trying to set a value', async () => {
+      const operation = new CachingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingCache(),
+      })
+
+      const returnedValue = await operation.setAsync('value', async () => {
+        return 'someValue'
+      })
+
+      const result = await operation.get('value')
+      expect(result).toBe('someValue')
+      expect(result).toBe(returnedValue)
+    })
+
+    it('handles error when trying to get async value', async () => {
+      const operation = new CachingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingCache(),
+      })
+
+      expect(
+        operation.setAsync('value', async () => {
+          throw Error('random error')
+        })
+      ).rejects.toThrow('random error')
+    })
+
+    it('handles running loads', async () => {
+      const operation = new CachingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingCache(),
+      })
+
+      const load1 = operation.setAsync('value', () => {
+        return new Promise(() => {
+          // dont resolve
+        })
+      })
+
+      const load2 = operation.setAsync('value', () => {
+        return new Promise(() => {
+          // dont resolve
+        })
+      })
+
+      expect(load1).toStrictEqual(load2)
+    })
+
+    it('deletes running load', async () => {
+      const operation = new CachingOperation<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingCache(),
+      })
+
+      const load1 = await operation.setAsync('value', async () => {
+        return 'load1'
+      })
+
+      const load2 = await operation.setAsync('value', async () => {
+        return 'load2'
+      })
+
+      expect(load1).toBe('load1')
+      expect(load2).toBe('load2')
+    })
+  })
 })
