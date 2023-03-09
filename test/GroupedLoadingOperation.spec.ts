@@ -1,19 +1,12 @@
-import { LoadingOperation } from '../lib/LoadingOperation'
 import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import { User } from './utils/Types'
+import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
+import { DummyGroupedCache } from './utils/DummyGroupedCache'
+import { ThrowingGroupedLoader } from './utils/ThrowingGroupedLoader'
 import { DummyGroupedLoader } from './utils/DummyGroupedLoader'
-import { CountingLoader } from './utils/CountingLoader'
-import { ThrowingLoader } from './utils/ThrowingLoader'
-import { ThrowingCache } from './utils/ThrowingCache'
-import { TemporaryThrowingLoader } from './utils/TemporaryThrowingLoader'
-import { DummyCache } from './utils/DummyCache'
-import {User} from "./utils/Types";
-import {GroupedLoadingOperation} from "../lib/GroupedLoadingOperation";
-import {DummyGroupedCache} from "./utils/DummyGroupedCache";
-import {ThrowingGroupedLoader} from "./utils/ThrowingGroupedLoader";
-import {DummyGroupedLoader} from "./utils/DummyGroupedLoader";
-import {TemporaryThrowingGroupedLoader} from "./utils/TemporaryThrowingGroupedLoader";
-import {ThrowingGroupedCache} from "./utils/ThrowingGroupedCache";
-import {CountingGroupedLoader} from "./utils/CountingGroupedLoader";
+import { TemporaryThrowingGroupedLoader } from './utils/TemporaryThrowingGroupedLoader'
+import { ThrowingGroupedCache } from './utils/ThrowingGroupedCache'
+import { CountingGroupedLoader } from './utils/CountingGroupedLoader'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryCacheConfiguration
 
@@ -45,16 +38,6 @@ const userValues = {
 const userValuesUndefined = {
   [user1.companyId]: {},
   [user3.companyId]: {},
-}
-
-const userValuesNull = {
-  [user1.companyId]: {
-    [user1.userId]: null,
-    [user2.userId]: null,
-  },
-  [user3.companyId]: {
-    [user3.userId]: null,
-  },
 }
 
 describe('GroupedLoadingOperation', () => {
@@ -126,7 +109,7 @@ describe('GroupedLoadingOperation', () => {
     })
 
     it('resets loading operation after value was not found previously', async () => {
-      const loader = new DummyGroupedLoader(undefined)
+      const loader = new DummyGroupedLoader(userValuesUndefined)
       const operation = new GroupedLoadingOperation({ loaders: [loader] })
 
       const value = await operation.get(user1.userId, user1.companyId)
@@ -156,7 +139,10 @@ describe('GroupedLoadingOperation', () => {
 
     it('correctly handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupedLoadingOperation({ asyncCache: new ThrowingGroupedCache(), loaders: [new DummyGroupedLoader(userValues)] })
+      const operation = new GroupedLoadingOperation({
+        asyncCache: new ThrowingGroupedCache(),
+        loaders: [new DummyGroupedLoader(userValues)],
+      })
 
       const value = await operation.get(user1.userId, user1.companyId)
 
@@ -244,7 +230,7 @@ describe('GroupedLoadingOperation', () => {
   })
 
   describe('invalidateCacheFor', () => {
-    it('correctly invalidates cache', async () => {
+    it('invalidates cache', async () => {
       const cache2 = new DummyGroupedCache(userValuesUndefined)
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
@@ -265,9 +251,9 @@ describe('GroupedLoadingOperation', () => {
     })
 
     it('correctly handles errors during invalidation', async () => {
-      const cache2 = new ThrowingCache()
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const cache2 = new ThrowingGroupedCache()
+      const loader1 = new CountingGroupedLoader(userValuesUndefined)
+      const loader2 = new CountingGroupedLoader(userValues)
 
       const operation = new GroupedLoadingOperation<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -275,22 +261,22 @@ describe('GroupedLoadingOperation', () => {
         loaders: [loader1, loader2],
       })
 
-      const valuePre = await operation.get('key')
+      const valuePre = await operation.get(user1.userId, user1.companyId)
 
-      await operation.invalidateCacheFor('key')
-      const valuePost = await operation.get('key')
+      await operation.invalidateCacheFor(user1.userId, user1.companyId)
+      const valuePost = await operation.get(user1.userId, user1.companyId)
 
-      expect(valuePre).toBe('value')
-      expect(valuePost).toBe('value')
+      expect(valuePre).toEqual(user1)
+      expect(valuePost).toEqual(user1)
       expect(loader2.counter).toBe(2)
     })
   })
 
   describe('invalidateCache', () => {
     it('correctly invalidates cache', async () => {
-      const cache2 = new DummyCache(undefined)
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const cache2 = new DummyGroupedCache(userValuesUndefined)
+      const loader1 = new CountingGroupedLoader(userValuesUndefined)
+      const loader2 = new CountingGroupedLoader(userValues)
 
       const operation = new GroupedLoadingOperation<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -298,20 +284,20 @@ describe('GroupedLoadingOperation', () => {
         loaders: [loader1, loader2],
       })
 
-      const valuePre = await operation.get('key')
+      const valuePre = await operation.get(user1.userId, user1.companyId)
 
       await operation.invalidateCache()
-      const valuePost = await operation.get('key')
+      const valuePost = await operation.get(user1.userId, user1.companyId)
 
-      expect(valuePre).toBe('value')
-      expect(valuePost).toBe('value')
+      expect(valuePre).toEqual(user1)
+      expect(valuePost).toEqual(user1)
       expect(loader2.counter).toBe(2)
     })
 
-    it('correctly handles errors during invalidation', async () => {
-      const cache2 = new ThrowingCache()
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+    it('handles errors during invalidation', async () => {
+      const cache2 = new ThrowingGroupedCache()
+      const loader1 = new CountingGroupedLoader(userValuesUndefined)
+      const loader2 = new CountingGroupedLoader(userValues)
 
       const operation = new GroupedLoadingOperation<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -319,13 +305,13 @@ describe('GroupedLoadingOperation', () => {
         loaders: [loader1, loader2],
       })
 
-      const valuePre = await operation.get('key')
+      const valuePre = await operation.get(user1.userId, user1.companyId)
 
       await operation.invalidateCache()
-      const valuePost = await operation.get('key')
+      const valuePost = await operation.get(user1.userId, user1.companyId)
 
-      expect(valuePre).toBe('value')
-      expect(valuePost).toBe('value')
+      expect(valuePre).toEqual(user1)
+      expect(valuePost).toEqual(user1)
       expect(loader2.counter).toBe(2)
     })
   })

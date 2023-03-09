@@ -132,6 +132,8 @@ await operation.set('1', 'someValue')
 const classifier = await operation.get('1')
 ```
 
+Note that LoadingOperations are generally recommended over CachingOperations, as they offer better performance: LoadingOperations deduplicate all the get requests that come during the window between checking the cache and populating it, while Caching Operation will resolve all of them to undefined after checking the cache, both increasing load on the cache, and also potentially invoking the loading logic multiple times.
+
 ## Usage in high-performance systems
 
 In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval altogether in case there is a value already available in in-memory cache. Here is the example:

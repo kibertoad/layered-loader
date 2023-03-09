@@ -31,6 +31,12 @@ export class CountingGroupedCache implements GroupedCache<User> {
     return Promise.resolve()
   }
 
+  deleteFromGroup(): Promise<void> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
   get() {
     this.counter++
     return Promise.resolve(this.value)

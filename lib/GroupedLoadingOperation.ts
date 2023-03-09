@@ -33,7 +33,7 @@ export class GroupedLoadingOperation<LoadedValue> extends AbstractGroupedOperati
       if (resolvedValue !== undefined || index === this.loaders.length - 1) {
         const finalValue = resolvedValue ?? null
         if (this.asyncCache) {
-          await this.asyncCache.set(key, finalValue).catch((err) => {
+          await this.asyncCache.setForGroup(key, finalValue, group).catch((err) => {
             this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
           })
         }
