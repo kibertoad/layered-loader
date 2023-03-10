@@ -9,7 +9,7 @@ const GROUP_INDEX_KEY = 'group-index'
 export interface RedisCacheConfiguration extends CacheConfiguration {
   prefix: string
   json: boolean
-  timeout?: number
+  timeoutInMsecs?: number
   separator?: string
 }
 
@@ -43,7 +43,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   private async executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
-    if (!this.config.timeout) {
+    if (!this.config.timeoutInMsecs) {
       return originalPromise
     }
 
@@ -51,7 +51,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     let storedTimeout: any
     const timeout = new Promise((resolve, reject) => {
       storedReject = reject
-      storedTimeout = setTimeout(resolve, this.config.timeout, TIMEOUT)
+      storedTimeout = setTimeout(resolve, this.config.timeoutInMsecs, TIMEOUT)
     })
     const result = await Promise.race([timeout, originalPromise])
 
