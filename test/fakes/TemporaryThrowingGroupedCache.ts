@@ -1,6 +1,6 @@
 import { GroupedCache } from '../../lib/types/DataSources'
-import { GroupValues, User } from './Types'
-import { cloneDeep } from './cloneUtils'
+import { GroupValues, User } from '../types/testTypes'
+import { cloneDeep } from '../utils/cloneUtils'
 
 export class TemporaryThrowingGroupedCache implements GroupedCache<User> {
   private value: User | undefined

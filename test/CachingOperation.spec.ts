@@ -1,9 +1,9 @@
 import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { ThrowingCache } from './utils/ThrowingCache'
+import { ThrowingCache } from './fakes/ThrowingCache'
 import { CachingOperation } from '../lib/CachingOperation'
-import { DummyCache } from './utils/DummyCache'
-import { CountingCache } from './utils/CountingCache'
-import { TemporaryThrowingCache } from './utils/TemporaryThrowingCache'
+import { DummyCache } from './fakes/DummyCache'
+import { CountingCache } from './fakes/CountingCache'
+import { TemporaryThrowingCache } from './fakes/TemporaryThrowingCache'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 

@@ -1,12 +1,14 @@
 import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { User } from './utils/Types'
+import { User } from './types/testTypes'
 import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
-import { DummyGroupedCache } from './utils/DummyGroupedCache'
-import { ThrowingGroupedLoader } from './utils/ThrowingGroupedLoader'
-import { DummyGroupedLoader } from './utils/DummyGroupedLoader'
-import { TemporaryThrowingGroupedLoader } from './utils/TemporaryThrowingGroupedLoader'
-import { ThrowingGroupedCache } from './utils/ThrowingGroupedCache'
-import { CountingGroupedLoader } from './utils/CountingGroupedLoader'
+import { DummyGroupedCache } from './fakes/DummyGroupedCache'
+import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
+import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
+import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
+import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
+import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
+import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryCacheConfiguration
 
@@ -192,6 +194,26 @@ describe('GroupedLoadingOperation', () => {
       expect(valuePre).toBeUndefined()
       expect(valuePost).toEqual(user1)
       expect(valuePost2).toEqual(user1)
+    })
+
+    it('passes loadParams to the loader', async () => {
+      const cache2 = new DummyGroupedCache(userValuesUndefined)
+      const operation = new GroupedLoadingOperation<User, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [new DummyGroupedLoaderWithParams(userValues)],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
+      await operation.get(user1.userId, user1.companyId, { prefix: 'pre', suffix: 'post' })
+      const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
+      const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
+
+      expect(valuePre).toBe(undefined)
+      expect(valuePost).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
+      expect(valuePost2).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
     })
 
     it('correctly reuses value from cache', async () => {

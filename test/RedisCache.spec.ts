@@ -1,6 +1,6 @@
 import Redis from 'ioredis'
 import { RedisCache } from '../lib/redis/RedisCache'
-import { redisOptions } from './utils/TestRedisConfig'
+import { redisOptions } from './fakes/TestRedisConfig'
 
 describe('RedisCache', () => {
   let redis: Redis

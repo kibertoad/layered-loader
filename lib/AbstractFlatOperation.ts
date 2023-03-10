@@ -1,17 +1,20 @@
 import { AbstractOperation } from './AbstractOperation'
 
-export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperation<LoadedValue> {
+export abstract class AbstractFlatOperation<
+  LoadedValue,
+  ResolveParams = undefined
+> extends AbstractOperation<LoadedValue> {
   public getInMemoryOnly(key: string): LoadedValue | undefined | null {
     return this.inMemoryCache.get(key)
   }
 
-  public getAsyncOnly(key: string): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(key: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
     }
 
-    const loadingPromise = this.resolveValue(key)
+    const loadingPromise = this.resolveValue(key, resolveParams)
     this.runningLoads.set(key, loadingPromise)
 
     loadingPromise
@@ -28,16 +31,16 @@ export abstract class AbstractFlatOperation<LoadedValue> extends AbstractOperati
     return loadingPromise
   }
 
-  public get(key: string): Promise<LoadedValue | undefined | null> {
+  public get(key: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.get(key)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(key)
+    return this.getAsyncOnly(key, resolveParams)
   }
 
-  protected async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
+  protected async resolveValue(key: string, _resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.get(key).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
