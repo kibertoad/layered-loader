@@ -90,9 +90,20 @@ describe('GroupedLoadingOperation', () => {
       expect(result).toBeUndefined()
     })
 
+    it('throws when fails to resolve value, with flag and no loaders', async () => {
+      const operation = new GroupedLoadingOperation({
+        throwIfUnresolved: true,
+      })
+
+      await expect(() => {
+        return operation.get(user1.userId, user1.companyId)
+      }).rejects.toThrow(`Failed to resolve value for key "1", group "1"`)
+    })
+
     it('throws when fails to resolve value and flag is set', async () => {
       const operation = new GroupedLoadingOperation({
         throwIfUnresolved: true,
+        loaders: [new DummyGroupedLoader(userValuesUndefined)],
       })
 
       await expect(() => {

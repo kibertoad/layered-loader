@@ -58,9 +58,20 @@ describe('LoadingOperation', () => {
       expect(result).toBe(undefined)
     })
 
-    it('throws when fails to resolve value and flag is set', async () => {
+    it('throws when fails to resolve value, no loaders and flag is set', async () => {
       const operation = new LoadingOperation({
         throwIfUnresolved: true,
+      })
+
+      await expect(() => {
+        return operation.get('value')
+      }).rejects.toThrow(/Failed to resolve value for key "value"/)
+    })
+
+    it('throws when fails to resolve value, and flag is set', async () => {
+      const operation = new LoadingOperation({
+        throwIfUnresolved: true,
+        loaders: [new DummyLoader(undefined)],
       })
 
       await expect(() => {
