@@ -37,11 +37,10 @@ describe('CachingOperation', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new CachingOperation({ asyncCache: new ThrowingCache(), throwIfUnresolved: true })
+      const operation = new CachingOperation({ asyncCache: new ThrowingCache() })
 
-      await expect(() => {
-        return operation.get('value')
-      }).rejects.toThrow(/Failed to resolve value for key "value"/)
+      await operation.get('value')
+
       expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
 
@@ -63,11 +62,10 @@ describe('CachingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const cache = new TemporaryThrowingCache('value')
-      const operation = new CachingOperation({ asyncCache: cache, throwIfUnresolved: true })
+      const operation = new CachingOperation({ asyncCache: cache })
 
-      await expect(() => {
-        return operation.get('value')
-      }).rejects.toThrow(/Failed to resolve value for key "value"/)
+      const preValue = await operation.get('value')
+      expect(preValue).toBeUndefined()
 
       cache.isThrowing = false
       const value = await operation.get('dummy')

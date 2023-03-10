@@ -68,6 +68,20 @@ describe('LoadingOperation', () => {
       }).rejects.toThrow(/Failed to resolve value for key "value"/)
     })
 
+    it('does not throw when flag is set, but loader can resolve the value', async () => {
+      const cache = new DummyCache(undefined)
+      const loader = new DummyLoader('value')
+
+      const operation = new LoadingOperation({
+        asyncCache: cache,
+        loaders: [loader],
+        throwIfUnresolved: true,
+      })
+
+      const value = await operation.get('key')
+      expect(value).toEqual('value')
+    })
+
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new LoadingOperation({ loaders: [new ThrowingLoader()], throwIfLoadError: true })

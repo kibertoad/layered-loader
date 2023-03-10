@@ -126,12 +126,10 @@ describe('GroupedCachingOperation', () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new GroupedCachingOperation({
         asyncCache: new ThrowingGroupedCache(),
-        throwIfUnresolved: true,
       })
 
-      await expect(() => {
-        return operation.get('value', 'fake group')
-      }).rejects.toThrow(/Failed to resolve value for key "value", group "fake group"/)
+      await operation.get('value', 'fake group')
+
       expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
 

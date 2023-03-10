@@ -50,9 +50,6 @@ export abstract class AbstractFlatOperation<
       }
     }
 
-    if (this.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}"`)
-    }
     return undefined
   }
 
