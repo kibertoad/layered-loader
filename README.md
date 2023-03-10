@@ -111,7 +111,7 @@ Sometimes you need to pass additional parameters for loader in case it will need
 You can use optional parameter `loadParams` for that:
 
 ```ts
-class DummyLoaderWithParams implements Loader<string, MyLoaderParams> {
+class MyLoaderWithParams implements Loader<string, MyLoaderParams> {
     async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
         if (!params) {
             throw new Error('Params were not passed')
@@ -126,8 +126,7 @@ const operation = new LoadingOperation<string, MyLoaderParams>({
   inMemoryCache: IN_MEMORY_CACHE_CONFIG,
   loaders: [new MyParametrizedLoader()],
 })
-await operation.get('key', { jwtToken: 'someTokenValue' })
- 
+await operation.get('key', { jwtToken: 'someTokenValue' }) 
 ```
 
 ## Cache-only operations
