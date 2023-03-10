@@ -4,31 +4,38 @@ import { AbstractFlatOperation } from './AbstractFlatOperation'
 
 export type LoadingOperationConfig<
   LoadedValue,
-  C extends Cache<LoadedValue> = Cache<LoadedValue>,
-  LoaderType = Loader<LoadedValue>
+  CacheType extends Cache<LoadedValue> = Cache<LoadedValue>,
+  LoaderParams = undefined,
+  LoaderType = Loader<LoadedValue, LoaderParams>
 > = {
   loaders?: readonly LoaderType[]
   throwIfLoadError?: boolean
-} & CommonOperationConfig<LoadedValue, C>
+} & CommonOperationConfig<LoadedValue, CacheType>
 
-export class LoadingOperation<LoadedValue> extends AbstractFlatOperation<LoadedValue> {
-  private readonly loaders: readonly Loader<LoadedValue>[]
+export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends AbstractFlatOperation<
+  LoadedValue,
+  LoaderParams
+> {
+  private readonly loaders: readonly Loader<LoadedValue, LoaderParams>[]
   protected readonly throwIfLoadError: boolean
 
-  constructor(config: LoadingOperationConfig<LoadedValue>) {
+  constructor(config: LoadingOperationConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
   }
 
-  protected override async resolveValue(key: string): Promise<LoadedValue | undefined | null> {
-    const cachedValue = await super.resolveValue(key)
+  protected override async resolveValue(
+    key: string,
+    loadParams?: LoaderParams
+  ): Promise<LoadedValue | undefined | null> {
+    const cachedValue = await super.resolveValue(key, loadParams)
     if (cachedValue !== undefined) {
       return cachedValue
     }
 
     for (let index = 0; index < this.loaders.length; index++) {
-      const resolvedValue = await this.loaders[index].get(key).catch((err) => {
+      const resolvedValue = await this.loaders[index].get(key, loadParams).catch((err) => {
         this.loadErrorHandler(err, key, this.loaders[index], this.logger)
         if (this.throwIfLoadError) {
           throw err

@@ -103,7 +103,32 @@ LoadingOperation provides following methods:
 
 - `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this LoadingOperation;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
-- `get(key: string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
+- `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
+
+## Parametrized loading
+
+Sometimes you need to pass additional parameters for loader in case it will need to refill the cache, such as JWT token (for external calls) or additional query parameters (for a DB call).
+You can use optional parameter `loadParams` for that:
+
+```ts
+class DummyLoaderWithParams implements Loader<string, MyLoaderParams> {
+    async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
+        if (!params) {
+            throw new Error('Params were not passed')
+        }
+
+        const resolvedValue = await someResolutionLogic(params.jwtToken)
+        return resolvedValue
+    }
+}
+
+const operation = new LoadingOperation<string, MyLoaderParams>({
+  inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+  loaders: [new MyParametrizedLoader()],
+})
+await operation.get('key', { jwtToken: 'someTokenValue' })
+ 
+```
 
 ## Cache-only operations
 

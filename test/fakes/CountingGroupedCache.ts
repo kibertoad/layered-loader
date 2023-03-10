@@ -1,12 +1,12 @@
 import { GroupedCache } from '../../lib/types/DataSources'
-import { GroupValues, User } from './Types'
-import { cloneDeep } from './cloneUtils'
+import { GroupValues, User } from '../types/testTypes'
+import { cloneDeep } from '../utils/cloneUtils'
 
-export class DummyGroupedCache implements GroupedCache<User> {
+export class CountingGroupedCache implements GroupedCache<User> {
+  private groupValues: GroupValues
   private value: User | undefined
-  groupValues: GroupValues
-
-  name = 'Dummy cache'
+  public counter = 0
+  name = 'Counting cache'
   isCache = true
 
   constructor(returnedValues: GroupValues) {
@@ -19,6 +19,7 @@ export class DummyGroupedCache implements GroupedCache<User> {
   }
 
   getFromGroup(key: string, group: string) {
+    this.counter++
     return Promise.resolve(this.groupValues[group]?.[key])
   }
   setForGroup(key: string, value: User | null, group: string) {
@@ -30,7 +31,14 @@ export class DummyGroupedCache implements GroupedCache<User> {
     return Promise.resolve()
   }
 
+  deleteFromGroup(): Promise<void> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
   get() {
+    this.counter++
     return Promise.resolve(this.value)
   }
 
@@ -40,7 +48,7 @@ export class DummyGroupedCache implements GroupedCache<User> {
     return Promise.resolve(undefined)
   }
 
-  delete(): Promise<void> {
+  delete(_key: string): Promise<void> {
     this.value = undefined
     return Promise.resolve(undefined)
   }
@@ -48,10 +56,5 @@ export class DummyGroupedCache implements GroupedCache<User> {
   set(_key: string, value: User | null): Promise<void> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
-  }
-
-  deleteFromGroup(key: string, group: string): Promise<void> {
-    delete this.groupValues[group][key]
-    return Promise.resolve()
   }
 }

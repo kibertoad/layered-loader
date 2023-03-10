@@ -1,11 +1,12 @@
 import { LoadingOperation } from '../lib/LoadingOperation'
 import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { DummyLoader } from './utils/DummyLoader'
-import { CountingLoader } from './utils/CountingLoader'
-import { ThrowingLoader } from './utils/ThrowingLoader'
-import { ThrowingCache } from './utils/ThrowingCache'
-import { TemporaryThrowingLoader } from './utils/TemporaryThrowingLoader'
-import { DummyCache } from './utils/DummyCache'
+import { DummyLoader } from './fakes/DummyLoader'
+import { CountingLoader } from './fakes/CountingLoader'
+import { ThrowingLoader } from './fakes/ThrowingLoader'
+import { ThrowingCache } from './fakes/ThrowingCache'
+import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
+import { DummyCache } from './fakes/DummyCache'
+import { DummyLoaderParams, DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
@@ -106,7 +107,7 @@ describe('LoadingOperation', () => {
       expect(value).toBe('value')
     })
 
-    it('correctly handles error during cache update', async () => {
+    it('handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new LoadingOperation({ asyncCache: new ThrowingCache(), loaders: [new DummyLoader('value')] })
       const value = await operation.get('value')
@@ -156,6 +157,26 @@ describe('LoadingOperation', () => {
       expect(valuePre).toBe(undefined)
       expect(valuePost).toBe('value')
       expect(valuePost2).toBe('value')
+    })
+
+    it('passes loadParams to the loader', async () => {
+      const cache2 = new DummyCache(undefined)
+      const operation = new LoadingOperation<string, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        loaders: [new DummyLoaderWithParams('value')],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = await cache1.get('key')
+      await operation.get('key', { prefix: 'pre', suffix: 'post' })
+      const valuePost = await cache1.get('key')
+      const valuePost2 = await cache2.get('key')
+
+      expect(valuePre).toBe(undefined)
+      expect(valuePost).toBe('prevaluepost')
+      expect(valuePost2).toBe('prevaluepost')
     })
 
     it('correctly reuses value from cache', async () => {

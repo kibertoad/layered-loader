@@ -1,7 +1,7 @@
 import { AbstractOperation } from './AbstractOperation'
 import { GroupedCache } from './types/DataSources'
 
-export abstract class AbstractGroupedOperation<LoadedValue> extends AbstractOperation<
+export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = undefined> extends AbstractOperation<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupedCache<LoadedValue>
@@ -21,14 +21,18 @@ export abstract class AbstractGroupedOperation<LoadedValue> extends AbstractOper
     return this.inMemoryCache.getFromGroup(key, group)
   }
 
-  public getAsyncOnly(key: string, group: string): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(
+    key: string,
+    group: string,
+    resolveParams?: ResolveParams
+  ): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
       return existingLoad
     }
 
-    const loadingPromise = this.resolveGroupValue(key, group)
+    const loadingPromise = this.resolveGroupValue(key, group, resolveParams)
     groupLoads.set(key, loadingPromise)
 
     loadingPromise
@@ -45,13 +49,13 @@ export abstract class AbstractGroupedOperation<LoadedValue> extends AbstractOper
     return loadingPromise
   }
 
-  public get(key: string, group: string): Promise<LoadedValue | undefined | null> {
+  public get(key: string, group: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(key, group)
+    return this.getAsyncOnly(key, group, resolveParams)
   }
 
   public async invalidateCacheFor(key: string, group: string) {
@@ -66,7 +70,11 @@ export abstract class AbstractGroupedOperation<LoadedValue> extends AbstractOper
     this.deleteGroupRunningLoad(groupLoads, group, key)
   }
 
-  protected async resolveGroupValue(key: string, group: string): Promise<LoadedValue | undefined | null> {
+  protected async resolveGroupValue(
+    key: string,
+    group: string,
+    _resolveParams?: ResolveParams
+  ): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.getFromGroup(key, group).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
