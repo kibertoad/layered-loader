@@ -12,7 +12,7 @@ services:
       - REDIS_REPLICATION_MODE=master
 
   wait_for_redis:
-    image: "redis:6-alpine"
+    image: "redis:7-alpine"
 
     depends_on:
       - redis
