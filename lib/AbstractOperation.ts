@@ -63,15 +63,4 @@ export abstract class AbstractOperation<
 
     this.runningLoads.clear()
   }
-
-  public async invalidateCacheFor(key: string) {
-    this.inMemoryCache.delete(key)
-    if (this.asyncCache) {
-      await this.asyncCache.delete(key).catch((err) => {
-        this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
-      })
-    }
-
-    this.runningLoads.delete(key)
-  }
 }

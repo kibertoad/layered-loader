@@ -1,11 +1,15 @@
 import { CommonOperationConfig } from './AbstractOperation'
-import { Loader } from './types/DataSources'
+import { Cache, Loader } from './types/DataSources'
 import { AbstractFlatOperation } from './AbstractFlatOperation'
 
-export type LoadingOperationConfig<LoadedValue> = {
-  loaders?: readonly Loader<LoadedValue>[]
+export type LoadingOperationConfig<
+  LoadedValue,
+  C extends Cache<LoadedValue> = Cache<LoadedValue>,
+  LoaderType = Loader<LoadedValue>
+> = {
+  loaders?: readonly LoaderType[]
   throwIfLoadError?: boolean
-} & CommonOperationConfig<LoadedValue>
+} & CommonOperationConfig<LoadedValue, C>
 
 export class LoadingOperation<LoadedValue> extends AbstractFlatOperation<LoadedValue> {
   private readonly loaders: readonly Loader<LoadedValue>[]
@@ -30,13 +34,14 @@ export class LoadingOperation<LoadedValue> extends AbstractFlatOperation<LoadedV
           throw err
         }
       })
-      if (resolvedValue !== undefined) {
+      if (resolvedValue !== undefined || index === this.loaders.length - 1) {
+        const finalValue = resolvedValue ?? null
         if (this.asyncCache) {
-          await this.asyncCache.set(key, resolvedValue).catch((err) => {
+          await this.asyncCache.set(key, finalValue).catch((err) => {
             this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
           })
         }
-        return resolvedValue
+        return finalValue
       }
     }
     return undefined

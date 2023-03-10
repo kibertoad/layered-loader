@@ -82,7 +82,7 @@ describe('LoadingOperation', () => {
       const operation = new LoadingOperation({ loaders: [loader] })
 
       const value = await operation.get('value')
-      expect(value).toBeUndefined()
+      expect(value).toBeNull()
 
       loader.value = null
       const value2 = await operation.get('value')

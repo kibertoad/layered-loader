@@ -53,6 +53,11 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
     group.set(key, value)
   }
 
+  deleteFromGroup(key: string, groupId: string): void {
+    const group = this.resolveGroup(groupId)
+    group.delete(key)
+  }
+
   clear(): void {
     this.cache.clear()
     this.groups.clear()

@@ -2,7 +2,7 @@ import { GroupedCache } from '../../lib/types/DataSources'
 import { User } from './Types'
 
 export class ThrowingGroupedCache implements GroupedCache<User> {
-  name = 'Throwing cache'
+  name = 'Throwing grouped cache'
   isCache = true
 
   get(): Promise<User | undefined | null> {
@@ -42,6 +42,12 @@ export class ThrowingGroupedCache implements GroupedCache<User> {
   }
 
   setForGroup(): Promise<void> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
+  deleteFromGroup(): Promise<void> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
     })

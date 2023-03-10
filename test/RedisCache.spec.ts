@@ -124,6 +124,37 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('deleteFromGroup', () => {
+    it('deletes value from group', async () => {
+      const cache = new RedisCache(redis)
+      await cache.setForGroup('key', 'value', 'group1')
+      await cache.setForGroup('key2', 'value2', 'group1')
+      await cache.setForGroup('key', 'value', 'group2')
+      await cache.setForGroup('key2', 'value2', 'group2')
+
+      await cache.deleteFromGroup('key', 'group1')
+
+      const value1group1 = await cache.getFromGroup('key', 'group1')
+      const value2group1 = await cache.getFromGroup('key2', 'group1')
+      const value1group2 = await cache.getFromGroup('key', 'group2')
+      const value2group2 = await cache.getFromGroup('key2', 'group2')
+
+      await expect(value1group1).toBeUndefined()
+      await expect(value2group1).toBe('value2')
+      await expect(value1group2).toBe('value')
+      await expect(value2group2).toBe('value2')
+    })
+
+    it('does not crash when no values present', async () => {
+      const cache = new RedisCache(redis)
+      await cache.deleteFromGroup('key', 'group1')
+
+      const value1group1 = await cache.getFromGroup('key', 'group1')
+
+      await expect(value1group1).toBeUndefined()
+    })
+  })
+
   describe('deleteGroup', () => {
     it('clears empty group', async () => {
       const cache = new RedisCache(redis)

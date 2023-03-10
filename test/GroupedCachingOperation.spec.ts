@@ -131,7 +131,7 @@ describe('GroupedCachingOperation', () => {
 
       await expect(() => {
         return operation.get('value', 'fake group')
-      }).rejects.toThrow(/Failed to resolve value for key "value", group fake group/)
+      }).rejects.toThrow(/Failed to resolve value for key "value", group "fake group"/)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
 

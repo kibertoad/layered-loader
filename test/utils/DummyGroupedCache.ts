@@ -49,4 +49,9 @@ export class DummyGroupedCache implements GroupedCache<User> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
   }
+
+  deleteFromGroup(key: string, group: string): Promise<void> {
+    delete this.groupValues[group][key]
+    return Promise.resolve()
+  }
 }

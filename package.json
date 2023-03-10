@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "8.0.1",
+  "version": "9.0.0",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
@@ -49,11 +49,11 @@
   },
   "devDependencies": {
     "@types/jest": "^29.4.0",
-    "@types/node": "^18.14.4",
-    "@typescript-eslint/eslint-plugin": "^5.54.0",
-    "@typescript-eslint/parser": "^5.54.0",
+    "@types/node": "^18.15.0",
+    "@typescript-eslint/eslint-plugin": "^5.54.1",
+    "@typescript-eslint/parser": "^5.54.1",
     "eslint": "^8.35.0",
-    "eslint-config-prettier": "^8.6.0",
+    "eslint-config-prettier": "^8.7.0",
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.2.1",
     "ioredis": "^5.3.1",

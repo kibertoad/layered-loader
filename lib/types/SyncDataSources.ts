@@ -7,6 +7,7 @@ export interface SynchronousCache<T> {
 
 export interface SynchronousGroupedCache<T> extends SynchronousCache<T> {
   deleteGroup: (group: string) => void
+  deleteFromGroup: (key: string, group: string) => void
   getFromGroup: (key: string, group: string) => T | undefined | null
   setForGroup: (key: string, value: T | null, group: string) => void
 }

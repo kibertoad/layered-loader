@@ -25,6 +25,12 @@ export class TemporaryThrowingGroupedCache implements GroupedCache<User> {
     return Promise.resolve()
   }
 
+  deleteFromGroup(): Promise<void> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
   getFromGroup(key: string, group: string) {
     if (this.isThrowing) {
       return Promise.resolve().then(() => {
