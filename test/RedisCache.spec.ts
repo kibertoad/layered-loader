@@ -16,7 +16,7 @@ describe('RedisCache', () => {
     it('retrieves value with timeout', async () => {
       const cache = new RedisCache(redis, {
         json: false,
-        timeout: 9999999,
+        timeoutInMsecs: 9999999,
         prefix: 'cache',
         ttlInMsecs: undefined,
       })
