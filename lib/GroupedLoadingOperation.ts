@@ -14,11 +14,13 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
 > {
   private readonly loaders: readonly GroupLoader<LoadedValue, LoaderParams>[]
   protected readonly throwIfLoadError: boolean
+  protected readonly throwIfUnresolved: boolean
 
   constructor(config: GroupedLoadingOperationConfig<LoadedValue, LoaderParams>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
+    this.throwIfUnresolved = config.throwIfUnresolved ?? false
   }
 
   protected override async resolveGroupValue(
@@ -39,6 +41,10 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
         }
       })
       if (resolvedValue !== undefined || index === this.loaders.length - 1) {
+        if (resolvedValue === undefined && this.throwIfUnresolved) {
+          throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
+        }
+
         const finalValue = resolvedValue ?? null
         if (this.asyncCache) {
           await this.asyncCache.setForGroup(key, finalValue, group).catch((err) => {
@@ -47,6 +53,10 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
         }
         return finalValue
       }
+    }
+
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
     }
     return undefined
   }

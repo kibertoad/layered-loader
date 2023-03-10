@@ -10,6 +10,7 @@ export type LoadingOperationConfig<
 > = {
   loaders?: readonly LoaderType[]
   throwIfLoadError?: boolean
+  throwIfUnresolved?: boolean
 } & CommonOperationConfig<LoadedValue, CacheType>
 
 export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends AbstractFlatOperation<
@@ -18,11 +19,13 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
 > {
   private readonly loaders: readonly Loader<LoadedValue, LoaderParams>[]
   protected readonly throwIfLoadError: boolean
+  protected readonly throwIfUnresolved: boolean
 
   constructor(config: LoadingOperationConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
+    this.throwIfUnresolved = config.throwIfUnresolved ?? false
   }
 
   protected override async resolveValue(
@@ -42,6 +45,10 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
         }
       })
       if (resolvedValue !== undefined || index === this.loaders.length - 1) {
+        if (resolvedValue === undefined && this.throwIfUnresolved) {
+          throw new Error(`Failed to resolve value for key "${key}"`)
+        }
+
         const finalValue = resolvedValue ?? null
         if (this.asyncCache) {
           await this.asyncCache.set(key, finalValue).catch((err) => {
@@ -50,6 +57,10 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
         }
         return finalValue
       }
+    }
+
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}"`)
     }
     return undefined
   }

@@ -83,9 +83,6 @@ export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = unde
         return cachedValue as LoadedValue | undefined | null
       }
     }
-    if (this.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
-    }
     return undefined
   }
 

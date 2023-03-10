@@ -100,6 +100,20 @@ describe('GroupedLoadingOperation', () => {
       }).rejects.toThrow(`Failed to resolve value for key "1", group "1"`)
     })
 
+    it('does not throw when flag is set, but loader can resolve the value', async () => {
+      const cache = new DummyGroupedCache(userValuesUndefined)
+      const loader = new DummyGroupedLoader(userValues)
+
+      const operation = new GroupedLoadingOperation({
+        asyncCache: cache,
+        loaders: [loader],
+        throwIfUnresolved: true,
+      })
+
+      const value = await operation.get(user1.userId, user1.companyId)
+      expect(value).toEqual(user1)
+    })
+
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new GroupedLoadingOperation({ loaders: [new ThrowingGroupedLoader()], throwIfLoadError: true })
