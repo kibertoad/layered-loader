@@ -1,0 +1,22 @@
+{
+  "name": "benchmark",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "cd .. && npm run build",
+    "benchmark": "node autocannon-layered-loader.js",
+    "format": "prettier --write **/*.js autocannon-layered-loader.js"
+  },
+  "dependencies": {
+    "async-cache-dedupe": "^1.10.0",
+    "autocannon": "^7.10.0",
+    "fastify": "^4.14.1",
+    "ioredis": "^5.3.1",
+    "layered-loader": "^9.1.1",
+    "systeminformation": "^5.17.12"
+  },
+  "devDependencies": {
+    "@types/autocannon": "^7.9.0",
+    "prettier": "^2.8.4"
+  }
+}
