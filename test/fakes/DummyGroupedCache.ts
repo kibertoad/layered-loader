@@ -1,6 +1,6 @@
-import { GroupedCache } from '../../lib/DataSources'
-import { GroupValues, User } from './Types'
-import { cloneDeep } from './cloneUtils'
+import { GroupedCache } from '../../lib/types/DataSources'
+import { GroupValues, User } from '../types/testTypes'
+import { cloneDeep } from '../utils/cloneUtils'
 
 export class DummyGroupedCache implements GroupedCache<User> {
   private value: User | undefined
@@ -48,5 +48,10 @@ export class DummyGroupedCache implements GroupedCache<User> {
   set(_key: string, value: User | null): Promise<void> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
+  }
+
+  deleteFromGroup(key: string, group: string): Promise<void> {
+    delete this.groupValues[group][key]
+    return Promise.resolve()
   }
 }

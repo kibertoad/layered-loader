@@ -1,4 +1,4 @@
-import { Cache, CacheConfiguration, GroupedCache, Loader } from '../DataSources'
+import { Cache, CacheConfiguration, GroupedCache, Loader } from '../types/DataSources'
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
@@ -9,7 +9,7 @@ const GROUP_INDEX_KEY = 'group-index'
 export interface RedisCacheConfiguration extends CacheConfiguration {
   prefix: string
   json: boolean
-  timeout?: number
+  timeoutInMsecs?: number
   separator?: string
 }
 
@@ -43,7 +43,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   }
 
   private async executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
-    if (!this.config.timeout) {
+    if (!this.config.timeoutInMsecs) {
       return originalPromise
     }
 
@@ -51,7 +51,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     let storedTimeout: any
     const timeout = new Promise((resolve, reject) => {
       storedReject = reject
-      storedTimeout = setTimeout(resolve, this.config.timeout, TIMEOUT)
+      storedTimeout = setTimeout(resolve, this.config.timeoutInMsecs, TIMEOUT)
     })
     const result = await Promise.race([timeout, originalPromise])
 
@@ -103,6 +103,14 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     }
 
     await this.redis.incr(key)
+  }
+
+  async deleteFromGroup(key: string, group: string): Promise<void> {
+    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(group)))
+    if (!currentGroupKey) {
+      return
+    }
+    await this.executeWithTimeout(this.redis.del(this.resolveKeyWithGroup(key, group, currentGroupKey)))
   }
 
   async delete(key: string): Promise<void> {

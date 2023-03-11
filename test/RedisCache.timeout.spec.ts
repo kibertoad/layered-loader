@@ -16,7 +16,7 @@ describe('RedisCache timeout', () => {
     it('handles timeout correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
-        timeout: 25000,
+        timeoutInMsecs: 25000,
         prefix: 'cache',
       })
 
@@ -31,7 +31,7 @@ describe('RedisCache timeout', () => {
     it('handles timeout correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
-        timeout: 25000,
+        timeoutInMsecs: 25000,
         prefix: 'cache',
       })
 
@@ -46,7 +46,7 @@ describe('RedisCache timeout', () => {
     it('handles timeout correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
-        timeout: 25000,
+        timeoutInMsecs: 25000,
         prefix: 'cache',
       })
 
@@ -61,7 +61,7 @@ describe('RedisCache timeout', () => {
     it('handles timeout correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,
-        timeout: 25000,
+        timeoutInMsecs: 25000,
         prefix: 'cache',
       })
 

@@ -1,17 +1,15 @@
-import { Cache } from '../../lib/DataSources'
+import { Cache } from '../../lib/types/DataSources'
 
-export class CountingCache implements Cache<string> {
-  private value: string | undefined
-  public counter = 0
-  name = 'Counting cache'
+export class DummyCache implements Cache<string> {
+  value: string | undefined | null
+  name = 'Dummy cache'
   isCache = true
 
   constructor(returnedValue: string | undefined) {
     this.value = returnedValue
   }
 
-  get(): Promise<string | undefined | null> {
-    this.counter++
+  get(_key: string): Promise<string | undefined | null> {
     return Promise.resolve(this.value)
   }
 

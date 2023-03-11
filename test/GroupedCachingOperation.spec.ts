@@ -1,13 +1,16 @@
 import { GroupedCachingOperation } from '../lib/GroupedCachingOperation'
-import { ThrowingGroupedCache } from './utils/ThrowingGroupedCache'
-import { User } from './utils/Types'
+import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
+import { User } from './types/testTypes'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
-import { redisOptions } from './utils/TestRedisConfig'
-import { DummyGroupedCache } from './utils/DummyGroupedCache'
-import { CountingGroupedCache } from './utils/CountingGroupedCache'
+import { redisOptions } from './fakes/TestRedisConfig'
+import { DummyGroupedCache } from './fakes/DummyGroupedCache'
+import { CountingGroupedCache } from './fakes/CountingGroupedCache'
+import { InMemoryCacheConfiguration } from '../lib/memory'
+import { TemporaryThrowingGroupedCache } from './fakes/TemporaryThrowingGroupedCache'
 
 const redisCacheConfig = { json: true, ttlInMsecs: 99999, prefix: 'users' }
+const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 const user1: User = {
   companyId: '1',
@@ -64,10 +67,10 @@ describe('GroupedCachingOperation', () => {
 
   describe('set', () => {
     it('handles error when trying to set a value', async () => {
-      const operation = new GroupedCachingOperation<User>([
-        new ThrowingGroupedCache(),
-        new RedisCache(redis, { json: true, ttlInMsecs: 99999, prefix: 'users' }),
-      ])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingGroupedCache(),
+      })
 
       await operation.set(user1.userId, user1, user1.companyId)
 
@@ -76,9 +79,43 @@ describe('GroupedCachingOperation', () => {
     })
   })
 
+  describe('getInMemoryOnly', () => {
+    it('returns undefined when no inmemory cache is configured', () => {
+      const operation = new GroupedCachingOperation({})
+
+      const result = operation.getInMemoryOnly('value', 'group')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns undefined when no value is cached', () => {
+      const operation = new GroupedCachingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      })
+
+      const result = operation.getInMemoryOnly('value', 'group')
+
+      expect(result).toBe(undefined)
+    })
+
+    it('returns cached value', async () => {
+      const operation = new GroupedCachingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+      })
+
+      const resultPre = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPost = operation.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre).toBeUndefined()
+      expect(resultPost).toEqual(user1)
+    })
+  })
+
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
-      const operation = new GroupedCachingOperation([])
+      const operation = new GroupedCachingOperation({})
 
       const result = await operation.get('value', 'fakegroup')
 
@@ -87,18 +124,19 @@ describe('GroupedCachingOperation', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupedCachingOperation([new ThrowingGroupedCache()])
+      const operation = new GroupedCachingOperation({
+        asyncCache: new ThrowingGroupedCache(),
+      })
 
-      await expect(() => {
-        return operation.get('value', 'fake group')
-      }).rejects.toThrow(/Error has occurred/)
+      await operation.get('value', 'fake group')
+
       expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
 
     it('resets loading operation after value was not found previously', async () => {
       const cache = new DummyGroupedCache(userValuesUndefined)
-      const operation = new GroupedCachingOperation([cache], {
-        loadingOperationMemoryTtl: 999999,
+      const operation = new GroupedCachingOperation({
+        asyncCache: cache,
       })
 
       const value = await operation.get(user1.userId, user1.companyId)
@@ -115,15 +153,21 @@ describe('GroupedCachingOperation', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupedCachingOperation([new ThrowingGroupedCache(), new DummyGroupedCache(userValues)])
+      const operation = new GroupedCachingOperation({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new ThrowingGroupedCache(),
+      })
+      await operation.set(user1.userId, user1, user1.companyId)
       const value = await operation.get(user1.userId, user1.companyId)
       expect(value).toEqual(user1)
-      expect(consoleSpy).toHaveBeenCalledTimes(2)
+      expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
 
     it('returns value when resolved via single loader', async () => {
       const cache = new RedisCache<User>(redis, redisCacheConfig)
-      const operation = new GroupedCachingOperation<User>([cache])
+      const operation = new GroupedCachingOperation<User>({
+        asyncCache: cache,
+      })
       await cache.setForGroup(user1.userId, user1, user1.companyId)
 
       const result = await operation.get(user1.userId, user1.companyId)
@@ -132,16 +176,15 @@ describe('GroupedCachingOperation', () => {
     })
 
     it('returns value when resolved via multiple loaders', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        prefix: 'users1',
-      })
       const cache2 = new RedisCache<User>(redis, {
         ...redisCacheConfig,
         prefix: 'users2',
       })
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+      })
       await cache2.setForGroup(user1.userId, user1, user1.companyId)
 
       const result = await operation.get(user1.userId, user1.companyId)
@@ -150,16 +193,18 @@ describe('GroupedCachingOperation', () => {
     })
 
     it('updates upper level cache when resolving value downstream', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        prefix: 'users1',
-      })
       const cache2 = new RedisCache<User>(redis, {
         ...redisCacheConfig,
         prefix: 'users2',
       })
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
       await operation.set(user1.userId, user1, user1.companyId)
       const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
@@ -171,30 +216,26 @@ describe('GroupedCachingOperation', () => {
     })
 
     it('correctly reuses value from cache', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        prefix: 'users1',
-      })
-      const cache2 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        prefix: 'users2',
-      })
-      const loader1 = new CountingGroupedCache({})
-      const loader2 = new CountingGroupedCache(userValues)
+      const cache2 = new CountingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2, loader1, loader2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+      })
       const valuePre = await operation.get(user1.userId, user1.companyId)
       const valuePost = await operation.get(user1.userId, user1.companyId)
 
       expect(valuePre).toEqual(user1)
       expect(valuePost).toEqual(user1)
-      expect(loader2.counter).toBe(1)
+      expect(cache2.counter).toBe(1)
     })
 
     it('batches identical retrievals together', async () => {
       const loader = new CountingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([loader])
+      const operation = new GroupedCachingOperation<User>({
+        asyncCache: loader,
+      })
       const valuePromise = operation.get(user1.userId, user1.companyId)
       const valuePromise2 = operation.get(user1.userId, user1.companyId)
 
@@ -209,20 +250,12 @@ describe('GroupedCachingOperation', () => {
 
   describe('invalidateCacheForGroup', () => {
     it('invalidates cache', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users1',
-      })
-      const cache2 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users2',
-      })
-      const loader1 = new CountingGroupedCache({})
       const loader2 = new CountingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2, loader1, loader2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: loader2,
+      })
       const valuePre = await operation.get(user1.userId, user1.companyId)
       const value2Pre = await operation.get(user3.userId, user3.companyId)
 
@@ -238,43 +271,32 @@ describe('GroupedCachingOperation', () => {
     })
 
     it('handles errors during invalidation', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users1',
-      })
-      const cache2 = new ThrowingGroupedCache()
-      const loader1 = new CountingGroupedCache({})
-      const loader2 = new CountingGroupedCache(userValues)
+      const cache2 = new TemporaryThrowingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2, loader1, loader2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+      })
+      cache2.isThrowing = false
       const valuePre = await operation.get(user1.userId, user1.companyId)
+      cache2.isThrowing = true
 
       await operation.invalidateCacheForGroup(user1.companyId)
       const valuePost = await operation.get(user1.userId, user1.companyId)
 
       expect(valuePre).toEqual(user1)
       expect(valuePost).toBeUndefined()
-      expect(loader2.counter).toBe(2)
     })
   })
 
   describe('invalidateCache', () => {
     it('invalidates cache', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users1',
-      })
-      const cache2 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users2',
-      })
-      const loader1 = new CountingGroupedCache({})
       const loader2 = new CountingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2, loader1, loader2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: loader2,
+      })
       const valuePre = await operation.get(user1.userId, user1.companyId)
 
       await operation.invalidateCache()
@@ -286,24 +308,21 @@ describe('GroupedCachingOperation', () => {
     })
 
     it('handles errors during invalidation', async () => {
-      const cache1 = new RedisCache<User>(redis, {
-        ...redisCacheConfig,
-        separator: ':',
-        prefix: 'users1',
-      })
-      const cache2 = new ThrowingGroupedCache()
-      const loader1 = new CountingGroupedCache({})
-      const loader2 = new CountingGroupedCache(userValues)
+      const cache2 = new TemporaryThrowingGroupedCache(userValues)
 
-      const operation = new GroupedCachingOperation<User>([cache1, cache2, loader1, loader2])
+      const operation = new GroupedCachingOperation<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+      })
+      cache2.isThrowing = false
       const valuePre = await operation.get(user1.userId, user1.companyId)
 
+      cache2.isThrowing = true
       await operation.invalidateCache()
       const valuePost = await operation.get(user1.userId, user1.companyId)
 
       expect(valuePre).toEqual(user1)
       expect(valuePost).toBeUndefined()
-      expect(loader2.counter).toBe(2)
     })
   })
 })

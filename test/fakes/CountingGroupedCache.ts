@@ -1,6 +1,6 @@
-import { GroupedCache } from '../../lib/DataSources'
-import { GroupValues, User } from './Types'
-import { cloneDeep } from './cloneUtils'
+import { GroupedCache } from '../../lib/types/DataSources'
+import { GroupValues, User } from '../types/testTypes'
+import { cloneDeep } from '../utils/cloneUtils'
 
 export class CountingGroupedCache implements GroupedCache<User> {
   private groupValues: GroupValues
@@ -29,6 +29,12 @@ export class CountingGroupedCache implements GroupedCache<User> {
     this.groupValues[group][key] = value
 
     return Promise.resolve()
+  }
+
+  deleteFromGroup(): Promise<void> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
   }
 
   get() {
