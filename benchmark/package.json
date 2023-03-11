@@ -5,6 +5,10 @@
   "scripts": {
     "build": "cd .. && npm run build",
     "benchmark": "node autocannon-layered-loader.js",
+    "docker:start": "docker-compose -f docker-compose.yml up --build -d",
+    "docker:stop": "docker-compose -f docker-compose.yml down",
+    "db:migrate": "node common/db/dbMigrate.js",
+    "db:seed": "node common/db/dbSeed.js",
     "format": "prettier --write **/*.js autocannon-layered-loader.js"
   },
   "dependencies": {
@@ -12,7 +16,11 @@
     "autocannon": "^7.10.0",
     "fastify": "^4.14.1",
     "ioredis": "^5.3.1",
+    "knex": "^2.4.2",
+    "knex-repositories": "^4.0.0",
+    "knex-utils": "^6.0.0",
     "layered-loader": "^9.1.1",
+    "pg": "^8.10.0",
     "systeminformation": "^5.17.12"
   },
   "devDependencies": {

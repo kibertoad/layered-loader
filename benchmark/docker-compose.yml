@@ -1,0 +1,45 @@
+version: "3.8"
+services:
+  redis:
+    image: "redis:7-alpine"
+
+    command: redis-server --requirepass sOmE_sEcUrE_pAsS
+
+    ports:
+      - "6379:6379"
+
+    environment:
+      - REDIS_REPLICATION_MODE=master
+
+  wait_for_redis:
+    image: "redis:7-alpine"
+
+    depends_on:
+      - redis
+    command: sh -c "/wait && /sayhello"
+    environment:
+      - WAIT_HOSTS=redis:6379
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOST_CONNECT_TIMEOUT=30
+
+  postgres:
+    image: postgres:15-alpine
+    # see https://www.postgresql.org/docs/current/non-durability.html
+    command: '-c full_page_writes=off -c fsync=off -c synchronous_commit=off'
+    ports:
+      - '25432:5432'
+    environment:
+      - POSTGRES_USER=testuser
+      - POSTGRES_PASSWORD=cachetest
+      - POSTGRES_DB=cache_test
+  waitpostgres:
+    image: postgres:15-alpine
+    links:
+      - postgres
+    depends_on:
+      - postgres
+    entrypoint:
+      - bash
+      - -c
+      - 'until /usr/local/bin/psql postgres://testuser:cachetest@postgres/cache_test -c "SELECT 1"; do sleep 5; done'
