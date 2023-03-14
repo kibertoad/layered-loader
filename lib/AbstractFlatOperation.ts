@@ -7,9 +7,6 @@ export abstract class AbstractFlatOperation<
   public getInMemoryOnly(key: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
-      console.log('exp time: ' + expirationTime)
-      console.log('now time: ' + new Date().getTime())
-      console.log('threshold: ' + this.inMemoryCache.ttlLeftBeforeRefreshInMsecs)
       if (expirationTime && expirationTime - new Date().getTime() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
         void this.getAsyncOnly(key, resolveParams)
       }
