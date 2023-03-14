@@ -4,7 +4,17 @@ export abstract class AbstractFlatOperation<
   LoadedValue,
   ResolveParams = undefined
 > extends AbstractOperation<LoadedValue> {
-  public getInMemoryOnly(key: string): LoadedValue | undefined | null {
+  public getInMemoryOnly(key: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
+    if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
+      const expirationTime = this.inMemoryCache.getExpirationTime(key)
+      console.log('exp time: ' + expirationTime)
+      console.log('now time: ' + new Date().getTime())
+      console.log('threshold: ' + this.inMemoryCache.ttlLeftBeforeRefreshInMsecs)
+      if (expirationTime && expirationTime - new Date().getTime() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+        void this.getAsyncOnly(key, resolveParams)
+      }
+    }
+
     return this.inMemoryCache.get(key)
   }
 
@@ -32,7 +42,7 @@ export abstract class AbstractFlatOperation<
   }
 
   public get(key: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.inMemoryCache.get(key)
+    const inMemoryValue = this.getInMemoryOnly(key, resolveParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
