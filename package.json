@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "9.1.1",
+  "version": "9.2.0",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
@@ -45,7 +45,7 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "tiny-lru": "^10.0.1"
+    "tiny-lru": "^10.2.1"
   },
   "devDependencies": {
     "@types/jest": "^29.4.0",

@@ -23,7 +23,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   private readonly ttlInMsecs: number | undefined
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs)
+    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs, true)
     this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
@@ -50,7 +50,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   }
   setForGroup(key: string, value: T | null, groupId: string) {
     const group = this.resolveGroup(groupId)
-    group.set(key, value)
+    group.set(key, value, false, true)
   }
 
   deleteFromGroup(key: string, groupId: string): void {
@@ -71,7 +71,16 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
     return this.cache.get(key)
   }
 
+  getExpirationTimeFromGroup(key: string, groupId: string): number | undefined {
+    const group = this.resolveGroup(groupId)
+    return group.expiresAt(key)
+  }
+
+  getExpirationTime(key: string): number | undefined {
+    return this.cache.expiresAt(key)
+  }
+
   set(key: string, value: T | null): void {
-    this.cache.set(key, value)
+    this.cache.set(key, value, false, true)
   }
 }

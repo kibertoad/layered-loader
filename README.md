@@ -20,7 +20,7 @@ This library has three main goals:
 
 ## Basic concepts
 
-There are three entity types used by `layered-loader`:
+There are four entity types used by `layered-loader`:
 
 1. **LoadingOperation** - defined procedure of retrieving data from one or more data sources, using a single key. LoadingOperation is composed of Loaders and Caches.
 2. **InMemoryCache** - data source, capable of both storing and retrieving data for a given key synchronously.
@@ -32,7 +32,7 @@ There are three entity types used by `layered-loader`:
 - If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the LoadingOperation.
 - If there are any caches (InMemory or AsyncCache) preceding the data source that returned a value, all of them will be updated with that value;
 - If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loadingOperation.get`, instead of starting a new retrieval.
-- You can use just the memory cache, just the asynchronous one, or both. Unconfigured layer will be simply skipped for all operations (both storage and retrieval).
+- You can use just the memory cache, just the asynchronous one, neither, or both. Unconfigured layer will be simply skipped for all operations (both storage and retrieval).
 
 ## Basic example
 
