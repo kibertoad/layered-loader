@@ -2,6 +2,7 @@ import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSour
 
 export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
   name = 'Noop cache'
+  public readonly ttlLeftBeforeRefreshInMsecs = undefined
 
   deleteGroup() {}
 
@@ -16,6 +17,14 @@ export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupedCach
   deleteFromGroup(): void {}
 
   get(): T | null | undefined {
+    return undefined
+  }
+
+  getExpirationTimeFromGroup() {
+    return undefined
+  }
+
+  getExpirationTime() {
     return undefined
   }
 

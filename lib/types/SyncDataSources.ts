@@ -1,4 +1,5 @@
 export interface SynchronousCache<T> {
+  readonly ttlLeftBeforeRefreshInMsecs: number | undefined
   get: (key: string) => T | undefined | null
   set: (key: string, value: T | null) => void
   getExpirationTime: (key: string) => number | undefined

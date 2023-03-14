@@ -1,3 +1,4 @@
+import { setTimeout } from 'timers/promises'
 import { LoadingOperation } from '../lib/LoadingOperation'
 import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { DummyLoader } from './fakes/DummyLoader'
@@ -46,6 +47,39 @@ describe('LoadingOperation', () => {
 
       expect(resultPre).toBeUndefined()
       expect(resultPost).toBe('value')
+    })
+
+    it('triggers background refresh when threshold is set and reached', async () => {
+      const loader = new CountingLoader('value')
+
+      const operation = new LoadingOperation<string>({
+        inMemoryCache: {
+          ttlInMsecs: 150,
+          ttlLeftBeforeRefreshInMsecs: 75,
+        },
+        loaders: [loader],
+      })
+      expect(operation.getInMemoryOnly('key')).toBeUndefined()
+      expect(loader.counter).toBe(0)
+      expect(await operation.get('key')).toBe('value')
+      expect(loader.counter).toBe(1)
+      // @ts-ignore
+      const expirationTimePre = operation.inMemoryCache.getExpirationTime('key')
+
+      await setTimeout(100)
+      expect(loader.counter).toBe(1)
+      expect(operation.getInMemoryOnly('key')).toBe('value')
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      // @ts-ignore
+      const expirationTimePost = operation.inMemoryCache.getExpirationTime('key')
+
+      expect(operation.getInMemoryOnly('key')).toBe('value')
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      expect(expirationTimePre).toBeDefined()
+      expect(expirationTimePost).toBeDefined()
+      expect(expirationTimePost! > expirationTimePre!).toBe(true)
     })
   })
 

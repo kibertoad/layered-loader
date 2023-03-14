@@ -7,6 +7,7 @@ export interface InMemoryCacheConfiguration extends CacheConfiguration {
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
+  ttlLeftBeforeRefreshInMsecs?: number
 }
 
 const DEFAULT_CONFIGURATION = {
@@ -21,12 +22,14 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   private readonly maxItemsPerGroup: number
   name = 'In-memory cache'
   private readonly ttlInMsecs: number | undefined
+  public readonly ttlLeftBeforeRefreshInMsecs: number | undefined
 
   constructor(config: InMemoryCacheConfiguration) {
     this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs, true)
     this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
+    this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
   }
 
   private resolveGroup(groupId: string) {
