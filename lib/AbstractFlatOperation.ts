@@ -56,7 +56,6 @@ export abstract class AbstractFlatOperation<
         return cachedValue as LoadedValue | undefined | null
       }
     }
-
     return undefined
   }
 

@@ -7,7 +7,6 @@ export class CountingGroupedLoader implements GroupLoader<User> {
   public groupValues: GroupValues | null | undefined
 
   name = 'Counting grouped loader'
-  isCache = true
 
   constructor(returnedValues: GroupValues) {
     this.groupValues = cloneDeep(returnedValues)

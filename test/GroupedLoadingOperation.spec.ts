@@ -9,6 +9,7 @@ import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
+import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryCacheConfiguration
 
@@ -78,6 +79,43 @@ describe('GroupedLoadingOperation', () => {
 
       expect(resultPre).toBeUndefined()
       expect(resultPost).toEqual(user1)
+    })
+
+    it('triggers background refresh when threshold is set and reached', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+
+      const operation = new GroupedLoadingOperation<User>({
+        inMemoryCache: {
+          ttlInMsecs: 150,
+          ttlLeftBeforeRefreshInMsecs: 75,
+        },
+        loaders: [loader],
+      })
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+      expect(loader.counter).toBe(0)
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      expect(loader.counter).toBe(1)
+      // @ts-ignore
+      const expirationTimePre = operation.inMemoryCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      await setTimeout(100)
+      expect(loader.counter).toBe(1)
+      // kick off the refresh
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toEqual(user1)
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      // @ts-ignore
+      const expirationTimePost = operation.inMemoryCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toEqual(user1)
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      expect(expirationTimePre).toBeDefined()
+      expect(expirationTimePost).toBeDefined()
+      expect(expirationTimePost! > expirationTimePre!).toBe(true)
     })
   })
 
