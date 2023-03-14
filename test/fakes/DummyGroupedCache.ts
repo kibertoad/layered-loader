@@ -7,7 +7,6 @@ export class DummyGroupedCache implements GroupedCache<User> {
   groupValues: GroupValues
 
   name = 'Dummy cache'
-  isCache = true
 
   constructor(returnedValues: GroupValues) {
     this.groupValues = cloneDeep(returnedValues)

@@ -68,6 +68,7 @@ describe('LoadingOperation', () => {
 
       await setTimeout(100)
       expect(loader.counter).toBe(1)
+      // kick off the refresh
       expect(operation.getInMemoryOnly('key')).toBe('value')
       await Promise.resolve()
       expect(loader.counter).toBe(2)

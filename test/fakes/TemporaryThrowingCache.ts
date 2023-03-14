@@ -2,7 +2,6 @@ import { Cache } from '../../lib/types/DataSources'
 
 export class TemporaryThrowingCache implements Cache<string> {
   name = 'Throwing loader'
-  isCache = false
   isThrowing = true
   returnedValue = ''
 

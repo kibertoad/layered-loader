@@ -17,7 +17,17 @@ export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = unde
     this.runningLoads.delete(group)
   }
 
-  public getInMemoryOnly(key: string, group: string): LoadedValue | undefined | null {
+  public getInMemoryOnly(key: string, group: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
+    if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+      const groupLoads = this.resolveGroupLoads(group)
+      if (!groupLoads.has(key)) {
+        const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
+        if (expirationTime && expirationTime - new Date().getTime() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+          void this.getAsyncOnly(key, group, resolveParams)
+        }
+      }
+    }
+
     return this.inMemoryCache.getFromGroup(key, group)
   }
 
@@ -50,7 +60,7 @@ export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = unde
   }
 
   public get(key: string, group: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.inMemoryCache.getFromGroup(key, group)
+    const inMemoryValue = this.getInMemoryOnly(key, group, resolveParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
