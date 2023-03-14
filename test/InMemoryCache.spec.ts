@@ -1,8 +1,93 @@
 import { InMemoryCache, InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('InMemoryCache', () => {
+  describe('getExpirationTime', () => {
+    it('returns undefined for non-existent entry', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+
+      const expiresAt = cache.getExpirationTime('dummy')
+
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns expiration time for existing entry', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+      cache.set('key', 'value')
+
+      const expiresAt = cache.getExpirationTime('key')
+
+      // should be 0 if everything happens in the same msec, but typically slightly differs
+      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - new Date().getTime()
+      expect(timeDifference < 10).toBe(true)
+    })
+
+    it('resets expiration time for reset entry', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1000,
+      })
+      cache.set('key', 'value')
+      await setTimeout(500)
+
+      const expiresAtPre = cache.getExpirationTime('key')
+      const timeLeftPre = expiresAtPre! - new Date().getTime()
+
+      cache.set('key', 'value')
+
+      const expiresAtPost = cache.getExpirationTime('key')
+      const timeLeftPost = expiresAtPost! - new Date().getTime()
+
+      expect(timeLeftPre < 520).toBe(true)
+      expect(timeLeftPre > 480).toBe(true)
+      expect(timeLeftPost < 1020).toBe(true)
+      expect(timeLeftPost > 980).toBe(true)
+    })
+  })
+
+  describe('getExpirationTimeFromGroup', () => {
+    it('returns undefined for non-existent entry', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+
+      const expiresAt = cache.getExpirationTimeFromGroup('dummy', 'group')
+
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns expiration time for existing entry', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+      cache.setForGroup('key', 'value', 'group')
+
+      const expiresAt = cache.getExpirationTimeFromGroup('key', 'group')
+
+      // should be 0 if everything happens in the same msec, but typically slightly differs
+      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - new Date().getTime()
+      expect(timeDifference < 10).toBe(true)
+    })
+
+    it('resets expiration time for reset entry', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1000,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      await setTimeout(500)
+
+      const expiresAtPre = cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPre = expiresAtPre! - new Date().getTime()
+
+      cache.setForGroup('key', 'value', 'group')
+
+      const expiresAtPost = cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPost = expiresAtPost! - new Date().getTime()
+
+      expect(timeLeftPre < 520).toBe(true)
+      expect(timeLeftPre > 480).toBe(true)
+      expect(timeLeftPost < 1020).toBe(true)
+      expect(timeLeftPost > 980).toBe(true)
+    })
+  })
+
   describe('clear', () => {
     it('clears values correctly', () => {
       const cache = new InMemoryCache({
