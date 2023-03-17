@@ -20,7 +20,7 @@ describe('InMemoryCache', () => {
       const expiresAt = cache.getExpirationTime('key')
 
       // should be 0 if everything happens in the same msec, but typically slightly differs
-      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - new Date().getTime()
+      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - Date.now()
       expect(timeDifference < 10).toBe(true)
     })
 
@@ -32,12 +32,12 @@ describe('InMemoryCache', () => {
       await setTimeout(500)
 
       const expiresAtPre = cache.getExpirationTime('key')
-      const timeLeftPre = expiresAtPre! - new Date().getTime()
+      const timeLeftPre = expiresAtPre! - Date.now()
 
       cache.set('key', 'value')
 
       const expiresAtPost = cache.getExpirationTime('key')
-      const timeLeftPost = expiresAtPost! - new Date().getTime()
+      const timeLeftPost = expiresAtPost! - Date.now()
 
       expect(timeLeftPre < 520).toBe(true)
       expect(timeLeftPre > 480).toBe(true)
@@ -62,7 +62,7 @@ describe('InMemoryCache', () => {
       const expiresAt = cache.getExpirationTimeFromGroup('key', 'group')
 
       // should be 0 if everything happens in the same msec, but typically slightly differs
-      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - new Date().getTime()
+      const timeDifference = expiresAt! - IN_MEMORY_CACHE_CONFIG.ttlInMsecs - Date.now()
       expect(timeDifference < 10).toBe(true)
     })
 
@@ -74,12 +74,12 @@ describe('InMemoryCache', () => {
       await setTimeout(500)
 
       const expiresAtPre = cache.getExpirationTimeFromGroup('key', 'group')
-      const timeLeftPre = expiresAtPre! - new Date().getTime()
+      const timeLeftPre = expiresAtPre! - Date.now()
 
       cache.setForGroup('key', 'value', 'group')
 
       const expiresAtPost = cache.getExpirationTimeFromGroup('key', 'group')
-      const timeLeftPost = expiresAtPost! - new Date().getTime()
+      const timeLeftPost = expiresAtPost! - Date.now()
 
       expect(timeLeftPre < 520).toBe(true)
       expect(timeLeftPre > 480).toBe(true)

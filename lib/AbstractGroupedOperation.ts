@@ -22,7 +22,7 @@ export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = unde
       const groupLoads = this.resolveGroupLoads(group)
       if (!groupLoads.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
-        if (expirationTime && expirationTime - new Date().getTime() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+        if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
           void this.getAsyncOnly(key, group, resolveParams)
         }
       }
