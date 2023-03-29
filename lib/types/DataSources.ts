@@ -1,15 +1,18 @@
 export interface CacheConfiguration {
   ttlInMsecs: number | undefined
+  groupTtlInMsecs?: number | undefined
 }
 
 export interface Cache<LoadedValue> {
   get: (key: string) => Promise<LoadedValue | undefined | null>
   set: (key: string, value: LoadedValue | null) => Promise<void>
+  getExpirationTime: (key: string) => Promise<number | undefined>
   clear: () => Promise<void>
   delete: (key: string) => Promise<void>
 }
 
 export interface GroupedCache<LoadedValue> extends Cache<LoadedValue> {
+  getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
   deleteGroup: (group: string) => Promise<void>
   deleteFromGroup: (key: string, group: string) => Promise<void>
   getFromGroup: (key: string, group: string) => Promise<LoadedValue | undefined | null>

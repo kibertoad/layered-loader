@@ -4,6 +4,35 @@ import { setTimeout } from 'timers/promises'
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('InMemoryCache', () => {
+  describe('set', () => {
+    it('sets value after group has already expired', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1,
+        groupTtlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      await setTimeout(10)
+
+      const preValue = cache.getFromGroup('key', 'group')
+      expect(preValue).toBeUndefined()
+
+      cache.setForGroup('key', 'value', 'group')
+      const postValue = cache.getFromGroup('key', 'group')
+      expect(postValue).toBe('value')
+    })
+
+    it('defaults to infinite ttl', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: undefined,
+      })
+      cache.set('key', 'value')
+
+      const ttl = cache.getExpirationTime('key')
+
+      expect(ttl).toBe(0)
+    })
+  })
+
   describe('getExpirationTime', () => {
     it('returns undefined for non-existent entry', () => {
       const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
@@ -11,6 +40,20 @@ describe('InMemoryCache', () => {
       const expiresAt = cache.getExpirationTime('dummy')
 
       expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns past time for expired entry', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1,
+      })
+      cache.set('key', 'value')
+      await setTimeout(10)
+
+      const expiresAt = cache.getExpirationTime('key')
+      const timeLeft = expiresAt! - Date.now()
+
+      expect(timeLeft < 0).toBe(true)
+      expect(timeLeft > -20).toBe(true)
     })
 
     it('returns expiration time for existing entry', () => {
@@ -52,6 +95,32 @@ describe('InMemoryCache', () => {
 
       const expiresAt = cache.getExpirationTimeFromGroup('dummy', 'group')
 
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns past time for expired entry', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      await setTimeout(10)
+
+      const expiresAt = cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeft = expiresAt! - Date.now()
+
+      expect(timeLeft < 0).toBe(true)
+      expect(timeLeft > -20).toBe(true)
+    })
+
+    it('returns undefined after group has expired too', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: 1,
+        groupTtlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      await setTimeout(10)
+
+      const expiresAt = cache.getExpirationTimeFromGroup('key', 'group')
       expect(expiresAt).toBeUndefined()
     })
 

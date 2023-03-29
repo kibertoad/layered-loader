@@ -117,14 +117,14 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
   }
 
-  async getFromGroup(key: string, group: string): Promise<T | undefined | null> {
-    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(group)))
+  async getFromGroup(key: string, groupId: string): Promise<T | undefined | null> {
+    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(groupId)))
     if (!currentGroupKey) {
       return undefined
     }
 
     const redisResult = await this.executeWithTimeout(
-      this.redis.get(this.resolveKeyWithGroup(key, group, currentGroupKey))
+      this.redis.get(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     )
     return this.postprocessResult(redisResult)
   }
@@ -134,22 +134,42 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return this.postprocessResult(redisResult)
   }
 
-  async set(key: string, value: T | null): Promise<void> {
-    await this.internalSet(this.resolveKey(key), value)
+  async getExpirationTime(key: string): Promise<number | undefined> {
+    const now = Date.now()
+    const remainingTtl = await this.executeWithTimeout(this.redis.pttl(this.resolveKey(key)))
+    return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
-  async setForGroup(key: string, value: T | null, group: string): Promise<void> {
-    const getGroupKeyPromise = this.config.ttlInMsecs
+  async getExpirationTimeFromGroup(key: string, groupId: string): Promise<number | undefined> {
+    const now = Date.now()
+
+    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(groupId)))
+    if (currentGroupKey === null) {
+      return undefined
+    }
+
+    const remainingTtl = await this.executeWithTimeout(
+      this.redis.pttl(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
+    )
+    return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
+  }
+
+  set(key: string, value: T | null): Promise<void> {
+    return this.internalSet(this.resolveKey(key), value)
+  }
+
+  async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
+    const getGroupKeyPromise = this.config.groupTtlInMsecs
       ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(group), this.config.ttlInMsecs)
+        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
       : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(group))
+        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
 
     const currentGroupKey = await this.executeWithTimeout<string>(getGroupKeyPromise)
 
-    const entryKey = this.resolveKeyWithGroup(key, group, currentGroupKey)
+    const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
   }
 
@@ -166,15 +186,15 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return `${this.config.prefix}${this.config.separator}${key}`
   }
 
-  resolveKeyWithGroup(key: string, group: string, groupIndexKey: string) {
-    return `${this.config.prefix}${this.config.separator}${group}${this.config.separator}${groupIndexKey}${this.config.separator}${key}`
+  resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {
+    return `${this.config.prefix}${this.config.separator}${groupId}${this.config.separator}${groupIndexKey}${this.config.separator}${key}`
   }
 
   resolveCachePattern() {
     return `${this.config.prefix}${this.config.separator}*`
   }
 
-  resolveGroupIndexPrefix(group: string) {
-    return `${this.config.prefix}${this.config.separator}${GROUP_INDEX_KEY}${this.config.separator}${group}`
+  resolveGroupIndexPrefix(groupId: string) {
+    return `${this.config.prefix}${this.config.separator}${GROUP_INDEX_KEY}${this.config.separator}${groupId}`
   }
 }
