@@ -6,15 +6,15 @@ export interface CacheConfiguration {
 export interface Cache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
   get: (key: string) => Promise<LoadedValue | undefined | null>
-  set: (key: string, value: LoadedValue | null) => Promise<void>
+  set: (key: string, value: LoadedValue | null) => Promise<unknown>
   getExpirationTime: (key: string) => Promise<number | undefined>
   clear: () => Promise<void>
-  delete: (key: string) => Promise<void>
+  delete: (key: string) => Promise<unknown>
 }
 
 export interface GroupedCache<LoadedValue> extends Cache<LoadedValue> {
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
-  deleteGroup: (group: string) => Promise<void>
+  deleteGroup: (group: string) => Promise<unknown>
   deleteFromGroup: (key: string, group: string) => Promise<void>
   getFromGroup: (key: string, group: string) => Promise<LoadedValue | undefined | null>
   setForGroup: (key: string, value: LoadedValue | null, group: string) => Promise<void>
