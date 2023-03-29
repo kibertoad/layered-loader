@@ -47,15 +47,8 @@ const userValuesUndefined = {
 }
 
 describe('GroupedLoadingOperation', () => {
-  let redis: Redis
   beforeEach(async () => {
     jest.resetAllMocks()
-    redis = new Redis(redisOptions)
-    await redis.flushall()
-  })
-
-  afterEach(async () => {
-    await redis.disconnect()
   })
 
   describe('getInMemoryOnly', () => {
@@ -127,6 +120,18 @@ describe('GroupedLoadingOperation', () => {
       expect(expirationTimePre).toBeDefined()
       expect(expirationTimePost).toBeDefined()
       expect(expirationTimePost! > expirationTimePre!).toBe(true)
+    })
+  })
+
+  describe('background async refresh', () => {
+    let redis: Redis
+    beforeEach(async () => {
+      redis = new Redis(redisOptions)
+      await redis.flushall()
+    })
+
+    afterEach(async () => {
+      await redis.disconnect()
     })
 
     it('triggers async background refresh when threshold is set and reached', async () => {
