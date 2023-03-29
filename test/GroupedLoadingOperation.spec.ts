@@ -47,7 +47,7 @@ const userValuesUndefined = {
 }
 
 describe('GroupedLoadingOperation', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     jest.resetAllMocks()
   })
 

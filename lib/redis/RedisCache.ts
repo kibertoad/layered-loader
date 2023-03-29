@@ -24,7 +24,7 @@ const DefaultConfiguration: RedisCacheConfiguration = {
 export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   private readonly redis: Redis
   private readonly config: RedisCacheConfiguration
-  public readonly ttlLeftBeforeRefreshInMsecs: number | undefined
+  public readonly ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
   isCache = true
 
