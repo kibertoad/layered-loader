@@ -18,7 +18,6 @@ const DefaultConfiguration: RedisCacheConfiguration = {
   json: false,
   prefix: 'layered-cache:',
   ttlInMsecs: 1000 * 60 * 10,
-  ttlLeftBeforeRefreshInMsecs: 1000 * 60 * 2,
   separator: ':',
 }
 
