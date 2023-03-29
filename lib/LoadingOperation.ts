@@ -34,9 +34,30 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
   ): Promise<LoadedValue | undefined | null> {
     const cachedValue = await super.resolveValue(key, loadParams)
     if (cachedValue !== undefined) {
+      if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+        const expirationTime = await this.asyncCache.getExpirationTime(key)
+        if (expirationTime && expirationTime - Date.now() < this.asyncCache.ttlLeftBeforeRefreshInMsecs) {
+          this.loadFromLoaders(key, loadParams).catch((err) => {
+            this.logger.error(err.message)
+          })
+        }
+      }
+
       return cachedValue
     }
 
+    const finalValue = await this.loadFromLoaders(key, loadParams)
+    if (finalValue !== undefined) {
+      return finalValue
+    }
+
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}"`)
+    }
+    return undefined
+  }
+
+  private async loadFromLoaders(key: string, loadParams?: LoaderParams) {
     for (let index = 0; index < this.loaders.length; index++) {
       const resolvedValue = await this.loaders[index].get(key, loadParams).catch((err) => {
         this.loadErrorHandler(err, key, this.loaders[index], this.logger)
@@ -59,9 +80,6 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
       }
     }
 
-    if (this.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}"`)
-    }
     return undefined
   }
 }

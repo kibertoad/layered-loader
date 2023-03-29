@@ -193,3 +193,4 @@ It has following configuration options:
 - `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`;
 - `timeoutInMsecs?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 - `separator?: number` - What text should be used between different parts of the key prefix. Default is `':'`
+- `ttlLeftBeforeRefreshInMsecs?: number` - if set within a LoadingOperation or GroupedLoadingOperation, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening.

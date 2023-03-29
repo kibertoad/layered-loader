@@ -27,4 +27,8 @@ export class ThrowingCache implements Cache<string> {
       throw new Error('Error has occurred')
     })
   }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }

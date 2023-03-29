@@ -53,4 +53,12 @@ export class DummyGroupedCache implements GroupedCache<User> {
     delete this.groupValues[group][key]
     return Promise.resolve()
   }
+
+  getExpirationTimeFromGroup(): Promise<number> {
+    return Promise.resolve(99999)
+  }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }

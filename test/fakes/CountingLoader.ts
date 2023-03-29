@@ -1,7 +1,7 @@
 import { Loader } from '../../lib/types/DataSources'
 
 export class CountingLoader implements Loader<string> {
-  private readonly value: string | undefined
+  public value: string | undefined
   public counter = 0
   name = 'Counting loader'
   isCache = false

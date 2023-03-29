@@ -21,4 +21,8 @@ export class TemporaryThrowingCache implements Cache<string> {
     }
     return this.returnedValue
   }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }
