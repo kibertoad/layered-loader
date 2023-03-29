@@ -45,30 +45,30 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     })
   }
 
-  private async executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
+  private executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
     if (!this.config.timeoutInMsecs) {
       return originalPromise
     }
 
-    let storedReject = null
+    let storedReject: any
     let storedTimeout: any
     const timeout = new Promise((resolve, reject) => {
       storedReject = reject
       storedTimeout = setTimeout(resolve, this.config.timeoutInMsecs, TIMEOUT)
     })
-    const result = await Promise.race([timeout, originalPromise])
+    return Promise.race([timeout, originalPromise]).then((result) => {
+      if (result === TIMEOUT) {
+        throw new RedisTimeoutError()
+      }
 
-    if (result === TIMEOUT) {
-      throw new RedisTimeoutError()
-    }
-
-    if (storedReject) {
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      storedReject(undefined)
-      clearTimeout(storedTimeout)
-    }
-    return result as T
+      if (storedReject) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        storedReject(undefined)
+        clearTimeout(storedTimeout)
+      }
+      return result as T
+    })
   }
 
   private postprocessResult(redisResult: string | null) {
@@ -105,7 +105,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       return
     }
 
-    await this.redis.incr(key)
+    return this.redis.incr(key)
   }
 
   async deleteFromGroup(key: string, group: string): Promise<void> {
@@ -116,8 +116,8 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     await this.executeWithTimeout(this.redis.del(this.resolveKeyWithGroup(key, group, currentGroupKey)))
   }
 
-  async delete(key: string): Promise<void> {
-    await this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
+  async delete(key: string): Promise<unknown> {
+    return this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
   }
 
   async getFromGroup(key: string, groupId: string): Promise<T | undefined | null> {
@@ -132,15 +132,18 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return this.postprocessResult(redisResult)
   }
 
-  async get(key: string): Promise<T | undefined> {
-    const redisResult = await this.executeWithTimeout(this.redis.get(this.resolveKey(key)))
-    return this.postprocessResult(redisResult)
+  get(key: string): Promise<T | undefined> {
+    return this.executeWithTimeout(this.redis.get(this.resolveKey(key))).then((redisResult) => {
+      return this.postprocessResult(redisResult)
+    })
   }
 
-  async getExpirationTime(key: string): Promise<number | undefined> {
+  getExpirationTime(key: string): Promise<number | undefined> {
     const now = Date.now()
-    const remainingTtl = await this.executeWithTimeout(this.redis.pttl(this.resolveKey(key)))
-    return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
+
+    return this.executeWithTimeout(this.redis.pttl(this.resolveKey(key))).then((remainingTtl) => {
+      return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
+    })
   }
 
   async getExpirationTimeFromGroup(key: string, groupId: string): Promise<number | undefined> {
@@ -157,7 +160,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
-  set(key: string, value: T | null): Promise<void> {
+  set(key: string, value: T | null): Promise<unknown> {
     return this.internalSet(this.resolveKey(key), value)
   }
 
@@ -176,13 +179,12 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     await this.internalSet(entryKey, value)
   }
 
-  private async internalSet(resolvedKey: string, value: T | null) {
+  private internalSet(resolvedKey: string, value: T | null) {
     const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
     if (this.config.ttlInMsecs) {
-      await this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs))
-      return
+      return this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs))
     }
-    await this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue))
+    return this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue))
   }
 
   resolveKey(key: string) {
