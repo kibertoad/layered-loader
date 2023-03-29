@@ -30,9 +30,30 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
   ): Promise<LoadedValue | undefined | null> {
     const cachedValue = await super.resolveGroupValue(key, group)
     if (cachedValue !== undefined) {
+      if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+        const expirationTime = await this.asyncCache.getExpirationTimeFromGroup(key, group)
+        if (expirationTime && expirationTime - Date.now() < this.asyncCache.ttlLeftBeforeRefreshInMsecs) {
+          this.loadFromLoaders(key, group, loadParams).catch((err) => {
+            this.logger.error(err.message)
+          })
+        }
+      }
+
       return cachedValue
     }
 
+    const finalValue = await this.loadFromLoaders(key, group, loadParams)
+    if (finalValue !== undefined) {
+      return finalValue
+    }
+
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
+    }
+    return undefined
+  }
+
+  private async loadFromLoaders(key: string, group: string, loadParams?: LoaderParams) {
     for (let index = 0; index < this.loaders.length; index++) {
       const resolvedValue = await this.loaders[index].getFromGroup(key, group, loadParams).catch((err) => {
         this.loadErrorHandler(err, key, this.loaders[index], this.logger)
@@ -55,9 +76,6 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
       }
     }
 
-    if (this.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
-    }
     return undefined
   }
 }

@@ -57,4 +57,12 @@ export class CountingGroupedCache implements GroupedCache<User> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
   }
+
+  getExpirationTimeFromGroup(): Promise<number> {
+    return Promise.resolve(99999)
+  }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }

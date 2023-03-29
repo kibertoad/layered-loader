@@ -24,6 +24,7 @@ const DefaultConfiguration: RedisCacheConfiguration = {
 export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   private readonly redis: Redis
   private readonly config: RedisCacheConfiguration
+  public readonly ttlLeftBeforeRefreshInMsecs: number | undefined
   name = 'Redis cache'
   isCache = true
 
@@ -33,6 +34,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       ...DefaultConfiguration,
       ...config,
     }
+    this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
     this.redis.defineCommand('getOrSetZeroWithTtl', {
       lua: GET_OR_SET_ZERO_WITH_TTL,
       numberOfKeys: 1,

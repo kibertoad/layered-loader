@@ -52,4 +52,12 @@ export class ThrowingGroupedCache implements GroupedCache<User> {
       throw new Error('Error has occurred')
     })
   }
+
+  getExpirationTimeFromGroup(): Promise<number> {
+    return Promise.resolve(99999)
+  }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }

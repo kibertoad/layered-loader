@@ -29,4 +29,8 @@ export class CountingCache implements Cache<string> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)
   }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(99999)
+  }
 }

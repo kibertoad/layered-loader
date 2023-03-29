@@ -7,7 +7,6 @@ export interface InMemoryCacheConfiguration extends CacheConfiguration {
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
-  ttlLeftBeforeRefreshInMsecs?: number
 }
 
 const DEFAULT_CONFIGURATION = {

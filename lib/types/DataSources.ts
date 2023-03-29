@@ -1,8 +1,10 @@
 export interface CacheConfiguration {
+  ttlLeftBeforeRefreshInMsecs?: number
   ttlInMsecs: number | undefined
 }
 
 export interface Cache<LoadedValue> {
+  readonly ttlLeftBeforeRefreshInMsecs?: number
   get: (key: string) => Promise<LoadedValue | undefined | null>
   set: (key: string, value: LoadedValue | null) => Promise<void>
   getExpirationTime: (key: string) => Promise<number | undefined>
