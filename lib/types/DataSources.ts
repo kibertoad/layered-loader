@@ -1,6 +1,5 @@
 export interface CacheConfiguration {
   ttlInMsecs: number | undefined
-  groupTtlInMsecs?: number | undefined
 }
 
 export interface Cache<LoadedValue> {

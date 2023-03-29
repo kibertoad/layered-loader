@@ -5,13 +5,13 @@ const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfig
 
 describe('InMemoryCache', () => {
   describe('set', () => {
-    it('sets value after group has already expired', async () => {
+    it('sets value after group has already expired', () => {
       const cache = new InMemoryCache({
+        maxGroups: 1,
         ttlInMsecs: 1,
-        groupTtlInMsecs: 1,
       })
       cache.setForGroup('key', 'value', 'group')
-      await setTimeout(10)
+      cache.setForGroup('key', 'value', 'group2')
 
       const preValue = cache.getFromGroup('key', 'group')
       expect(preValue).toBeUndefined()
@@ -114,10 +114,11 @@ describe('InMemoryCache', () => {
 
     it('returns undefined after group has expired too', async () => {
       const cache = new InMemoryCache({
+        maxGroups: 1,
         ttlInMsecs: 1,
-        groupTtlInMsecs: 1,
       })
       cache.setForGroup('key', 'value', 'group')
+      cache.setForGroup('key', 'value', 'group2')
       await setTimeout(10)
 
       const expiresAt = cache.getExpirationTimeFromGroup('key', 'group')

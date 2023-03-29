@@ -11,6 +11,7 @@ export interface RedisCacheConfiguration extends CacheConfiguration {
   json: boolean
   timeoutInMsecs?: number
   separator?: string
+  groupTtlInMsecs?: number
 }
 
 const DefaultConfiguration: RedisCacheConfiguration = {
