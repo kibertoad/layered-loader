@@ -116,7 +116,7 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     await this.executeWithTimeout(this.redis.del(this.resolveKeyWithGroup(key, group, currentGroupKey)))
   }
 
-  async delete(key: string): Promise<unknown> {
+  delete(key: string): Promise<unknown> {
     return this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
   }
 
