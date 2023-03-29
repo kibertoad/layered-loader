@@ -14,9 +14,6 @@ export class CountingGroupedLoader implements GroupLoader<User> {
 
   getFromGroup(key: string, group: string) {
     this.counter++
-    const resolvedValue = this.groupValues?.[group]?.[key]
-    console.log(JSON.stringify(resolvedValue))
-    console.log(`${key}/${group}`)
-    return Promise.resolve(resolvedValue)
+    return Promise.resolve(this.groupValues?.[group]?.[key])
   }
 }
