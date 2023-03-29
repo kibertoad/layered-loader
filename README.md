@@ -189,12 +189,7 @@ It has following configuration options:
 
 - `prefix: string` - what prefix should be added to all keys in this cache. Used to differentiate among different groups of entities within single Redis DB (serving as a pseudo-table);
 - `ttlInMsecs: number` - after how many milliseconds data will be considered stale and will no longer be accessible;
+- `groupTtlInMsecs: number` - after how many milliseconds entire group will be considered stale and will no longer be accessible. For non-huge amount of groups (if you have less than a million, you have nothing to worry about) it is generally recommended not to set TTL, but if there is a huge amount of them, and more are added often, you may eventually run out of memory if you never expire groups, as you will keep accumulating their prefix identifiers in your Redis. Note that adding new entries to a group does not reset its TTL.";
 - `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`;
 - `timeoutInMsecs?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 - `separator?: number` - What text should be used between different parts of the key prefix. Default is `':'`
-
-## Supported environments
-
-`LoadingOperation` and `InMemoryCache` support both browser and Node.js (ES6 support is required);
-`RedisCache` only works in Node.js;
-Tree-shaking should work correctly, but wasn't tested.

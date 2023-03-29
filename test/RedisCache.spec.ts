@@ -1,6 +1,9 @@
 import Redis from 'ioredis'
 import { RedisCache } from '../lib/redis/RedisCache'
 import { redisOptions } from './fakes/TestRedisConfig'
+import { setTimeout } from 'timers/promises'
+
+const TTL_IN_MSECS = 999
 
 describe('RedisCache', () => {
   let redis: Redis
@@ -10,6 +13,109 @@ describe('RedisCache', () => {
   })
   afterEach(async () => {
     await redis.disconnect()
+  })
+
+  describe('getExpirationTime', () => {
+    it('returns undefined for non-existent entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+
+      const expiresAt = await cache.getExpirationTime('dummy')
+
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns past time for expired entry', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: 1,
+      })
+      await cache.set('key', 'value')
+      await setTimeout(10)
+
+      const expiresAt = await cache.getExpirationTime('key')
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns expiration time for existing entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      cache.set('key', 'value')
+
+      const expiresAt = await cache.getExpirationTime('key')
+
+      // should be 0 if everything happens in the same msec, but typically slightly differs
+      const timeDifference = expiresAt! - TTL_IN_MSECS - Date.now()
+      expect(timeDifference < 10).toBe(true)
+    })
+
+    it('resets expiration time for reset entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('key', 'value')
+      await setTimeout(500)
+
+      const expiresAtPre = await cache.getExpirationTime('key')
+      const timeLeftPre = expiresAtPre! - Date.now()
+
+      await cache.set('key', 'value')
+
+      const expiresAtPost = await cache.getExpirationTime('key')
+      const timeLeftPost = expiresAtPost! - Date.now()
+
+      expect(timeLeftPre < 520).toBe(true)
+      expect(timeLeftPre > 480).toBe(true)
+      expect(timeLeftPost < 1020).toBe(true)
+      expect(timeLeftPost > 980).toBe(true)
+    })
+  })
+
+  describe('getExpirationTimeFromGroup', () => {
+    it('returns undefined for non-existent entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+
+      const expiresAt = await cache.getExpirationTimeFromGroup('dummy', 'group')
+
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns past time for expired entry', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: 1,
+      })
+      await cache.setForGroup('key', 'value', 'group')
+      await setTimeout(10)
+
+      const expiresAt = await cache.getExpirationTimeFromGroup('key', 'group')
+      expect(expiresAt).toBeUndefined()
+    })
+
+    it('returns expiration time for existing entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+
+      await cache.setForGroup('key', 'value', 'group')
+
+      const expiresAt = await cache.getExpirationTimeFromGroup('key', 'group')
+
+      // should be 0 if everything happens in the same msec, but typically slightly differs
+      const timeDifference = expiresAt! - TTL_IN_MSECS - Date.now()
+      expect(timeDifference < 10).toBe(true)
+    })
+
+    it('resets expiration time for reset entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.setForGroup('key', 'value', 'group')
+      await setTimeout(500)
+
+      const expiresAtPre = await cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPre = expiresAtPre! - Date.now()
+
+      await cache.setForGroup('key', 'value', 'group')
+
+      const expiresAtPost = await cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPost = expiresAtPost! - Date.now()
+
+      expect(timeLeftPre < 520).toBe(true)
+      expect(timeLeftPre > 480).toBe(true)
+      expect(timeLeftPost < 1020).toBe(true)
+      expect(timeLeftPost > 980).toBe(true)
+    })
   })
 
   describe('get', () => {
@@ -244,6 +350,35 @@ describe('RedisCache', () => {
   })
 
   describe('set', () => {
+    it('sets value after group has already expired', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: 1,
+        groupTtlInMsecs: 1,
+      })
+      await cache.setForGroup('key', 'value', 'group')
+      await setTimeout(10)
+
+      const preValue = await cache.getFromGroup('key', 'group')
+      expect(preValue).toBeUndefined()
+
+      await cache.setForGroup('key', 'value', 'group')
+      const postValue = await cache.getFromGroup('key', 'group')
+      expect(postValue).toBe('value')
+    })
+
+    it('defaults to infinite ttl', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: undefined,
+      })
+      await cache.set('key', 'value')
+
+      const ttl = await cache.getExpirationTime('key')
+      const value = await cache.get('key')
+
+      expect(ttl).toBeUndefined()
+      expect(value).toBe(value)
+    })
+
     it('sets json values correctly', async () => {
       const cache = new RedisCache(redis, {
         json: true,

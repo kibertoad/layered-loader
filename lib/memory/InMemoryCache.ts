@@ -25,7 +25,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   public readonly ttlLeftBeforeRefreshInMsecs: number | undefined
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs, true)
+    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0, true)
     this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
