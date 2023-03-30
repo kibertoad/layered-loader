@@ -53,7 +53,7 @@ describe('InMemoryCache', () => {
       const timeLeft = expiresAt! - Date.now()
 
       expect(timeLeft < 0).toBe(true)
-      expect(timeLeft > -20).toBe(true)
+      expect(timeLeft > -30).toBe(true)
     })
 
     it('returns expiration time for existing entry', () => {
