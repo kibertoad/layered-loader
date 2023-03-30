@@ -5,6 +5,7 @@ import { setTimeout } from 'timers/promises'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
+import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
 
 const user1: User = {
   companyId: '1',
@@ -80,6 +81,54 @@ describe('GroupedLoadingOperation Async Refresh', () => {
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await setTimeout(5)
       expect(loader.counter).toBe(2)
+      // @ts-ignore
+      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      expect(expirationTimePre).toBeDefined()
+      expect(expirationTimePost).toBeDefined()
+      expect(expirationTimePost! > expirationTimePre!).toBe(true)
+    })
+
+    it('only triggers single async background refresh when threshold is set and reached', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+      const asyncCache = new RedisCache<User>(redis, {
+        ttlInMsecs: 9999,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 9925,
+      })
+
+      const operation = new GroupedLoadingOperation<User>({
+        asyncCache,
+        loaders: [loader],
+      })
+
+      // @ts-ignore
+      expect(await operation.asyncCache.get(user1.userId, user1.companyId)).toBeUndefined()
+      expect(loader.counter).toBe(0)
+      const promise0 = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      await loader.finishLoading()
+      expect(await promise0).toEqual(user1)
+      expect(loader.counter).toBe(1)
+      // @ts-ignore
+      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      await setTimeout(90)
+      expect(loader.counter).toBe(1)
+      // kick off the refresh
+      const promise2 = await operation.get(user1.userId, user1.companyId)
+      void operation.get(user1.userId, user1.companyId)
+      void operation.get(user1.userId, user1.companyId)
+      await setTimeout(10)
+      await loader.finishLoading()
+      expect(await promise2).toEqual(user1)
+
+      expect(loader.counter).toBe(2)
+      await setTimeout(5)
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 

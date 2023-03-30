@@ -4,6 +4,7 @@ import { CountingLoader } from './fakes/CountingLoader'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
+import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
 
 describe('LoadingOperation', () => {
   let redis: Redis
@@ -49,6 +50,54 @@ describe('LoadingOperation', () => {
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
 
       expect(await operation.get('key')).toBe('value')
+      await Promise.resolve()
+      expect(loader.counter).toBe(2)
+      expect(expirationTimePre).toBeDefined()
+      expect(expirationTimePost).toBeDefined()
+      expect(expirationTimePost! > expirationTimePre!).toBe(true)
+    })
+
+    it('only triggers single async background refresh when threshold is set and reached', async () => {
+      const loader = new DelayedCountingLoader('value')
+      const asyncCache = new RedisCache<string>(redis, {
+        ttlInMsecs: 9999,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 9925,
+      })
+
+      const operation = new LoadingOperation<string>({
+        asyncCache,
+        loaders: [loader],
+      })
+
+      // @ts-ignore
+      expect(await operation.asyncCache.get('key')).toBeUndefined()
+      expect(loader.counter).toBe(0)
+      const promise0 = operation.get('key')
+      await setTimeout(2)
+      await loader.finishLoading()
+      expect(await promise0).toEqual('value')
+      expect(loader.counter).toBe(1)
+      // @ts-ignore
+      const expirationTimePre = await operation.asyncCache.getExpirationTime('key')
+
+      expect(await operation.get('key')).toEqual('value')
+      await setTimeout(90)
+      expect(loader.counter).toBe(1)
+      // kick off the refresh
+      const promise2 = await operation.get('key')
+      void operation.get('key')
+      void operation.get('key')
+      await setTimeout(10)
+      await loader.finishLoading()
+      expect(await promise2).toEqual('value')
+
+      expect(loader.counter).toBe(2)
+      await setTimeout(5)
+      // @ts-ignore
+      const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
+
+      expect(await operation.get('key')).toEqual('value')
       await Promise.resolve()
       expect(loader.counter).toBe(2)
       expect(expirationTimePre).toBeDefined()
