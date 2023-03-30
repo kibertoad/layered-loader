@@ -28,33 +28,34 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
   }
 
-  protected override async resolveValue(
-    key: string,
-    loadParams?: LoaderParams
-  ): Promise<LoadedValue | undefined | null> {
-    const cachedValue = await super.resolveValue(key, loadParams)
-    if (cachedValue !== undefined) {
-      if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
-        const expirationTime = await this.asyncCache.getExpirationTime(key)
-        if (expirationTime && expirationTime - Date.now() < this.asyncCache.ttlLeftBeforeRefreshInMsecs) {
-          this.loadFromLoaders(key, loadParams).catch((err) => {
-            this.logger.error(err.message)
+  protected override resolveValue(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
+    return super.resolveValue(key, loadParams).then((cachedValue) => {
+      if (cachedValue !== undefined) {
+        if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+          this.asyncCache.getExpirationTime(key).then((expirationTime) => {
+            if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+              this.loadFromLoaders(key, loadParams).catch((err) => {
+                this.logger.error(err.message)
+              })
+            }
           })
         }
+
+        return cachedValue
       }
 
-      return cachedValue
-    }
+      // No cached value, we have to load instead
+      return this.loadFromLoaders(key, loadParams).then((finalValue) => {
+        if (finalValue !== undefined) {
+          return finalValue
+        }
 
-    const finalValue = await this.loadFromLoaders(key, loadParams)
-    if (finalValue !== undefined) {
-      return finalValue
-    }
-
-    if (this.throwIfUnresolved) {
-      throw new Error(`Failed to resolve value for key "${key}"`)
-    }
-    return undefined
+        if (this.throwIfUnresolved) {
+          throw new Error(`Failed to resolve value for key "${key}"`)
+        }
+        return undefined
+      })
+    })
   }
 
   private async loadFromLoaders(key: string, loadParams?: LoaderParams) {

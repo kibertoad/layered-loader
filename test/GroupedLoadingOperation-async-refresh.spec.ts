@@ -1,20 +1,10 @@
-import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { User } from './types/testTypes'
 import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
-import { DummyGroupedCache } from './fakes/DummyGroupedCache'
-import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
-import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
-import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
-import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
-import { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
-import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
 import { setTimeout } from 'timers/promises'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
-
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryCacheConfiguration
 
 const user1: User = {
   companyId: '1',
@@ -59,6 +49,7 @@ describe('GroupedLoadingOperation Async Refresh', () => {
     })
 
     afterEach(async () => {
+      await setTimeout(10)
       await redis.disconnect()
     })
 
@@ -87,13 +78,8 @@ describe('GroupedLoadingOperation Async Refresh', () => {
       expect(loader.counter).toBe(1)
       // kick off the refresh
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
-      await Promise.resolve()
-      await Promise.resolve()
-      await Promise.resolve()
-      await Promise.resolve()
+      await setTimeout(5)
       expect(loader.counter).toBe(2)
-      await Promise.resolve()
-      await Promise.resolve()
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
