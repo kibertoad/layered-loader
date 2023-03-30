@@ -18,6 +18,7 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
   LoaderParams
 > {
   private readonly loaders: readonly Loader<LoadedValue, LoaderParams>[]
+  private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
@@ -26,19 +27,30 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
+    this.isKeyRefreshing = new Set()
   }
 
   protected override resolveValue(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
     return super.resolveValue(key, loadParams).then((cachedValue) => {
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
-          this.asyncCache.getExpirationTime(key).then((expirationTime) => {
-            if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-              this.loadFromLoaders(key, loadParams).catch((err) => {
-                this.logger.error(err.message)
-              })
-            }
-          })
+          if (!this.isKeyRefreshing.has(key)) {
+            this.asyncCache.getExpirationTime(key).then((expirationTime) => {
+              if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                // check second time, maybe someone obtained the lock while we were checking the expiration date
+                if (!this.isKeyRefreshing.has(key)) {
+                  this.isKeyRefreshing.add(key)
+                  this.loadFromLoaders(key, loadParams)
+                    .catch((err) => {
+                      this.logger.error(err.message)
+                    })
+                    .finally(() => {
+                      this.isKeyRefreshing.delete(key)
+                    })
+                }
+              }
+            })
+          }
         }
 
         return cachedValue

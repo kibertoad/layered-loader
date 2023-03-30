@@ -1,0 +1,26 @@
+import { Loader } from '../../lib/types/DataSources'
+
+export class DelayedCountingLoader implements Loader<string> {
+  public value: string | undefined
+  public counter = 0
+  name = 'Counting loader'
+  private resolver: (value: string) => void
+  private promise: Promise<string>
+
+  constructor(returnedValue: string | undefined) {
+    this.value = returnedValue
+  }
+
+  get(): Promise<string | undefined | null> {
+    this.counter++
+    this.promise = new Promise<string>((resolve) => {
+      this.resolver = resolve
+    })
+    return this.promise
+  }
+
+  finishLoading() {
+    this.resolver(this.value)
+    return this.promise
+  }
+}

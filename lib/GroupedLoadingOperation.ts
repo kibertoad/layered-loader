@@ -13,6 +13,7 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
   LoaderParams
 > {
   private readonly loaders: readonly GroupLoader<LoadedValue, LoaderParams>[]
+  private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
@@ -21,6 +22,7 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
+    this.groupRefreshFlags = new Map()
   }
 
   protected override resolveGroupValue(
@@ -31,13 +33,33 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
     return super.resolveGroupValue(key, group).then((cachedValue) => {
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
-          this.asyncCache.getExpirationTimeFromGroup(key, group).then((expirationTime) => {
-            if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-              this.loadFromLoaders(key, group, loadParams).catch((err) => {
-                this.logger.error(err.message)
-              })
-            }
-          })
+          let groupSet = this.groupRefreshFlags.get(group)
+          let isAlreadyRefreshing = groupSet?.has(key)
+
+          if (!isAlreadyRefreshing) {
+            this.asyncCache.getExpirationTimeFromGroup(key, group).then((expirationTime) => {
+              if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                // Check if someone else didn't start refreshing while we were checking expiration time
+                groupSet = this.groupRefreshFlags.get(group)
+                isAlreadyRefreshing = groupSet?.has(key)
+                if (!isAlreadyRefreshing) {
+                  if (!groupSet) {
+                    groupSet = new Set<string>()
+                    this.groupRefreshFlags.set(group, groupSet)
+                  }
+                  groupSet.add(key)
+
+                  this.loadFromLoaders(key, group, loadParams)
+                    .catch((err) => {
+                      this.logger.error(err.message)
+                    })
+                    .finally(() => {
+                      groupSet!.delete(key)
+                    })
+                }
+              }
+            })
+          }
         }
         return cachedValue
       }
