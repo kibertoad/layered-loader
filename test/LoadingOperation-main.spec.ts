@@ -72,6 +72,13 @@ describe('LoadingOperation', () => {
       expect(operation.getInMemoryOnly('key')).toBe('value')
       await Promise.resolve()
       expect(loader.counter).toBe(2)
+
+      // FIXME these promise.resolve weren't needed, until it suddenly stopped failing without any changes. Need to investigate, what is going on.
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
       // @ts-ignore
       const expirationTimePost = operation.inMemoryCache.getExpirationTime('key')
 

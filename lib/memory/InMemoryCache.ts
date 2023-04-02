@@ -1,5 +1,5 @@
-import type { LRU } from 'tiny-lru'
-import { lru } from 'tiny-lru'
+import type { LRU } from 'toad-cache'
+import { lru } from 'toad-cache'
 import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
 import { CacheConfiguration } from '../types/DataSources'
 
@@ -24,7 +24,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   public readonly ttlLeftBeforeRefreshInMsecs?: number
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0, true)
+    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
     this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
@@ -52,7 +52,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   }
   setForGroup(key: string, value: T | null, groupId: string) {
     const group = this.resolveGroup(groupId)
-    group.set(key, value, false, true)
+    group.set(key, value)
   }
 
   deleteFromGroup(key: string, groupId: string): void {
@@ -83,6 +83,6 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   }
 
   set(key: string, value: T | null): void {
-    this.cache.set(key, value, false, true)
+    this.cache.set(key, value)
   }
 }
