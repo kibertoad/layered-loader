@@ -1,30 +1,36 @@
 import type { LRU } from 'toad-cache'
-import { lru } from 'toad-cache'
+import { fifo, lru, ToadCache } from 'toad-cache'
 import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
 import { CacheConfiguration } from '../types/DataSources'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
+  cacheType?: 'lru' | 'fifo'
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
 }
 
 const DEFAULT_CONFIGURATION = {
+  cacheType: 'lru',
   maxItems: 500,
   maxGroups: 1000,
   maxItemsPerGroup: 500,
 } satisfies Omit<InMemoryCacheConfiguration, 'ttlInMsecs'>
 
 export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
-  private readonly cache: LRU<T | null>
-  private readonly groups: LRU<LRU<T | null> | undefined | null>
+  private readonly cache: ToadCache<T | null>
+  private readonly groups: LRU<ToadCache<T | null> | undefined | null>
   private readonly maxItemsPerGroup: number
   name = 'In-memory cache'
   private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
+  private readonly cacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>;
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cache = lru(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
+    const cacheType = config.cacheType ?? DEFAULT_CONFIGURATION.cacheType
+    this.cacheConstructor = cacheType === 'fifo' ? fifo : lru
+
+    this.cache = this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
     this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
@@ -37,7 +43,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
       return groupCache
     }
 
-    const newGroupCache = lru(this.maxItemsPerGroup, this.ttlInMsecs)
+    const newGroupCache = this.cacheConstructor(this.maxItemsPerGroup, this.ttlInMsecs)
     this.groups.set(groupId, newGroupCache)
     return newGroupCache
   }
