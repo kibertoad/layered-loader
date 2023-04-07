@@ -5,6 +5,61 @@ const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfig
 
 describe('InMemoryCache', () => {
   describe('set', () => {
+    it('expires LRU', () => {
+      const cache = new InMemoryCache({
+        cacheType: 'lru',
+        maxItems: 2,
+        ttlInMsecs: 1,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+
+      cache.get('key')
+      cache.set('key3', 'value3')
+
+      const value1 = cache.get('key')
+      const value2 = cache.get('key2')
+      const value3 = cache.get('key3')
+
+      expect(value1).toBe('value')
+      expect(value2).toBeUndefined()
+      expect(value3).toBe('value3')
+    })
+
+    it('expires FIFO', () => {
+      const cache = new InMemoryCache({
+        cacheType: 'fifo',
+        maxItems: 2,
+        ttlInMsecs: 1,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+
+      cache.get('key')
+      cache.set('key3', 'value3')
+
+      const value1 = cache.get('key')
+      const value2 = cache.get('key2')
+      const value3 = cache.get('key3')
+
+      expect(value1).toBeUndefined()
+      expect(value2).toBe('value2')
+      expect(value3).toBe('value3')
+    })
+
+    it('defaults to infinite ttl', async () => {
+      const cache = new InMemoryCache({
+        ttlInMsecs: undefined,
+      })
+      cache.set('key', 'value')
+
+      const ttl = cache.getExpirationTime('key')
+
+      expect(ttl).toBe(0)
+    })
+  })
+
+  describe('setForGroup', () => {
     it('sets value after group has already expired', () => {
       const cache = new InMemoryCache({
         maxGroups: 1,
@@ -19,17 +74,6 @@ describe('InMemoryCache', () => {
       cache.setForGroup('key', 'value', 'group')
       const postValue = cache.getFromGroup('key', 'group')
       expect(postValue).toBe('value')
-    })
-
-    it('defaults to infinite ttl', async () => {
-      const cache = new InMemoryCache({
-        ttlInMsecs: undefined,
-      })
-      cache.set('key', 'value')
-
-      const ttl = cache.getExpirationTime('key')
-
-      expect(ttl).toBe(0)
     })
   })
 

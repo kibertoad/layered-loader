@@ -24,7 +24,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   name = 'In-memory cache'
   private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
-  private readonly cacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>;
+  private readonly cacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
 
   constructor(config: InMemoryCacheConfiguration) {
     const cacheType = config.cacheType ?? DEFAULT_CONFIGURATION.cacheType
