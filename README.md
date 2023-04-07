@@ -72,6 +72,7 @@ class ClassifiersLoader implements Loader<Record<string, any>> {
 const operation = new LoadingOperation<string>({
     // this cache will be checked first
     inMemoryCache: {
+        cacheType: 'lru', // you can choose between lru and fifo caches, fifo being 10% slightly faster
         ttlInMsecs: 1000 * 60,
         maxItems: 100,
     },
