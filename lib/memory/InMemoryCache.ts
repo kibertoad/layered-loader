@@ -11,8 +11,8 @@ export interface InMemoryCacheConfiguration extends CacheConfiguration {
 }
 
 const DEFAULT_CONFIGURATION = {
-  cacheType: 'lru',
-  groupCacheType: 'lru',
+  cacheType: 'lru-object',
+  groupCacheType: 'lru-object',
   maxItems: 500,
   maxGroups: 1000,
   maxItemsPerGroup: 500,
@@ -44,12 +44,12 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   private resolveCacheConstructor(cacheTypeId: 'lru' | 'fifo' | 'lru-object' | 'fifo-object') {
     if (cacheTypeId === 'fifo') {
       return fifo
-    } else if (cacheTypeId === 'lru-object') {
-      return lruObject
+    } else if (cacheTypeId === 'lru') {
+      return lru
     } else if (cacheTypeId === 'fifo-object') {
       return fifoObject
     } else {
-      return lru
+      return lruObject
     }
   }
 
