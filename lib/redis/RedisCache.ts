@@ -190,8 +190,12 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
-  set(key: string, value: T | null): Promise<unknown> {
-    return this.internalSet(this.resolveKey(key), value)
+  set(key: string, value: T | null): Promise<void> {
+    return this.internalSet(this.resolveKey(key), value).then(() => {
+      if (this.ttlLeftBeforeRefreshInMsecs) {
+        void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
+      }
+    })
   }
 
   async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
@@ -207,6 +211,9 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
+    if (this.ttlLeftBeforeRefreshInMsecs) {
+      void this.expirationTimeLoadingGroupedOperation.invalidateCacheFor(key, groupId)
+    }
   }
 
   private internalSet(resolvedKey: string, value: T | null) {

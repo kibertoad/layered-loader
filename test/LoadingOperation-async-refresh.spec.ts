@@ -63,6 +63,7 @@ describe('LoadingOperation', () => {
         ttlInMsecs: 9999,
         json: true,
         ttlLeftBeforeRefreshInMsecs: 9925,
+        ttlCacheTtl: 2000,
       })
 
       const operation = new LoadingOperation<string>({
