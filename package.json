@@ -47,7 +47,7 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "toad-cache": "^2.0.0"
+    "toad-cache": "^2.1.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.0",

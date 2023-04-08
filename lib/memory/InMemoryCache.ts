@@ -1,10 +1,10 @@
-import { fifo, lru, lruObject, ToadCache } from 'toad-cache'
+import { fifo, fifoObject, lru, lruObject, ToadCache } from 'toad-cache'
 import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
 import { CacheConfiguration } from '../types/DataSources'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
-  cacheType?: 'lru' | 'fifo' | 'lru-object'
-  groupCacheType?: 'lru' | 'fifo' | 'lru-object'
+  cacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
+  groupCacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
@@ -29,30 +29,28 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   private readonly groupCacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
 
   constructor(config: InMemoryCacheConfiguration) {
-    const cacheType = config.cacheType ?? DEFAULT_CONFIGURATION.cacheType
-    const groupCacheType = config.groupCacheType ?? DEFAULT_CONFIGURATION.groupCacheType
-
-    if (cacheType === 'fifo') {
-      this.cacheConstructor = fifo
-    } else if (cacheType === 'lru-object') {
-      this.cacheConstructor = lruObject
-    } else {
-      this.cacheConstructor = lru
-    }
-
-    if (groupCacheType === 'fifo') {
-      this.groupCacheConstructor = fifo
-    } else if (groupCacheType === 'lru-object') {
-      this.groupCacheConstructor = lruObject
-    } else {
-      this.groupCacheConstructor = lru
-    }
+    this.cacheConstructor = this.resolveCacheConstructor(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
+    this.groupCacheConstructor = this.resolveCacheConstructor(
+      config.groupCacheType ?? DEFAULT_CONFIGURATION.groupCacheType
+    )
 
     this.cache = this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
     this.groups = this.groupCacheConstructor(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
+  }
+
+  private resolveCacheConstructor(cacheTypeId: 'lru' | 'fifo' | 'lru-object' | 'fifo-object') {
+    if (cacheTypeId === 'fifo') {
+      return fifo
+    } else if (cacheTypeId === 'lru-object') {
+      return lruObject
+    } else if (cacheTypeId === 'fifo-object') {
+      return fifoObject
+    } else {
+      return lru
+    }
   }
 
   private resolveGroup(groupId: string) {

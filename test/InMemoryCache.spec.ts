@@ -26,9 +26,51 @@ describe('InMemoryCache', () => {
       expect(value3).toBe('value3')
     })
 
+    it('expires LRU-object', () => {
+      const cache = new InMemoryCache({
+        cacheType: 'lru-object',
+        maxItems: 2,
+        ttlInMsecs: 1,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+
+      cache.get('key')
+      cache.set('key3', 'value3')
+
+      const value1 = cache.get('key')
+      const value2 = cache.get('key2')
+      const value3 = cache.get('key3')
+
+      expect(value1).toBe('value')
+      expect(value2).toBeUndefined()
+      expect(value3).toBe('value3')
+    })
+
     it('expires FIFO', () => {
       const cache = new InMemoryCache({
         cacheType: 'fifo',
+        maxItems: 2,
+        ttlInMsecs: 1,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+
+      cache.get('key')
+      cache.set('key3', 'value3')
+
+      const value1 = cache.get('key')
+      const value2 = cache.get('key2')
+      const value3 = cache.get('key3')
+
+      expect(value1).toBeUndefined()
+      expect(value2).toBe('value2')
+      expect(value3).toBe('value3')
+    })
+
+    it('expires FIFO-Object', () => {
+      const cache = new InMemoryCache({
+        cacheType: 'fifo-object',
         maxItems: 2,
         ttlInMsecs: 1,
       })
