@@ -5,6 +5,7 @@ export interface CacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number
   ttlCacheTtl?: number // for how long to store ttl locally - useful when refresh is enabled
   ttlCacheSize?: number
+  ttlCacheGroupSize?: number
   ttlInMsecs: number | undefined
 }
 

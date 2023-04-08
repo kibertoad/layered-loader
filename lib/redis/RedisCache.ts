@@ -68,7 +68,8 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
       inMemoryCache: config.ttlCacheTtl
         ? {
             ttlInMsecs: config.ttlCacheTtl,
-            maxItems: config.ttlCacheSize ?? 500,
+            maxGroups: config.ttlCacheGroupSize ?? 200,
+            maxItemsPerGroup: config.ttlCacheSize ?? 500,
           }
         : undefined,
       loaders: [new RedisExpirationTimeGroupedLoader(this)],
