@@ -15,6 +15,14 @@ describe('RedisCache', () => {
     await redis.disconnect()
   })
 
+  describe('constructor', () => {
+    it('throws an error if ttl cache ttl is set, but refresh is disabled', async () => {
+      expect(() => {
+        return new RedisCache(redis, { ttlCacheTtl: 500 })
+      }).toThrow(/ttlCacheTtl cannot be specified if ttlLeftBeforeRefreshInMsecs is not/)
+    })
+  })
+
   describe('getExpirationTime', () => {
     it('returns undefined for non-existent entry', async () => {
       const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })

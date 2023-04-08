@@ -1,10 +1,17 @@
+import { LoadingOperation } from '../LoadingOperation'
+import { GroupedLoadingOperation } from '../GroupedLoadingOperation'
+
 export interface CacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number
+  ttlCacheTtl?: number // for how long to store ttl locally - useful when refresh is enabled
+  ttlCacheSize?: number
   ttlInMsecs: number | undefined
 }
 
 export interface Cache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
+  readonly expirationTimeLoadingOperation: LoadingOperation<number>
+  readonly expirationTimeLoadingGroupedOperation: GroupedLoadingOperation<number>
   get: (key: string) => Promise<LoadedValue | undefined | null>
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
   getExpirationTime: (key: string) => Promise<number | undefined>

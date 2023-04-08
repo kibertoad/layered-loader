@@ -2,6 +2,10 @@ import { Cache, CacheConfiguration, GroupedCache, Loader } from '../types/DataSo
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
+import { LoadingOperation } from '../LoadingOperation'
+import { RedisExpirationTimeLoader } from './RedisExpirationTimeLoader'
+import { GroupedLoadingOperation } from '../GroupedLoadingOperation'
+import { RedisExpirationTimeGroupedLoader } from './RedisExpirationTimeGroupedLoader'
 
 const TIMEOUT = Symbol()
 const GROUP_INDEX_KEY = 'group-index'
@@ -24,6 +28,8 @@ const DefaultConfiguration: RedisCacheConfiguration = {
 export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   private readonly redis: Redis
   private readonly config: RedisCacheConfiguration
+  public readonly expirationTimeLoadingOperation: LoadingOperation<number>
+  public readonly expirationTimeLoadingGroupedOperation: GroupedLoadingOperation<number>
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
   isCache = true
@@ -42,6 +48,30 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     this.redis.defineCommand('getOrSetZeroWithoutTtl', {
       lua: GET_OR_SET_ZERO_WITHOUT_TTL,
       numberOfKeys: 1,
+    })
+
+    if (!this.ttlLeftBeforeRefreshInMsecs && config.ttlCacheTtl) {
+      throw new Error('ttlCacheTtl cannot be specified if ttlLeftBeforeRefreshInMsecs is not.')
+    }
+
+    this.expirationTimeLoadingOperation = new LoadingOperation<number>({
+      inMemoryCache: config.ttlCacheTtl
+        ? {
+            ttlInMsecs: config.ttlCacheTtl,
+            maxItems: config.ttlCacheSize ?? 500,
+          }
+        : undefined,
+      loaders: [new RedisExpirationTimeLoader(this)],
+    })
+
+    this.expirationTimeLoadingGroupedOperation = new GroupedLoadingOperation<number>({
+      inMemoryCache: config.ttlCacheTtl
+        ? {
+            ttlInMsecs: config.ttlCacheTtl,
+            maxItems: config.ttlCacheSize ?? 500,
+          }
+        : undefined,
+      loaders: [new RedisExpirationTimeGroupedLoader(this)],
     })
   }
 
