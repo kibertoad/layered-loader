@@ -35,7 +35,7 @@ export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends Abs
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
-            this.asyncCache.getExpirationTime(key).then((expirationTime) => {
+            this.asyncCache.expirationTimeLoadingOperation.get(key).then((expirationTime) => {
               if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
                 // check second time, maybe someone obtained the lock while we were checking the expiration date
                 if (!this.isKeyRefreshing.has(key)) {

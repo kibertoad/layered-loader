@@ -2,6 +2,10 @@ import { Cache, CacheConfiguration, GroupedCache, Loader } from '../types/DataSo
 import type { Redis } from 'ioredis'
 import { RedisTimeoutError } from './RedisTimeoutError'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
+import { LoadingOperation } from '../LoadingOperation'
+import { RedisExpirationTimeLoader } from './RedisExpirationTimeLoader'
+import { GroupedLoadingOperation } from '../GroupedLoadingOperation'
+import { RedisExpirationTimeGroupedLoader } from './RedisExpirationTimeGroupedLoader'
 
 const TIMEOUT = Symbol()
 const GROUP_INDEX_KEY = 'group-index'
@@ -24,6 +28,8 @@ const DefaultConfiguration: RedisCacheConfiguration = {
 export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
   private readonly redis: Redis
   private readonly config: RedisCacheConfiguration
+  public readonly expirationTimeLoadingOperation: LoadingOperation<number>
+  public readonly expirationTimeLoadingGroupedOperation: GroupedLoadingOperation<number>
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
   isCache = true
@@ -42,6 +48,30 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     this.redis.defineCommand('getOrSetZeroWithoutTtl', {
       lua: GET_OR_SET_ZERO_WITHOUT_TTL,
       numberOfKeys: 1,
+    })
+
+    if (!this.ttlLeftBeforeRefreshInMsecs && config.ttlCacheTtl) {
+      throw new Error('ttlCacheTtl cannot be specified if ttlLeftBeforeRefreshInMsecs is not.')
+    }
+
+    this.expirationTimeLoadingOperation = new LoadingOperation<number>({
+      inMemoryCache: config.ttlCacheTtl
+        ? {
+            ttlInMsecs: config.ttlCacheTtl,
+            maxItems: config.ttlCacheSize ?? 500,
+          }
+        : undefined,
+      loaders: [new RedisExpirationTimeLoader(this)],
+    })
+
+    this.expirationTimeLoadingGroupedOperation = new GroupedLoadingOperation<number>({
+      inMemoryCache: config.ttlCacheTtl
+        ? {
+            ttlInMsecs: config.ttlCacheTtl,
+            maxItems: config.ttlCacheSize ?? 500,
+          }
+        : undefined,
+      loaders: [new RedisExpirationTimeGroupedLoader(this)],
     })
   }
 
@@ -160,8 +190,12 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
-  set(key: string, value: T | null): Promise<unknown> {
-    return this.internalSet(this.resolveKey(key), value)
+  set(key: string, value: T | null): Promise<void> {
+    return this.internalSet(this.resolveKey(key), value).then(() => {
+      if (this.ttlLeftBeforeRefreshInMsecs) {
+        void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
+      }
+    })
   }
 
   async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
@@ -177,6 +211,9 @@ export class RedisCache<T> implements GroupedCache<T>, Cache<T>, Loader<T> {
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
+    if (this.ttlLeftBeforeRefreshInMsecs) {
+      void this.expirationTimeLoadingGroupedOperation.invalidateCacheFor(key, groupId)
+    }
   }
 
   private internalSet(resolvedKey: string, value: T | null) {

@@ -37,7 +37,7 @@ export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> exte
           let isAlreadyRefreshing = groupSet?.has(key)
 
           if (!isAlreadyRefreshing) {
-            this.asyncCache.getExpirationTimeFromGroup(key, group).then((expirationTime) => {
+            this.asyncCache.expirationTimeLoadingGroupedOperation.get(key, group).then((expirationTime) => {
               if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
                 // Check if someone else didn't start refreshing while we were checking expiration time
                 groupSet = this.groupRefreshFlags.get(group)

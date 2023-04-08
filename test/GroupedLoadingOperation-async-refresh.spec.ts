@@ -96,6 +96,8 @@ describe('GroupedLoadingOperation Async Refresh', () => {
       const loader = new DelayedCountingGroupedLoader(userValues)
       const asyncCache = new RedisCache<User>(redis, {
         ttlInMsecs: 9999,
+        ttlCacheTtl: 5000,
+        ttlCacheSize: 400,
         json: true,
         ttlLeftBeforeRefreshInMsecs: 9925,
       })
@@ -134,6 +136,7 @@ describe('GroupedLoadingOperation Async Refresh', () => {
 
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await Promise.resolve()
+
       expect(loader.counter).toBe(2)
       expect(expirationTimePre).toBeDefined()
       expect(expirationTimePost).toBeDefined()
