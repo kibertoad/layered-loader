@@ -1,10 +1,10 @@
-import type { LRU } from 'toad-cache'
-import { fifo, lru, ToadCache } from 'toad-cache'
+import { fifo, fifoObject, lru, lruObject, ToadCache } from 'toad-cache'
 import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
 import { CacheConfiguration } from '../types/DataSources'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
-  cacheType?: 'lru' | 'fifo'
+  cacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
+  groupCacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
@@ -12,6 +12,7 @@ export interface InMemoryCacheConfiguration extends CacheConfiguration {
 
 const DEFAULT_CONFIGURATION = {
   cacheType: 'lru',
+  groupCacheType: 'lru',
   maxItems: 500,
   maxGroups: 1000,
   maxItemsPerGroup: 500,
@@ -19,22 +20,37 @@ const DEFAULT_CONFIGURATION = {
 
 export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
   private readonly cache: ToadCache<T | null>
-  private readonly groups: LRU<ToadCache<T | null> | undefined | null>
+  private readonly groups: ToadCache<ToadCache<T | null> | undefined | null>
   private readonly maxItemsPerGroup: number
   name = 'In-memory cache'
   private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   private readonly cacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
+  private readonly groupCacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
 
   constructor(config: InMemoryCacheConfiguration) {
-    const cacheType = config.cacheType ?? DEFAULT_CONFIGURATION.cacheType
-    this.cacheConstructor = cacheType === 'fifo' ? fifo : lru
+    this.cacheConstructor = this.resolveCacheConstructor(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
+    this.groupCacheConstructor = this.resolveCacheConstructor(
+      config.groupCacheType ?? DEFAULT_CONFIGURATION.groupCacheType
+    )
 
     this.cache = this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
-    this.groups = lru(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
+    this.groups = this.groupCacheConstructor(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
+  }
+
+  private resolveCacheConstructor(cacheTypeId: 'lru' | 'fifo' | 'lru-object' | 'fifo-object') {
+    if (cacheTypeId === 'fifo') {
+      return fifo
+    } else if (cacheTypeId === 'lru-object') {
+      return lruObject
+    } else if (cacheTypeId === 'fifo-object') {
+      return fifoObject
+    } else {
+      return lru
+    }
   }
 
   private resolveGroup(groupId: string) {

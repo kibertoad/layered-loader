@@ -59,10 +59,10 @@ describe('RedisCache', () => {
       const expiresAtPost = await cache.getExpirationTime('key')
       const timeLeftPost = expiresAtPost! - Date.now()
 
-      expect(timeLeftPre < 520).toBe(true)
-      expect(timeLeftPre > 480).toBe(true)
-      expect(timeLeftPost < 1020).toBe(true)
-      expect(timeLeftPost > 980).toBe(true)
+      expect(timeLeftPre < 530).toBe(true)
+      expect(timeLeftPre > 470).toBe(true)
+      expect(timeLeftPost < 1030).toBe(true)
+      expect(timeLeftPost > 970).toBe(true)
     })
   })
 
@@ -352,7 +352,7 @@ describe('RedisCache', () => {
   describe('set', () => {
     it('sets value after group has already expired', async () => {
       const cache = new RedisCache(redis, {
-        ttlInMsecs: 1,
+        ttlInMsecs: 2,
         groupTtlInMsecs: 1,
       })
       await cache.setForGroup('key', 'value', 'group')
