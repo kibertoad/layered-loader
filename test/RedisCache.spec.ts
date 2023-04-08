@@ -352,7 +352,7 @@ describe('RedisCache', () => {
   describe('set', () => {
     it('sets value after group has already expired', async () => {
       const cache = new RedisCache(redis, {
-        ttlInMsecs: 1,
+        ttlInMsecs: 2,
         groupTtlInMsecs: 1,
       })
       await cache.setForGroup('key', 'value', 'group')
