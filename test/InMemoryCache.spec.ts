@@ -8,7 +8,7 @@ describe('InMemoryCache', () => {
   describe('set', () => {
     it('expires LRU', () => {
       const cache = new InMemoryCache({
-        cacheType: 'lru',
+        cacheType: 'lru-map',
         maxItems: 2,
         ttlInMsecs: 1,
       })
@@ -50,7 +50,7 @@ describe('InMemoryCache', () => {
 
     it('expires FIFO', () => {
       const cache = new InMemoryCache({
-        cacheType: 'fifo',
+        cacheType: 'fifo-map',
         maxItems: 2,
         ttlInMsecs: 1,
       })
