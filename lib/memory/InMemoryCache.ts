@@ -1,10 +1,13 @@
-import { fifo, fifoObject, lru, lruObject, ToadCache } from 'toad-cache'
-import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
-import { CacheConfiguration } from '../types/DataSources'
+import type { CacheConstructor, ToadCache } from 'toad-cache'
+import { FifoMap, FifoObject, LruMap, LruObject } from 'toad-cache'
+import type { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
+import type { CacheConfiguration } from '../types/DataSources'
+
+type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object'
 
 export interface InMemoryCacheConfiguration extends CacheConfiguration {
-  cacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
-  groupCacheType?: 'lru' | 'fifo' | 'lru-object' | 'fifo-object'
+  cacheType?: CacheTypeId
+  groupCacheType?: CacheTypeId
   maxItems?: number
   maxGroups?: number
   maxItemsPerGroup?: number
@@ -25,31 +28,31 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
   name = 'In-memory cache'
   private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
-  private readonly cacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
-  private readonly groupCacheConstructor: <T = any>(max?: number, ttl?: number) => ToadCache<T>
+  private readonly cacheConstructor: CacheConstructor<ToadCache<T>>
+  private readonly groupCacheConstructor: CacheConstructor<ToadCache<ToadCache<T | null>>>
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cacheConstructor = this.resolveCacheConstructor(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
-    this.groupCacheConstructor = this.resolveCacheConstructor(
+    this.cacheConstructor = this.resolveCacheConstructor<T>(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
+    this.groupCacheConstructor = this.resolveCacheConstructor<ToadCache<T | null>>(
       config.groupCacheType ?? DEFAULT_CONFIGURATION.groupCacheType
     )
 
-    this.cache = this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
-    this.groups = this.groupCacheConstructor(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
+    this.cache = new this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
+    this.groups = new this.groupCacheConstructor(config.maxGroups ?? DEFAULT_CONFIGURATION.maxGroups)
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
   }
 
-  private resolveCacheConstructor(cacheTypeId: 'lru' | 'fifo' | 'lru-object' | 'fifo-object') {
-    if (cacheTypeId === 'fifo') {
-      return fifo
-    } else if (cacheTypeId === 'lru') {
-      return lru
+  private resolveCacheConstructor<T>(cacheTypeId: CacheTypeId): CacheConstructor<ToadCache<T>> {
+    if (cacheTypeId === 'fifo-map') {
+      return FifoMap
+    } else if (cacheTypeId === 'lru-map') {
+      return LruMap
     } else if (cacheTypeId === 'fifo-object') {
-      return fifoObject
+      return FifoObject
     } else {
-      return lruObject
+      return LruObject
     }
   }
 
@@ -59,7 +62,7 @@ export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGrouped
       return groupCache
     }
 
-    const newGroupCache = this.cacheConstructor(this.maxItemsPerGroup, this.ttlInMsecs)
+    const newGroupCache = new this.cacheConstructor(this.maxItemsPerGroup, this.ttlInMsecs)
     this.groups.set(groupId, newGroupCache)
     return newGroupCache
   }

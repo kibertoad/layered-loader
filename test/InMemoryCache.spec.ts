@@ -1,4 +1,5 @@
-import { InMemoryCache, InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import { InMemoryCache } from '../lib/memory/InMemoryCache'
 import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration

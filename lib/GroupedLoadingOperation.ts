@@ -1,5 +1,5 @@
-import { GroupedCache, GroupLoader } from './types/DataSources'
-import { LoadingOperationConfig } from './LoadingOperation'
+import type { GroupedCache, GroupLoader } from './types/DataSources'
+import type { LoadingOperationConfig } from './LoadingOperation'
 import { AbstractGroupedOperation } from './AbstractGroupedOperation'
 
 export type GroupedLoadingOperationConfig<LoadedValue, LoaderParams = undefined> = LoadingOperationConfig<

@@ -1,5 +1,5 @@
-import { GroupLoader } from '../../lib/types/DataSources'
-import { GroupValues, User } from '../types/testTypes'
+import type { GroupLoader } from '../../lib/types/DataSources'
+import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 
 export class CountingGroupedLoader implements GroupLoader<User> {

@@ -1,5 +1,5 @@
-import { GroupedCache } from './types/DataSources'
-import { CommonOperationConfig } from './AbstractOperation'
+import type { GroupedCache } from './types/DataSources'
+import type { CommonOperationConfig } from './AbstractOperation'
 import { AbstractGroupedOperation } from './AbstractGroupedOperation'
 
 export type GroupedCachingOperationConfig<LoadedValue> = CommonOperationConfig<LoadedValue, GroupedCache<LoadedValue>>

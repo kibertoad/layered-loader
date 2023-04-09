@@ -1,5 +1,5 @@
-import { LoadingOperation } from '../LoadingOperation'
-import { GroupedLoadingOperation } from '../GroupedLoadingOperation'
+import type { LoadingOperation } from '../LoadingOperation'
+import type { GroupedLoadingOperation } from '../GroupedLoadingOperation'
 
 export interface CacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number

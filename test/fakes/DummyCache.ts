@@ -1,4 +1,4 @@
-import { Cache } from '../../lib/types/DataSources'
+import type { Cache } from '../../lib/types/DataSources'
 
 export class DummyCache implements Cache<string> {
   value: string | undefined | null

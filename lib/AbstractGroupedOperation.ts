@@ -1,5 +1,5 @@
 import { AbstractOperation } from './AbstractOperation'
-import { GroupedCache } from './types/DataSources'
+import type { GroupedCache } from './types/DataSources'
 
 export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = undefined> extends AbstractOperation<
   LoadedValue,

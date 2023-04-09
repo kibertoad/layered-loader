@@ -1,5 +1,5 @@
-import { GroupedCache } from '../../lib/types/DataSources'
-import { GroupValues, User } from '../types/testTypes'
+import type { GroupedCache } from '../../lib/types/DataSources'
+import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 
 export class CountingGroupedCache implements GroupedCache<User> {

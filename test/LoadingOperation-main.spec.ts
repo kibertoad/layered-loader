@@ -1,13 +1,14 @@
 import { setTimeout } from 'timers/promises'
 import { LoadingOperation } from '../lib/LoadingOperation'
-import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { DummyLoader } from './fakes/DummyLoader'
 import { CountingLoader } from './fakes/CountingLoader'
 import { ThrowingLoader } from './fakes/ThrowingLoader'
 import { ThrowingCache } from './fakes/ThrowingCache'
 import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
 import { DummyCache } from './fakes/DummyCache'
-import { DummyLoaderParams, DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
+import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
+import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 

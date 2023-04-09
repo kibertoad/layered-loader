@@ -1,4 +1,4 @@
-import Redis from 'ioredis'
+import type Redis from 'ioredis'
 import { RedisCache } from '../lib/redis/RedisCache'
 import { FakeRedis } from './fakes/FakeRedis'
 

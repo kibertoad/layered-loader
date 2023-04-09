@@ -1,4 +1,4 @@
-import { User } from './types/testTypes'
+import type { User } from './types/testTypes'
 import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { setTimeout } from 'timers/promises'
