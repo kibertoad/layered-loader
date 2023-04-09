@@ -1,4 +1,4 @@
-import { GroupedCache, GroupLoader } from '../types/DataSources'
+import type { GroupedCache, GroupLoader } from '../types/DataSources'
 
 export class RedisExpirationTimeGroupedLoader implements GroupLoader<number> {
   public readonly name = 'RedisExpirationTimeGroupedLoader'

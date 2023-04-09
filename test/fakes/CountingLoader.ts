@@ -1,4 +1,4 @@
-import { Loader } from '../../lib/types/DataSources'
+import type { Loader } from '../../lib/types/DataSources'
 
 export class CountingLoader implements Loader<string> {
   public value: string | undefined

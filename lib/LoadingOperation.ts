@@ -1,5 +1,5 @@
-import { CommonOperationConfig } from './AbstractOperation'
-import { Cache, Loader } from './types/DataSources'
+import type { CommonOperationConfig } from './AbstractOperation'
+import type { Cache, Loader } from './types/DataSources'
 import { AbstractFlatOperation } from './AbstractFlatOperation'
 
 export type LoadingOperationConfig<

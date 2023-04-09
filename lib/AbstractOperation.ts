@@ -1,7 +1,9 @@
-import { InMemoryCache, InMemoryCacheConfiguration, NoopCache } from './memory'
-import { SynchronousGroupedCache } from './types/SyncDataSources'
-import { Cache } from './types/DataSources'
-import { defaultLogger, Logger } from './Logger'
+import type { InMemoryCacheConfiguration } from './memory'
+import { InMemoryCache, NoopCache } from './memory'
+import type { SynchronousGroupedCache } from './types/SyncDataSources'
+import type { Cache } from './types/DataSources'
+import type { Logger } from './Logger'
+import { defaultLogger } from './Logger'
 
 export type LoaderErrorHandler = (
   err: Error,

@@ -1,4 +1,5 @@
-import Redis, { Result } from 'ioredis'
+import type { Result } from 'ioredis'
+import Redis from 'ioredis'
 
 function createLongDelayPromise() {
   return new Promise((resolve) => setTimeout(resolve, 9999999))

@@ -1,4 +1,4 @@
-import { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
+import type { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
 
 export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
   name = 'Noop cache'

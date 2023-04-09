@@ -1,4 +1,4 @@
-import { GroupLoader } from '../../lib/types/DataSources'
+import type { GroupLoader } from '../../lib/types/DataSources'
 
 export class ThrowingGroupedLoader implements GroupLoader<string> {
   name = 'Throwing loader'

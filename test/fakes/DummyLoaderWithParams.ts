@@ -1,4 +1,4 @@
-import { Loader } from '../../lib/types/DataSources'
+import type { Loader } from '../../lib/types/DataSources'
 
 export type DummyLoaderParams = {
   prefix: string

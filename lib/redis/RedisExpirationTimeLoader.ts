@@ -1,4 +1,4 @@
-import { Cache, Loader } from '../types/DataSources'
+import type { Cache, Loader } from '../types/DataSources'
 
 export class RedisExpirationTimeLoader implements Loader<number> {
   public readonly name = 'RedisExpirationTimeLoader'

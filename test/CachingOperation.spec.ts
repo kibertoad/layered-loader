@@ -1,4 +1,4 @@
-import { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { ThrowingCache } from './fakes/ThrowingCache'
 import { CachingOperation } from '../lib/CachingOperation'
 import { DummyCache } from './fakes/DummyCache'

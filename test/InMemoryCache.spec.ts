@@ -1,4 +1,5 @@
-import { InMemoryCache, InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
+import { InMemoryCache } from '../lib/memory/InMemoryCache'
 import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
@@ -7,7 +8,7 @@ describe('InMemoryCache', () => {
   describe('set', () => {
     it('expires LRU', () => {
       const cache = new InMemoryCache({
-        cacheType: 'lru',
+        cacheType: 'lru-map',
         maxItems: 2,
         ttlInMsecs: 1,
       })
@@ -49,7 +50,7 @@ describe('InMemoryCache', () => {
 
     it('expires FIFO', () => {
       const cache = new InMemoryCache({
-        cacheType: 'fifo',
+        cacheType: 'fifo-map',
         maxItems: 2,
         ttlInMsecs: 1,
       })
