@@ -1,7 +1,7 @@
 import type { Cache, DataSource } from '../types/DataSources'
 import type { Redis } from 'ioredis'
 import { Loader } from '../Loader'
-import { RedisExpirationTimeLoader } from './RedisExpirationTimeLoader'
+import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache, DEFAULT_REDIS_CACHE_CONFIGURATION } from './AbstractRedisCache'
 
@@ -25,7 +25,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
             maxItems: config.ttlCacheSize ?? 500,
           }
         : undefined,
-      loaders: [new RedisExpirationTimeLoader(this)],
+      dataSources: [new RedisExpirationTimeDataSource(this)],
     })
   }
 

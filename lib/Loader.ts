@@ -8,23 +8,23 @@ export type LoaderConfig<
   LoadedValue,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   LoaderParams = undefined,
-  LoaderType = DataSource<LoadedValue, LoaderParams>,
+  DataSourceType = DataSource<LoadedValue, LoaderParams>,
   InMemoryCacheType extends InMemoryCacheConfiguration | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration
 > = {
-  loaders?: readonly LoaderType[]
+  dataSources?: readonly DataSourceType[]
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
 } & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheType>
 
 export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<LoadedValue, LoaderParams> {
-  private readonly loaders: readonly DataSource<LoadedValue, LoaderParams>[]
+  private readonly dataSources: readonly DataSource<LoadedValue, LoaderParams>[]
   private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
   constructor(config: LoaderConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
     super(config)
-    this.loaders = config.loaders ?? []
+    this.dataSources = config.dataSources ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.isKeyRefreshing = new Set()
@@ -71,14 +71,14 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
   }
 
   private async loadFromLoaders(key: string, loadParams?: LoaderParams) {
-    for (let index = 0; index < this.loaders.length; index++) {
-      const resolvedValue = await this.loaders[index].get(key, loadParams).catch((err) => {
-        this.loadErrorHandler(err, key, this.loaders[index], this.logger)
+    for (let index = 0; index < this.dataSources.length; index++) {
+      const resolvedValue = await this.dataSources[index].get(key, loadParams).catch((err) => {
+        this.loadErrorHandler(err, key, this.dataSources[index], this.logger)
         if (this.throwIfLoadError) {
           throw err
         }
       })
-      if (resolvedValue !== undefined || index === this.loaders.length - 1) {
+      if (resolvedValue !== undefined || index === this.dataSources.length - 1) {
         if (resolvedValue === undefined && this.throwIfUnresolved) {
           throw new Error(`Failed to resolve value for key "${key}"`)
         }

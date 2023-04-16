@@ -22,29 +22,32 @@ This library has three main goals:
 
 ### 
 
-There are four entity types used by `layered-loader`:
+There are two main entity types defined by `layered-loader`:
 
-1. **Loader** - defined procedure of retrieving data from one or more data sources, using a single key. Loader is composed of Loaders and Caches.
-2. **InMemoryCache** - data source, capable of both storing and retrieving data for a given key synchronously.
-3. **AsyncCache** - data source, capable of both storing and retrieving data for a given key asynchronously.
-4. **Loader** - data source, capable of retrieving data for a given key asynchronously.
+1. **Loader** - defined procedure of retrieving data from one or more data sources with full deduplication (same resource is only asked once at any given time), with an optional caches in the middle. Loader is composed of Data Sources and Caches.
+2. **Manual cache** - async cache and/or sync in-memory cache, with deduplication for retrieval commands, which is populated explicitly.
 
-- `layered-loader` will try loading the data from the data source defined for the Loader, in the following order: InMemory, AsyncCache, Loaders. In case `undefined` value is the result of retrieval, next data source in sequence will be used, until there is either a value, or there are no more sources available;
+Loaders and caches are composed out of the following building blocks.
+
+1. **InMemoryCache** - synchronous in-memory cache. Offers highest possible performance, but is generally very short-lived, as it cannot be explicitly invalidated within a distributed system
+2. **AsyncCache** - asynchronous remote cache. Slower than in-memory cache, but can be invalidated easily, as it is shared across all nodes of a distributed system.
+3. **Data Source** - primary source of truth of data, that can be used for populating caches. Used in a strictly read-only mode.
+
+- `layered-loader` will try loading the data from the data source defined for the Loader, in the following order: InMemory, AsyncCache, DataSources. In case `undefined` value is the result of retrieval, next source in sequence will be used, until there is either a value, or there are no more sources available;
 - `null` is considered to be a value, and if the data source returns it, subsequent data source will not be queried for data;
 - If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the Loader.
-- If there are any caches (InMemory or AsyncCache) preceding the data source that returned a value, all of them will be updated with that value;
-- If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loadingOperation.get`, instead of starting a new retrieval.
+- If any caches (InMemoryCache or AsyncCache) precede the source, that returned a value, all of them will be updated with that value;
+- If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loader.get`, instead of starting a new retrieval.
 - You can use just the memory cache, just the asynchronous one, neither, or both. Unconfigured layer will be simply skipped for all operations (both storage and retrieval).
 
 ## Basic example
 
-Let's define a loader, which will be the primary source of truth, and two levels of caching:
+Let's define a data source, which will be the primary source of truth, and two levels of caching:
 
 ```ts
 import Redis from 'ioredis'
-import { RedisCache } from 'layered-loader/dist/lib/redis'
-import { InMemoryCache } from 'layered-loader/dist/lib/memory'
-import type { Loader } from 'layered-loader'
+import { RedisCache, InMemoryCache } from 'layered-loader'
+import type { DataSource } from 'layered-loader'
 
 const ioRedis = new Redis({
   host: 'localhost',
@@ -52,7 +55,7 @@ const ioRedis = new Redis({
   password: 'sOmE_sEcUrE_pAsS',
 })
 
-class ClassifiersLoader implements Loader<Record<string, any>> {
+class ClassifiersDataSource implements DataSource<Record<string, any>> {
   private readonly db: Knex
   name = 'Classifiers DB loader'
   isCache = false
@@ -71,10 +74,10 @@ class ClassifiersLoader implements Loader<Record<string, any>> {
   }
 }
 
-const operation = new Loader<string>({
+const loader = new Loader<string>({
     // this cache will be checked first
     inMemoryCache: {
-        cacheType: 'lru', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+        cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
         ttlInMsecs: 1000 * 60,
         maxItems: 100,
     },
@@ -86,11 +89,11 @@ const operation = new Loader<string>({
     }),
     
     // this will be used if neither cache has the requested data
-    loaders: [new ClassifiersLoader(db)] 
+    dataSources: [new ClassifiersDataSource(db)] 
 })
 
 // If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
-const classifier = await operation.get('1')
+const classifier = await loader.get('1')
 ```
 
 ## Loader API
@@ -114,7 +117,9 @@ Sometimes you need to pass additional parameters for loader in case it will need
 You can use optional parameter `loadParams` for that:
 
 ```ts
-class MyLoaderWithParams implements Loader<string, MyLoaderParams> {
+import type { DataSource } from "layered-loader";
+
+class MyParametrizedDataSource implements DataSource<string, MyLoaderParams> {
     async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
         if (!params) {
             throw new Error('Params were not passed')
@@ -125,11 +130,11 @@ class MyLoaderWithParams implements Loader<string, MyLoaderParams> {
     }
 }
 
-const operation = new Loader<string, MyLoaderParams>({
-  inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-  loaders: [new MyParametrizedLoader()],
+const loader = new Loader<string, MyLoaderParams>({
+    inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+    dataSources: [new MyParametrizedDataSource()],
 })
-await operation.get('key', { jwtToken: 'someTokenValue' }) 
+await operation.get('key', {jwtToken: 'someTokenValue'}) 
 ```
 
 ## Cache-only operations
@@ -138,7 +143,7 @@ Sometimes you may want to avoid implementing loader in the chain (e. g. when ret
 while still having a sequence of caches. In that case you can define a caching operation:
 
 ```ts
-const operation = new ManualCache<string>({
+const cache = new ManualCache<string>({
     // this cache will be checked first
     inMemoryCache: {
         ttlInMsecs: 1000 * 60,
@@ -153,19 +158,21 @@ const operation = new ManualCache<string>({
 })
 
 // this will populate all caches
-await operation.set('1', 'someValue')
+await cache.set('1', 'someValue')
 
 // If any of the caches are still populated at the moment of this operation, 'someValue' will propagate across all caches 
-const classifier = await operation.get('1')
+const classifier = await cache.get('1')
 ```
 
-Note that LoadingOperations are generally recommended over CachingOperations, as they offer better performance: LoadingOperations deduplicate all the get requests that come during the window between checking the cache and populating it, while Caching Operation will resolve all of them to undefined after checking the cache, both increasing load on the cache, and also potentially invoking the loading logic multiple times.
+Note that Loaders are generally recommended over ManualCaches, as they offer better performance: LoadingOperations deduplicate all the get requests that come during the window between checking the cache and populating it, while Caching Operation will resolve all of them to undefined after checking the cache, both increasing load on the cache, and also potentially invoking the loading logic multiple times.
 
 ## Usage in high-performance systems
 
-In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval altogether in case there is a value already available in in-memory cache. Here is the example:
+### Synchronous short-circuit
+
+In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval (and unnecessary Promise overhead) altogether in case there is a value already available in in-memory cache. Here is the example:
 ```ts
-const operation = new ManualCache<string>({
+const loader = new Loader<string>({
     inMemoryCache: {
         // configuration here
     },
@@ -174,14 +181,23 @@ const operation = new ManualCache<string>({
     asyncCache: new RedisCache(ioRedis, {
         // configuration here
     }),
+    dataSources: [new MyDataSource()],
 })
 
 const cachedValue = 
     // this very quickly checks if we have value in-memory
-    operation.getInMemoryOnly('key')
-    // if we don't, proceed with checking asynchronous caches (and loaders, if configured)
-    || await operation.getAsyncOnly('key')
+    loader.getInMemoryOnly('key')
+    // if we don't, proceed with checking asynchronous caches and loaders
+    || await loader.getAsyncOnly('key')
 ```
+
+### Background refresh
+
+ToDo
+
+## Group operations
+
+ToDo
 
 ## Provided async caches
 

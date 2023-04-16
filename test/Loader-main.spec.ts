@@ -58,7 +58,7 @@ describe('Loader Main', () => {
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
         },
-        loaders: [loader],
+        dataSources: [loader],
       })
       expect(operation.getInMemoryOnly('key')).toBeUndefined()
       expect(loader.counter).toBe(0)
@@ -114,7 +114,7 @@ describe('Loader Main', () => {
     it('throws when fails to resolve value, and flag is set', async () => {
       const operation = new Loader({
         throwIfUnresolved: true,
-        loaders: [new DummyLoader(undefined)],
+        dataSources: [new DummyLoader(undefined)],
       })
 
       await expect(() => {
@@ -128,7 +128,7 @@ describe('Loader Main', () => {
 
       const operation = new Loader({
         asyncCache: cache,
-        loaders: [loader],
+        dataSources: [loader],
         throwIfUnresolved: true,
       })
 
@@ -138,7 +138,7 @@ describe('Loader Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new Loader({ loaders: [new ThrowingLoader()], throwIfLoadError: true })
+      const operation = new Loader({ dataSources: [new ThrowingLoader()], throwIfLoadError: true })
 
       await expect(() => {
         return operation.get('value')
@@ -148,7 +148,7 @@ describe('Loader Main', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyLoader(undefined)
-      const operation = new Loader({ loaders: [loader] })
+      const operation = new Loader({ dataSources: [loader] })
 
       const value = await operation.get('value')
       expect(value).toBeNull()
@@ -164,7 +164,7 @@ describe('Loader Main', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingLoader('value')
-      const operation = new Loader({ loaders: [loader] })
+      const operation = new Loader({ dataSources: [loader] })
 
       await expect(() => {
         return operation.get('value')
@@ -177,7 +177,7 @@ describe('Loader Main', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new Loader({ asyncCache: new ThrowingCache(), loaders: [new DummyLoader('value')] })
+      const operation = new Loader({ asyncCache: new ThrowingCache(), dataSources: [new DummyLoader('value')] })
       const value = await operation.get('value')
       expect(value).toBe('value')
       expect(consoleSpy).toHaveBeenCalledTimes(2)
@@ -212,7 +212,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [new DummyLoader(undefined), new DummyLoader('value')],
+        dataSources: [new DummyLoader(undefined), new DummyLoader('value')],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -232,7 +232,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [new DummyLoaderWithParams('value')],
+        dataSources: [new DummyLoaderWithParams('value')],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -255,7 +255,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get('key')
@@ -269,7 +269,7 @@ describe('Loader Main', () => {
     it('batches identical retrievals together', async () => {
       const loader = new CountingLoader('value')
 
-      const operation = new Loader<string>({ loaders: [loader] })
+      const operation = new Loader<string>({ dataSources: [loader] })
       const valuePromise = operation.get('key')
       const valuePromise2 = operation.get('key')
 
@@ -291,7 +291,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get('key')
@@ -311,7 +311,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get('key')
@@ -334,7 +334,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get('key')
@@ -355,7 +355,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get('key')

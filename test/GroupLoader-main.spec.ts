@@ -89,7 +89,7 @@ describe('GroupLoader Main', () => {
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
         },
-        loaders: [loader],
+        dataSources: [loader],
       })
       expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
@@ -139,7 +139,7 @@ describe('GroupLoader Main', () => {
     it('throws when fails to resolve value and flag is set', async () => {
       const operation = new GroupLoader({
         throwIfUnresolved: true,
-        loaders: [new DummyGroupedLoader(userValuesUndefined)],
+        dataSources: [new DummyGroupedLoader(userValuesUndefined)],
       })
 
       await expect(() => {
@@ -153,7 +153,7 @@ describe('GroupLoader Main', () => {
 
       const operation = new GroupLoader({
         asyncCache: cache,
-        loaders: [loader],
+        dataSources: [loader],
         throwIfUnresolved: true,
       })
 
@@ -163,7 +163,7 @@ describe('GroupLoader Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupLoader({ loaders: [new ThrowingGroupedLoader()], throwIfLoadError: true })
+      const operation = new GroupLoader({ dataSources: [new ThrowingGroupedLoader()], throwIfLoadError: true })
 
       await expect(() => {
         return operation.get(user1.userId, user1.companyId)
@@ -173,7 +173,7 @@ describe('GroupLoader Main', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyGroupedLoader(userValuesUndefined)
-      const operation = new GroupLoader({ loaders: [loader] })
+      const operation = new GroupLoader({ dataSources: [loader] })
 
       const value = await operation.get(user1.userId, user1.companyId)
       expect(value).toBeNull()
@@ -189,7 +189,7 @@ describe('GroupLoader Main', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingGroupedLoader(userValues)
-      const operation = new GroupLoader({ loaders: [loader] })
+      const operation = new GroupLoader({ dataSources: [loader] })
 
       await expect(() => {
         return operation.get(user1.userId, user1.companyId)
@@ -204,7 +204,7 @@ describe('GroupLoader Main', () => {
       const consoleSpy = jest.spyOn(console, 'error')
       const operation = new GroupLoader({
         asyncCache: new ThrowingGroupedCache(),
-        loaders: [new DummyGroupedLoader(userValues)],
+        dataSources: [new DummyGroupedLoader(userValues)],
       })
 
       const value = await operation.get(user1.userId, user1.companyId)
@@ -242,7 +242,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
+        dataSources: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -262,7 +262,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [new DummyGroupedLoaderWithParams(userValues)],
+        dataSources: [new DummyGroupedLoaderWithParams(userValues)],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -285,7 +285,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get(user1.userId, user1.companyId)
@@ -299,7 +299,7 @@ describe('GroupLoader Main', () => {
     it('batches identical retrievals together', async () => {
       const loader = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupLoader<User>({ loaders: [loader] })
+      const operation = new GroupLoader<User>({ dataSources: [loader] })
       const valuePromise = operation.get(user1.userId, user1.companyId)
       const valuePromise2 = operation.get(user1.userId, user1.companyId)
 
@@ -321,7 +321,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get(user1.userId, user1.companyId)
@@ -341,7 +341,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get(user1.userId, user1.companyId)
@@ -364,7 +364,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get(user1.userId, user1.companyId)
@@ -385,7 +385,7 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        loaders: [loader1, loader2],
+        dataSources: [loader1, loader2],
       })
 
       const valuePre = await operation.get(user1.userId, user1.companyId)

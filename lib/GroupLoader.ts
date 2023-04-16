@@ -11,14 +11,14 @@ export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderCon
   InMemoryGroupCacheConfiguration
 >
 export class GroupLoader<LoadedValue, LoaderParams = undefined> extends AbstractGroupCache<LoadedValue, LoaderParams> {
-  private readonly loaders: readonly GroupDataSource<LoadedValue, LoaderParams>[]
+  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoaderParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
   constructor(config: GroupLoaderConfig<LoadedValue, LoaderParams>) {
     super(config)
-    this.loaders = config.loaders ?? []
+    this.loaders = config.dataSources ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.groupRefreshFlags = new Map()
