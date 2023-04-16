@@ -64,7 +64,7 @@ describe('GroupLoader Async Refresh', () => {
 
       const operation = new GroupLoader<User>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
       })
 
       // @ts-ignore
@@ -104,7 +104,7 @@ describe('GroupLoader Async Refresh', () => {
 
       const operation = new GroupLoader<User>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
       })
 
       // @ts-ignore
@@ -153,7 +153,7 @@ describe('GroupLoader Async Refresh', () => {
 
       const operation = new GroupLoader<User>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
         throwIfUnresolved: true,
       })
 

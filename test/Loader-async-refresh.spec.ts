@@ -29,7 +29,7 @@ describe('Loader Async', () => {
 
       const operation = new Loader<string>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
       })
       // @ts-ignore
       expect(await operation.asyncCache.get('key')).toBeUndefined()
@@ -68,7 +68,7 @@ describe('Loader Async', () => {
 
       const operation = new Loader<string>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
       })
 
       // @ts-ignore
@@ -115,7 +115,7 @@ describe('Loader Async', () => {
 
       const operation = new Loader<string>({
         asyncCache,
-        loaders: [loader],
+        dataSources: [loader],
         throwIfUnresolved: true,
       })
       // @ts-ignore

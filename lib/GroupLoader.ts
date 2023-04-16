@@ -11,14 +11,14 @@ export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderCon
   InMemoryGroupCacheConfiguration
 >
 export class GroupLoader<LoadedValue, LoaderParams = undefined> extends AbstractGroupCache<LoadedValue, LoaderParams> {
-  private readonly loaders: readonly GroupDataSource<LoadedValue, LoaderParams>[]
+  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoaderParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
   constructor(config: GroupLoaderConfig<LoadedValue, LoaderParams>) {
     super(config)
-    this.loaders = config.loaders ?? []
+    this.dataSources = config.dataSources ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.groupRefreshFlags = new Map()
@@ -77,14 +77,14 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
   }
 
   private async loadFromLoaders(key: string, group: string, loadParams?: LoaderParams) {
-    for (let index = 0; index < this.loaders.length; index++) {
-      const resolvedValue = await this.loaders[index].getFromGroup(key, group, loadParams).catch((err) => {
-        this.loadErrorHandler(err, key, this.loaders[index], this.logger)
+    for (let index = 0; index < this.dataSources.length; index++) {
+      const resolvedValue = await this.dataSources[index].getFromGroup(key, group, loadParams).catch((err) => {
+        this.loadErrorHandler(err, key, this.dataSources[index], this.logger)
         if (this.throwIfLoadError) {
           throw err
         }
       })
-      if (resolvedValue !== undefined || index === this.loaders.length - 1) {
+      if (resolvedValue !== undefined || index === this.dataSources.length - 1) {
         if (resolvedValue === undefined && this.throwIfUnresolved) {
           throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
         }

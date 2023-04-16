@@ -2,7 +2,7 @@ import type { GroupCache, GroupCacheConfiguration, GroupDataSource } from '../ty
 import type { Redis } from 'ioredis'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 import { GroupLoader } from '../GroupLoader'
-import { RedisExpirationTimeGroupedLoader } from './RedisExpirationTimeGroupedLoader'
+import { RedisExpirationTimeGroupDataSource } from './RedisExpirationTimeGroupDataSource'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache } from './AbstractRedisCache'
 
@@ -45,7 +45,7 @@ export class RedisGroupCache<T>
             maxItemsPerGroup: config.ttlCacheSize ?? 500,
           }
         : undefined,
-      loaders: [new RedisExpirationTimeGroupedLoader(this)],
+      dataSources: [new RedisExpirationTimeGroupDataSource(this)],
     })
   }
 

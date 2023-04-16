@@ -10,7 +10,7 @@ describe('InMemoryCache', () => {
       const cache = new InMemoryCache({
         cacheType: 'lru-map',
         maxItems: 2,
-        ttlInMsecs: 1,
+        ttlInMsecs: 2,
       })
       cache.set('key', 'value')
       cache.set('key2', 'value2')
