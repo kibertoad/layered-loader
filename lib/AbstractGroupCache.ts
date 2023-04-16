@@ -8,6 +8,10 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
   GroupCache<LoadedValue>,
   SynchronousGroupCache<LoadedValue>
 > {
+  override isGroupCache() {
+    return true
+  }
+
   public async invalidateCacheForGroup(group: string) {
     if (this.asyncCache) {
       await this.asyncCache.deleteGroup(group).catch((err) => {
