@@ -1,12 +1,14 @@
 import type { GroupCache, GroupDataSource } from './types/DataSources'
 import type { LoaderConfig } from './Loader'
 import { AbstractGroupCache } from './AbstractGroupCache'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 
 export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<
   LoadedValue,
   GroupCache<LoadedValue>,
   LoaderParams,
-  GroupDataSource<LoadedValue, LoaderParams>
+  GroupDataSource<LoadedValue, LoaderParams>,
+  InMemoryGroupCacheConfiguration
 >
 export class GroupLoader<LoadedValue, LoaderParams = undefined> extends AbstractGroupCache<LoadedValue, LoaderParams> {
   private readonly loaders: readonly GroupDataSource<LoadedValue, LoaderParams>[]

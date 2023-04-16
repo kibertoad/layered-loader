@@ -22,7 +22,7 @@ const DEFAULT_GROUP_CONFIGURATION = {
 export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   private readonly groups: ToadCache<ToadCache<T | null> | undefined | null>
   private readonly maxItemsPerGroup: number
-  name = 'In-memory cache'
+  name = 'In-memory group cache'
   private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   private readonly cacheConstructor: CacheConstructor<ToadCache<T>>

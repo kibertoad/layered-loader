@@ -1,4 +1,3 @@
-import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import type { User } from './types/testTypes'
 import { GroupLoader } from '../lib/GroupLoader'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
@@ -10,8 +9,9 @@ import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
 import { setTimeout } from 'timers/promises'
+import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryCacheConfiguration
+const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryGroupCacheConfiguration
 
 const user1: User = {
   companyId: '1',

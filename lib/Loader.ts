@@ -1,17 +1,20 @@
 import type { CommonCacheConfig } from './AbstractCache'
 import type { Cache, DataSource, GroupCache } from './types/DataSources'
 import { AbstractFlatCache } from './AbstractFlatCache'
+import type { InMemoryCacheConfiguration } from './memory'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 
 export type LoaderConfig<
   LoadedValue,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   LoaderParams = undefined,
-  LoaderType = DataSource<LoadedValue, LoaderParams>
+  LoaderType = DataSource<LoadedValue, LoaderParams>,
+  InMemoryCacheType extends InMemoryCacheConfiguration | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration
 > = {
   loaders?: readonly LoaderType[]
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
-} & CommonCacheConfig<LoadedValue, CacheType>
+} & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheType>
 
 export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<LoadedValue, LoaderParams> {
   private readonly loaders: readonly DataSource<LoadedValue, LoaderParams>[]
