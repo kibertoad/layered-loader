@@ -4,6 +4,8 @@ import type { SynchronousGroupCache, SynchronousCache } from './types/SyncDataSo
 import type { Cache, GroupCache } from './types/DataSources'
 import type { Logger } from './util/Logger'
 import { defaultLogger } from './util/Logger'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
+import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
 
 export type LoaderErrorHandler = (
   err: Error,
@@ -27,7 +29,7 @@ export type CommonCacheConfig<
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
   loadErrorHandler?: LoaderErrorHandler
-  inMemoryCache?: InMemoryCacheConfiguration | false
+  inMemoryCache?: InMemoryCacheConfiguration | InMemoryGroupCacheConfiguration | false
   asyncCache?: CacheType
 }
 
@@ -48,9 +50,22 @@ export abstract class AbstractCache<
 
   protected readonly runningLoads: Map<string, LoadChildType>
 
+  abstract isGroupCache(): boolean
+
   constructor(config: CommonCacheConfig<LoadedValue, CacheType>) {
-    // @ts-ignore
-    this.inMemoryCache = config.inMemoryCache ? new InMemoryCache(config.inMemoryCache) : new NoopCache()
+    if (config.inMemoryCache) {
+      if (this.isGroupCache()) {
+        // @ts-ignore
+        this.inMemoryCache = new InMemoryGroupCache(config.inMemoryCache)
+      } else {
+        // @ts-ignore
+        this.inMemoryCache = new InMemoryCache(config.inMemoryCache)
+      }
+    } else {
+      // @ts-ignore
+      this.inMemoryCache = new NoopCache()
+    }
+
     this.asyncCache = config.asyncCache
     this.logger = config.logger ?? defaultLogger
     this.cacheUpdateErrorHandler = config.cacheUpdateErrorHandler ?? DEFAULT_CACHE_ERROR_HANDLER

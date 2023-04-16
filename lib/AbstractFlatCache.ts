@@ -8,6 +8,10 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
   Cache<LoadedValue>,
   SynchronousCache<LoadedValue>
 > {
+  override isGroupCache() {
+    return false
+  }
+
   public getInMemoryOnly(key: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
