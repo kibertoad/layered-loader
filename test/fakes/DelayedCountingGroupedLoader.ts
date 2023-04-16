@@ -1,8 +1,8 @@
-import type { GroupLoader } from '../../lib/types/DataSources'
+import type { GroupDataSource } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 
-export class DelayedCountingGroupedLoader implements GroupLoader<User> {
+export class DelayedCountingGroupedLoader implements GroupDataSource<User> {
   public counter = 0
   public groupValues: GroupValues | null | undefined
 

@@ -1,10 +1,10 @@
-import type { GroupedCache, GroupLoader } from '../types/DataSources'
+import type { GroupCache, GroupDataSource } from '../types/DataSources'
 
-export class RedisExpirationTimeGroupedLoader implements GroupLoader<number> {
+export class RedisExpirationTimeGroupedLoader implements GroupDataSource<number> {
   public readonly name = 'RedisExpirationTimeGroupedLoader'
-  private readonly parentAsyncCache: GroupedCache<any>
+  private readonly parentAsyncCache: GroupCache<any>
 
-  constructor(asyncCache: GroupedCache<any>) {
+  constructor(asyncCache: GroupCache<any>) {
     this.parentAsyncCache = asyncCache
   }
 

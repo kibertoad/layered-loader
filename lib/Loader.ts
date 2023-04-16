@@ -1,28 +1,25 @@
-import type { CommonOperationConfig } from './AbstractOperation'
-import type { Cache, Loader } from './types/DataSources'
-import { AbstractFlatOperation } from './AbstractFlatOperation'
+import type { CommonCacheConfig } from './AbstractCache'
+import type { Cache, DataSource, GroupCache } from './types/DataSources'
+import { AbstractFlatCache } from './AbstractFlatCache'
 
-export type LoadingOperationConfig<
+export type LoaderConfig<
   LoadedValue,
-  CacheType extends Cache<LoadedValue> = Cache<LoadedValue>,
+  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   LoaderParams = undefined,
-  LoaderType = Loader<LoadedValue, LoaderParams>
+  LoaderType = DataSource<LoadedValue, LoaderParams>
 > = {
   loaders?: readonly LoaderType[]
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
-} & CommonOperationConfig<LoadedValue, CacheType>
+} & CommonCacheConfig<LoadedValue, CacheType>
 
-export class LoadingOperation<LoadedValue, LoaderParams = undefined> extends AbstractFlatOperation<
-  LoadedValue,
-  LoaderParams
-> {
-  private readonly loaders: readonly Loader<LoadedValue, LoaderParams>[]
+export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<LoadedValue, LoaderParams> {
+  private readonly loaders: readonly DataSource<LoadedValue, LoaderParams>[]
   private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: LoadingOperationConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
+  constructor(config: LoaderConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true

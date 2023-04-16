@@ -1,12 +1,12 @@
 import { setTimeout } from 'timers/promises'
-import { LoadingOperation } from '../lib/LoadingOperation'
+import { Loader } from '../lib/Loader'
 import { CountingLoader } from './fakes/CountingLoader'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
 import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
 
-describe('LoadingOperation', () => {
+describe('Loader Async', () => {
   let redis: Redis
   beforeEach(async () => {
     jest.resetAllMocks()
@@ -27,7 +27,7 @@ describe('LoadingOperation', () => {
         ttlLeftBeforeRefreshInMsecs: 75,
       })
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         asyncCache,
         loaders: [loader],
       })
@@ -66,7 +66,7 @@ describe('LoadingOperation', () => {
         ttlCacheTtl: 2000,
       })
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         asyncCache,
         loaders: [loader],
       })
@@ -113,7 +113,7 @@ describe('LoadingOperation', () => {
         ttlLeftBeforeRefreshInMsecs: 75,
       })
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         asyncCache,
         loaders: [loader],
         throwIfUnresolved: true,

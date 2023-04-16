@@ -1,5 +1,5 @@
-import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { InMemoryCache } from '../lib/memory/InMemoryCache'
+import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
+import { InMemoryCache } from '../../lib/memory/InMemoryCache'
 import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
@@ -52,7 +52,7 @@ describe('InMemoryCache', () => {
       const cache = new InMemoryCache({
         cacheType: 'fifo-map',
         maxItems: 2,
-        ttlInMsecs: 1,
+        ttlInMsecs: 2,
       })
       cache.set('key', 'value')
       cache.set('key2', 'value2')

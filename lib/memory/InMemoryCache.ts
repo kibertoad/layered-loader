@@ -1,11 +1,11 @@
 import type { CacheConstructor, ToadCache } from 'toad-cache'
 import { FifoMap, FifoObject, LruMap, LruObject } from 'toad-cache'
-import type { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
-import type { CacheConfiguration } from '../types/DataSources'
+import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
+import type { CommonCacheConfiguration } from '../types/DataSources'
 
 type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object'
 
-export interface InMemoryCacheConfiguration extends CacheConfiguration {
+export interface InMemoryCacheConfiguration extends CommonCacheConfiguration {
   cacheType?: CacheTypeId
   groupCacheType?: CacheTypeId
   maxItems?: number
@@ -21,7 +21,7 @@ const DEFAULT_CONFIGURATION = {
   maxItemsPerGroup: 500,
 } satisfies Omit<InMemoryCacheConfiguration, 'ttlInMsecs'>
 
-export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
+export class InMemoryCache<T> implements SynchronousCache<T>, SynchronousGroupCache<T> {
   private readonly cache: ToadCache<T | null>
   private readonly groups: ToadCache<ToadCache<T | null> | undefined | null>
   private readonly maxItemsPerGroup: number

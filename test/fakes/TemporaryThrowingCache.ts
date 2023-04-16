@@ -4,6 +4,8 @@ export class TemporaryThrowingCache implements Cache<string> {
   name = 'Throwing loader'
   isThrowing = true
   returnedValue = ''
+  readonly expirationTimeLoadingOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   constructor(value: string) {
     this.returnedValue = value

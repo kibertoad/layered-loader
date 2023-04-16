@@ -3,6 +3,8 @@ import type { Cache } from '../../lib/types/DataSources'
 export class ThrowingCache implements Cache<string> {
   name = 'Throwing cache'
   isCache = true
+  readonly expirationTimeLoadingOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   get(): Promise<string | undefined | null> {
     return Promise.resolve().then(() => {

@@ -1,6 +1,6 @@
 import type Redis from 'ioredis'
-import { RedisCache } from '../lib/redis/RedisCache'
-import { FakeRedis } from './fakes/FakeRedis'
+import { RedisCache } from '../../lib/redis/RedisCache'
+import { FakeRedis } from '../fakes/FakeRedis'
 
 describe('RedisCache timeout', () => {
   let redis: Redis

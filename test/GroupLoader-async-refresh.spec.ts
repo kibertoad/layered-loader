@@ -1,11 +1,11 @@
 import type { User } from './types/testTypes'
-import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
+import { GroupLoader } from '../lib/GroupLoader'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { setTimeout } from 'timers/promises'
-import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
 import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
+import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
 
 const user1: User = {
   companyId: '1',
@@ -37,7 +37,7 @@ const userValuesUndefined = {
   [user3.companyId]: {},
 }
 
-describe('GroupedLoadingOperation Async Refresh', () => {
+describe('GroupLoader Async Refresh', () => {
   beforeEach(() => {
     jest.resetAllMocks()
   })
@@ -56,19 +56,19 @@ describe('GroupedLoadingOperation Async Refresh', () => {
 
     it('triggers async background refresh when threshold is set and reached', async () => {
       const loader = new CountingGroupedLoader(userValues)
-      const asyncCache = new RedisCache<User>(redis, {
+      const asyncCache = new RedisGroupCache<User>(redis, {
         ttlInMsecs: 150,
         json: true,
         ttlLeftBeforeRefreshInMsecs: 75,
       })
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         asyncCache,
         loaders: [loader],
       })
 
       // @ts-ignore
-      expect(await operation.asyncCache.get(user1.userId, user1.companyId)).toBeUndefined()
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)
@@ -94,7 +94,7 @@ describe('GroupedLoadingOperation Async Refresh', () => {
 
     it('only triggers single async background refresh when threshold is set and reached', async () => {
       const loader = new DelayedCountingGroupedLoader(userValues)
-      const asyncCache = new RedisCache<User>(redis, {
+      const asyncCache = new RedisGroupCache<User>(redis, {
         ttlInMsecs: 9999,
         ttlCacheTtl: 5000,
         ttlCacheSize: 400,
@@ -102,13 +102,13 @@ describe('GroupedLoadingOperation Async Refresh', () => {
         ttlLeftBeforeRefreshInMsecs: 9925,
       })
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         asyncCache,
         loaders: [loader],
       })
 
       // @ts-ignore
-      expect(await operation.asyncCache.get(user1.userId, user1.companyId)).toBeUndefined()
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       const promise0 = operation.get(user1.userId, user1.companyId)
       await setTimeout(2)
@@ -145,20 +145,20 @@ describe('GroupedLoadingOperation Async Refresh', () => {
 
     it('async background refresh errors do not crash app', async () => {
       const loader = new CountingGroupedLoader(userValues)
-      const asyncCache = new RedisCache<User>(redis, {
+      const asyncCache = new RedisGroupCache<User>(redis, {
         ttlInMsecs: 150,
         json: true,
         ttlLeftBeforeRefreshInMsecs: 75,
       })
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         asyncCache,
         loaders: [loader],
         throwIfUnresolved: true,
       })
 
       // @ts-ignore
-      expect(await operation.asyncCache.get(user1.userId, user1.companyId)).toBeUndefined()
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)

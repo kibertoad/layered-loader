@@ -1,23 +1,20 @@
-import type { GroupedCache, GroupLoader } from './types/DataSources'
-import type { LoadingOperationConfig } from './LoadingOperation'
-import { AbstractGroupedOperation } from './AbstractGroupedOperation'
+import type { GroupCache, GroupDataSource } from './types/DataSources'
+import type { LoaderConfig } from './Loader'
+import { AbstractGroupCache } from './AbstractGroupCache'
 
-export type GroupedLoadingOperationConfig<LoadedValue, LoaderParams = undefined> = LoadingOperationConfig<
+export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<
   LoadedValue,
-  GroupedCache<LoadedValue>,
+  GroupCache<LoadedValue>,
   LoaderParams,
-  GroupLoader<LoadedValue, LoaderParams>
+  GroupDataSource<LoadedValue, LoaderParams>
 >
-export class GroupedLoadingOperation<LoadedValue, LoaderParams = undefined> extends AbstractGroupedOperation<
-  LoadedValue,
-  LoaderParams
-> {
-  private readonly loaders: readonly GroupLoader<LoadedValue, LoaderParams>[]
+export class GroupLoader<LoadedValue, LoaderParams = undefined> extends AbstractGroupCache<LoadedValue, LoaderParams> {
+  private readonly loaders: readonly GroupDataSource<LoadedValue, LoaderParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: GroupedLoadingOperationConfig<LoadedValue, LoaderParams>) {
+  constructor(config: GroupLoaderConfig<LoadedValue, LoaderParams>) {
     super(config)
     this.loaders = config.loaders ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true

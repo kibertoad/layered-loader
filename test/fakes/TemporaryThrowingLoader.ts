@@ -1,6 +1,6 @@
-import type { Loader } from '../../lib/types/DataSources'
+import type { DataSource } from '../../lib/types/DataSources'
 
-export class TemporaryThrowingLoader implements Loader<string> {
+export class TemporaryThrowingLoader implements DataSource<string> {
   name = 'Throwing loader'
   isCache = false
   isThrowing = true

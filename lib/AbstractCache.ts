@@ -1,9 +1,9 @@
 import type { InMemoryCacheConfiguration } from './memory'
 import { InMemoryCache, NoopCache } from './memory'
-import type { SynchronousGroupedCache } from './types/SyncDataSources'
-import type { Cache } from './types/DataSources'
-import type { Logger } from './Logger'
-import { defaultLogger } from './Logger'
+import type { SynchronousGroupCache, SynchronousCache } from './types/SyncDataSources'
+import type { Cache, GroupCache } from './types/DataSources'
+import type { Logger } from './util/Logger'
+import { defaultLogger } from './util/Logger'
 
 export type LoaderErrorHandler = (
   err: Error,
@@ -20,20 +20,26 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache,
   logger.error(`Error while caching "${key}" with ${cache.name}: ${err.message}`)
 }
 
-export type CommonOperationConfig<T, C extends Cache<T> = Cache<T>> = {
+export type CommonCacheConfig<
+  LoadedValue,
+  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>
+> = {
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
   loadErrorHandler?: LoaderErrorHandler
   inMemoryCache?: InMemoryCacheConfiguration | false
-  asyncCache?: C
+  asyncCache?: CacheType
 }
 
-export abstract class AbstractOperation<
+export abstract class AbstractCache<
   LoadedValue,
   LoadChildType = Promise<LoadedValue | undefined | null> | undefined,
-  CacheType extends Cache<LoadedValue> = Cache<LoadedValue>
+  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
+  InMemoryCacheType extends
+    | SynchronousCache<LoadedValue>
+    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>
 > {
-  protected readonly inMemoryCache: SynchronousGroupedCache<LoadedValue>
+  protected readonly inMemoryCache: InMemoryCacheType
   protected readonly asyncCache?: CacheType
 
   protected readonly logger: Logger
@@ -42,7 +48,8 @@ export abstract class AbstractOperation<
 
   protected readonly runningLoads: Map<string, LoadChildType>
 
-  constructor(config: CommonOperationConfig<LoadedValue, CacheType>) {
+  constructor(config: CommonCacheConfig<LoadedValue, CacheType>) {
+    // @ts-ignore
     this.inMemoryCache = config.inMemoryCache ? new InMemoryCache(config.inMemoryCache) : new NoopCache()
     this.asyncCache = config.asyncCache
     this.logger = config.logger ?? defaultLogger

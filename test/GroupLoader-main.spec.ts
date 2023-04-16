@@ -1,6 +1,6 @@
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import type { User } from './types/testTypes'
-import { GroupedLoadingOperation } from '../lib/GroupedLoadingOperation'
+import { GroupLoader } from '../lib/GroupLoader'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
 import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
@@ -43,14 +43,14 @@ const userValuesUndefined = {
   [user3.companyId]: {},
 }
 
-describe('GroupedLoadingOperation Main', () => {
+describe('GroupLoader Main', () => {
   beforeEach(() => {
     jest.resetAllMocks()
   })
 
   describe('getInMemoryOnly', () => {
     it('returns undefined when no inmemory cache is configured', () => {
-      const operation = new GroupedLoadingOperation({})
+      const operation = new GroupLoader({})
 
       const result = operation.getInMemoryOnly('value', user1.companyId)
 
@@ -58,7 +58,7 @@ describe('GroupedLoadingOperation Main', () => {
     })
 
     it('returns undefined when no value is cached', () => {
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       })
 
@@ -68,7 +68,7 @@ describe('GroupedLoadingOperation Main', () => {
     })
 
     it('returns cached value', async () => {
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: new DummyGroupedCache(userValues),
       })
@@ -84,7 +84,7 @@ describe('GroupedLoadingOperation Main', () => {
     it('triggers background refresh when threshold is set and reached', async () => {
       const loader = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: {
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
@@ -119,7 +119,7 @@ describe('GroupedLoadingOperation Main', () => {
 
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
-      const operation = new GroupedLoadingOperation({})
+      const operation = new GroupLoader({})
 
       const result = await operation.get(user1.userId, user1.companyId)
 
@@ -127,7 +127,7 @@ describe('GroupedLoadingOperation Main', () => {
     })
 
     it('throws when fails to resolve value, with flag and no loaders', async () => {
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         throwIfUnresolved: true,
       })
 
@@ -137,7 +137,7 @@ describe('GroupedLoadingOperation Main', () => {
     })
 
     it('throws when fails to resolve value and flag is set', async () => {
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         throwIfUnresolved: true,
         loaders: [new DummyGroupedLoader(userValuesUndefined)],
       })
@@ -151,7 +151,7 @@ describe('GroupedLoadingOperation Main', () => {
       const cache = new DummyGroupedCache(userValuesUndefined)
       const loader = new DummyGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         asyncCache: cache,
         loaders: [loader],
         throwIfUnresolved: true,
@@ -163,7 +163,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupedLoadingOperation({ loaders: [new ThrowingGroupedLoader()], throwIfLoadError: true })
+      const operation = new GroupLoader({ loaders: [new ThrowingGroupedLoader()], throwIfLoadError: true })
 
       await expect(() => {
         return operation.get(user1.userId, user1.companyId)
@@ -173,7 +173,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyGroupedLoader(userValuesUndefined)
-      const operation = new GroupedLoadingOperation({ loaders: [loader] })
+      const operation = new GroupLoader({ loaders: [loader] })
 
       const value = await operation.get(user1.userId, user1.companyId)
       expect(value).toBeNull()
@@ -189,7 +189,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingGroupedLoader(userValues)
-      const operation = new GroupedLoadingOperation({ loaders: [loader] })
+      const operation = new GroupLoader({ loaders: [loader] })
 
       await expect(() => {
         return operation.get(user1.userId, user1.companyId)
@@ -202,7 +202,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('correctly handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new GroupedLoadingOperation({
+      const operation = new GroupLoader({
         asyncCache: new ThrowingGroupedCache(),
         loaders: [new DummyGroupedLoader(userValues)],
       })
@@ -214,7 +214,7 @@ describe('GroupedLoadingOperation Main', () => {
     })
 
     it('returns value when resolved via single loader', async () => {
-      const operation = new GroupedLoadingOperation<User>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      const operation = new GroupLoader<User>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
       // @ts-ignore
       operation.inMemoryCache.setForGroup(user1.userId, user1, user1.companyId)
 
@@ -226,7 +226,7 @@ describe('GroupedLoadingOperation Main', () => {
     it('returns value when resolved via multiple loaders', async () => {
       const asyncCache = new DummyGroupedCache(userValuesUndefined)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: asyncCache,
       })
@@ -239,7 +239,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('updates upper level cache when resolving value downstream', async () => {
       const cache2 = new DummyGroupedCache(userValuesUndefined)
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
@@ -259,7 +259,7 @@ describe('GroupedLoadingOperation Main', () => {
 
     it('passes loadParams to the loader', async () => {
       const cache2 = new DummyGroupedCache(userValuesUndefined)
-      const operation = new GroupedLoadingOperation<User, DummyLoaderParams>({
+      const operation = new GroupLoader<User, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [new DummyGroupedLoaderWithParams(userValues)],
@@ -282,7 +282,7 @@ describe('GroupedLoadingOperation Main', () => {
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -299,7 +299,7 @@ describe('GroupedLoadingOperation Main', () => {
     it('batches identical retrievals together', async () => {
       const loader = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({ loaders: [loader] })
+      const operation = new GroupLoader<User>({ loaders: [loader] })
       const valuePromise = operation.get(user1.userId, user1.companyId)
       const valuePromise2 = operation.get(user1.userId, user1.companyId)
 
@@ -318,7 +318,7 @@ describe('GroupedLoadingOperation Main', () => {
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -338,7 +338,7 @@ describe('GroupedLoadingOperation Main', () => {
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -361,7 +361,7 @@ describe('GroupedLoadingOperation Main', () => {
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -382,7 +382,7 @@ describe('GroupedLoadingOperation Main', () => {
       const loader1 = new CountingGroupedLoader(userValuesUndefined)
       const loader2 = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupedLoadingOperation<User>({
+      const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
