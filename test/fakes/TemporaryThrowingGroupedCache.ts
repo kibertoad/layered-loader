@@ -1,14 +1,15 @@
-import type { GroupedCache } from '../../lib/types/DataSources'
+import type { GroupCache } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 
-export class TemporaryThrowingGroupedCache implements GroupedCache<User> {
+export class TemporaryThrowingGroupedCache implements GroupCache<User> {
   private value: User | undefined
   groupValues: GroupValues
 
   name = 'Dummy cache'
-  isCache = true
   isThrowing = true
+  readonly expirationTimeLoadingGroupedOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 99999
 
   constructor(returnedValues: GroupValues) {
     this.groupValues = cloneDeep(returnedValues)

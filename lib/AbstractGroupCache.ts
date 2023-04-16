@@ -1,10 +1,12 @@
-import { AbstractOperation } from './AbstractOperation'
-import type { GroupedCache } from './types/DataSources'
+import { AbstractCache } from './AbstractCache'
+import type { GroupCache } from './types/DataSources'
+import type { SynchronousGroupCache } from './types/SyncDataSources'
 
-export abstract class AbstractGroupedOperation<LoadedValue, ResolveParams = undefined> extends AbstractOperation<
+export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
-  GroupedCache<LoadedValue>
+  GroupCache<LoadedValue>,
+  SynchronousGroupCache<LoadedValue>
 > {
   public async invalidateCacheForGroup(group: string) {
     if (this.asyncCache) {

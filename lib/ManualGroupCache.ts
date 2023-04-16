@@ -1,11 +1,11 @@
-import type { GroupedCache } from './types/DataSources'
-import type { CommonOperationConfig } from './AbstractOperation'
-import { AbstractGroupedOperation } from './AbstractGroupedOperation'
+import type { GroupCache } from './types/DataSources'
+import type { CommonCacheConfig } from './AbstractCache'
+import { AbstractGroupCache } from './AbstractGroupCache'
 
-export type GroupedCachingOperationConfig<LoadedValue> = CommonOperationConfig<LoadedValue, GroupedCache<LoadedValue>>
+export type ManualGroupCacheConfig<LoadedValue> = CommonCacheConfig<LoadedValue, GroupCache<LoadedValue>>
 
-export class GroupedCachingOperation<LoadedValue> extends AbstractGroupedOperation<LoadedValue> {
-  constructor(config: GroupedCachingOperationConfig<LoadedValue>) {
+export class ManualGroupCache<LoadedValue> extends AbstractGroupCache<LoadedValue> {
+  constructor(config: ManualGroupCacheConfig<LoadedValue>) {
     super(config)
   }
 

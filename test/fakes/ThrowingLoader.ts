@@ -1,6 +1,6 @@
-import type { Loader } from '../../lib/types/DataSources'
+import type { DataSource } from '../../lib/types/DataSources'
 
-export class ThrowingLoader implements Loader<string> {
+export class ThrowingLoader implements DataSource<string> {
   name = 'Throwing loader'
 
   async get(): Promise<string | undefined | null> {

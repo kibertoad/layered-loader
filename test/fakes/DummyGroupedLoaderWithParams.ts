@@ -1,9 +1,9 @@
-import type { GroupLoader } from '../../lib/types/DataSources'
+import type { GroupDataSource } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 import type { DummyLoaderParams } from './DummyLoaderWithParams'
 
-export class DummyGroupedLoaderWithParams implements GroupLoader<User, DummyLoaderParams> {
+export class DummyGroupedLoaderWithParams implements GroupDataSource<User, DummyLoaderParams> {
   public groupValues: GroupValues | null | undefined
 
   name = 'Dummy cache'

@@ -4,6 +4,8 @@ export class DummyCache implements Cache<string> {
   value: string | undefined | null
   name = 'Dummy cache'
   isCache = true
+  readonly expirationTimeLoadingOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   constructor(returnedValue: string | undefined) {
     this.value = returnedValue

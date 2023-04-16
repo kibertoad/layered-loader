@@ -4,7 +4,8 @@ export class CountingCache implements Cache<string> {
   private value: string | undefined
   public counter = 0
   name = 'Counting cache'
-  isCache = true
+  readonly ttlLeftBeforeRefreshInMsecs: 999999
+  readonly expirationTimeLoadingOperation: null
 
   constructor(returnedValue: string | undefined) {
     this.value = returnedValue

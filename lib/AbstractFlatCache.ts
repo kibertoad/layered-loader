@@ -1,9 +1,13 @@
-import { AbstractOperation } from './AbstractOperation'
+import { AbstractCache } from './AbstractCache'
+import type { Cache } from './types/DataSources'
+import type { SynchronousCache } from './types/SyncDataSources'
 
-export abstract class AbstractFlatOperation<
+export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
   LoadedValue,
-  ResolveParams = undefined
-> extends AbstractOperation<LoadedValue> {
+  Promise<LoadedValue | undefined | null> | undefined,
+  Cache<LoadedValue>,
+  SynchronousCache<LoadedValue>
+> {
   public getInMemoryOnly(key: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)

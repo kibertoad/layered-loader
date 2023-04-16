@@ -1,11 +1,11 @@
-import type { Loader } from '../../lib/types/DataSources'
+import type { DataSource } from '../../lib/types/DataSources'
 
 export type DummyLoaderParams = {
   prefix: string
   suffix: string
 }
 
-export class DummyLoaderWithParams implements Loader<string, DummyLoaderParams> {
+export class DummyLoaderWithParams implements DataSource<string, DummyLoaderParams> {
   value: string | undefined | null
   name = 'Dummy loader'
   isCache = false

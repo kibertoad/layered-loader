@@ -1,9 +1,10 @@
-import type { GroupedCache } from '../../lib/types/DataSources'
+import type { GroupCache } from '../../lib/types/DataSources'
 import type { User } from '../types/testTypes'
 
-export class ThrowingGroupedCache implements GroupedCache<User> {
+export class ThrowingGroupedCache implements GroupCache<User> {
   name = 'Throwing grouped cache'
-  isCache = true
+  readonly expirationTimeLoadingGroupedOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   get(): Promise<User | undefined | null> {
     return Promise.resolve().then(() => {

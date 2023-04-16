@@ -1,13 +1,14 @@
-import type { GroupedCache } from '../../lib/types/DataSources'
+import type { GroupCache } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 
-export class CountingGroupedCache implements GroupedCache<User> {
+export class CountingGroupedCache implements GroupCache<User> {
   private groupValues: GroupValues
   private value: User | undefined
   public counter = 0
   name = 'Counting cache'
-  isCache = true
+  readonly expirationTimeLoadingGroupedOperation: null
+  readonly ttlLeftBeforeRefreshInMsecs: 99999
 
   constructor(returnedValues: GroupValues) {
     this.groupValues = cloneDeep(returnedValues)

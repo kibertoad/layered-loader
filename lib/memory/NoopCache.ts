@@ -1,6 +1,6 @@
-import type { SynchronousCache, SynchronousGroupedCache } from '../types/SyncDataSources'
+import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
 
-export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupedCache<T> {
+export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupCache<T> {
   name = 'Noop cache'
   public readonly ttlLeftBeforeRefreshInMsecs = undefined
 

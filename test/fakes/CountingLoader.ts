@@ -1,6 +1,6 @@
-import type { Loader } from '../../lib/types/DataSources'
+import type { DataSource } from '../../lib/types/DataSources'
 
-export class CountingLoader implements Loader<string> {
+export class CountingLoader implements DataSource<string> {
   public value: string | undefined
   public counter = 0
   name = 'Counting loader'

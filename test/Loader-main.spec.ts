@@ -1,5 +1,5 @@
 import { setTimeout } from 'timers/promises'
-import { LoadingOperation } from '../lib/LoadingOperation'
+import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { DummyLoader } from './fakes/DummyLoader'
 import { CountingLoader } from './fakes/CountingLoader'
@@ -12,14 +12,14 @@ import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
-describe('LoadingOperation', () => {
+describe('Loader Main', () => {
   beforeEach(async () => {
     jest.resetAllMocks()
   })
 
   describe('getInMemoryOnly', () => {
     it('returns undefined when no inmemory cache is configured', () => {
-      const operation = new LoadingOperation({})
+      const operation = new Loader({})
 
       const result = operation.getInMemoryOnly('value')
 
@@ -27,7 +27,7 @@ describe('LoadingOperation', () => {
     })
 
     it('returns undefined when no value is cached', () => {
-      const operation = new LoadingOperation({
+      const operation = new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       })
 
@@ -37,7 +37,7 @@ describe('LoadingOperation', () => {
     })
 
     it('returns cached value', async () => {
-      const operation = new LoadingOperation({
+      const operation = new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: new DummyCache('value'),
       })
@@ -53,7 +53,7 @@ describe('LoadingOperation', () => {
     it('triggers background refresh when threshold is set and reached', async () => {
       const loader = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: {
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
@@ -94,7 +94,7 @@ describe('LoadingOperation', () => {
 
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
-      const operation = new LoadingOperation({})
+      const operation = new Loader({})
 
       const result = await operation.get('value')
 
@@ -102,7 +102,7 @@ describe('LoadingOperation', () => {
     })
 
     it('throws when fails to resolve value, no loaders and flag is set', async () => {
-      const operation = new LoadingOperation({
+      const operation = new Loader({
         throwIfUnresolved: true,
       })
 
@@ -112,7 +112,7 @@ describe('LoadingOperation', () => {
     })
 
     it('throws when fails to resolve value, and flag is set', async () => {
-      const operation = new LoadingOperation({
+      const operation = new Loader({
         throwIfUnresolved: true,
         loaders: [new DummyLoader(undefined)],
       })
@@ -126,7 +126,7 @@ describe('LoadingOperation', () => {
       const cache = new DummyCache(undefined)
       const loader = new DummyLoader('value')
 
-      const operation = new LoadingOperation({
+      const operation = new Loader({
         asyncCache: cache,
         loaders: [loader],
         throwIfUnresolved: true,
@@ -138,7 +138,7 @@ describe('LoadingOperation', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new LoadingOperation({ loaders: [new ThrowingLoader()], throwIfLoadError: true })
+      const operation = new Loader({ loaders: [new ThrowingLoader()], throwIfLoadError: true })
 
       await expect(() => {
         return operation.get('value')
@@ -148,7 +148,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyLoader(undefined)
-      const operation = new LoadingOperation({ loaders: [loader] })
+      const operation = new Loader({ loaders: [loader] })
 
       const value = await operation.get('value')
       expect(value).toBeNull()
@@ -164,7 +164,7 @@ describe('LoadingOperation', () => {
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingLoader('value')
-      const operation = new LoadingOperation({ loaders: [loader] })
+      const operation = new Loader({ loaders: [loader] })
 
       await expect(() => {
         return operation.get('value')
@@ -177,14 +177,14 @@ describe('LoadingOperation', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = jest.spyOn(console, 'error')
-      const operation = new LoadingOperation({ asyncCache: new ThrowingCache(), loaders: [new DummyLoader('value')] })
+      const operation = new Loader({ asyncCache: new ThrowingCache(), loaders: [new DummyLoader('value')] })
       const value = await operation.get('value')
       expect(value).toBe('value')
       expect(consoleSpy).toHaveBeenCalledTimes(2)
     })
 
     it('returns value when resolved via single loader', async () => {
-      const operation = new LoadingOperation<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      const operation = new Loader<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
       // @ts-ignore
       operation.inMemoryCache.set('key', 'value')
 
@@ -196,7 +196,7 @@ describe('LoadingOperation', () => {
     it('returns value when resolved via multiple loaders', async () => {
       const asyncCache = new DummyCache(undefined)
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: asyncCache,
       })
@@ -209,7 +209,7 @@ describe('LoadingOperation', () => {
 
     it('updates upper level cache when resolving value downstream', async () => {
       const cache2 = new DummyCache(undefined)
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [new DummyLoader(undefined), new DummyLoader('value')],
@@ -229,7 +229,7 @@ describe('LoadingOperation', () => {
 
     it('passes loadParams to the loader', async () => {
       const cache2 = new DummyCache(undefined)
-      const operation = new LoadingOperation<string, DummyLoaderParams>({
+      const operation = new Loader<string, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [new DummyLoaderWithParams('value')],
@@ -252,7 +252,7 @@ describe('LoadingOperation', () => {
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -269,7 +269,7 @@ describe('LoadingOperation', () => {
     it('batches identical retrievals together', async () => {
       const loader = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({ loaders: [loader] })
+      const operation = new Loader<string>({ loaders: [loader] })
       const valuePromise = operation.get('key')
       const valuePromise2 = operation.get('key')
 
@@ -288,7 +288,7 @@ describe('LoadingOperation', () => {
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -308,7 +308,7 @@ describe('LoadingOperation', () => {
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -331,7 +331,7 @@ describe('LoadingOperation', () => {
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],
@@ -352,7 +352,7 @@ describe('LoadingOperation', () => {
       const loader1 = new CountingLoader(undefined)
       const loader2 = new CountingLoader('value')
 
-      const operation = new LoadingOperation<string>({
+      const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         loaders: [loader1, loader2],

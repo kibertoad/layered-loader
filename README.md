@@ -4,7 +4,7 @@
 ![](https://github.com/kibertoad/layered-loader/workflows/ci/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/kibertoad/layered-loader/badge.svg?branch=main)](https://coveralls.io/r/kibertoad/layered-loader?branch=main)
 
-Data source agnostic data loader with support for caching and fallback data sources.
+Data source agnostic data loader with support for in-memory and async caching and fallback data sources.
 
 ## Prerequisites
 
@@ -14,22 +14,24 @@ Node: 16+
 
 This library has three main goals:
 
-1. Provide transparent, highly flexible caching mechanism for data retrieval operations;
+1. Provide transparent, high performance, flexible caching mechanism for data retrieval operations;
 2. Enable fallback mechanism for retrieving data when alternate sources exist;
 3. Prevent redundant data retrieval in high-load systems.
 
 ## Basic concepts
 
+### 
+
 There are four entity types used by `layered-loader`:
 
-1. **LoadingOperation** - defined procedure of retrieving data from one or more data sources, using a single key. LoadingOperation is composed of Loaders and Caches.
+1. **Loader** - defined procedure of retrieving data from one or more data sources, using a single key. Loader is composed of Loaders and Caches.
 2. **InMemoryCache** - data source, capable of both storing and retrieving data for a given key synchronously.
 3. **AsyncCache** - data source, capable of both storing and retrieving data for a given key asynchronously.
 4. **Loader** - data source, capable of retrieving data for a given key asynchronously.
 
-- `layered-loader` will try loading the data from the data source defined for the LoadingOperation, in the following order: InMemory, AsyncCache, Loaders. In case `undefined` value is the result of retrieval, next data source in sequence will be used, until there is either a value, or there are no more sources available;
+- `layered-loader` will try loading the data from the data source defined for the Loader, in the following order: InMemory, AsyncCache, Loaders. In case `undefined` value is the result of retrieval, next data source in sequence will be used, until there is either a value, or there are no more sources available;
 - `null` is considered to be a value, and if the data source returns it, subsequent data source will not be queried for data;
-- If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the LoadingOperation.
+- If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the Loader.
 - If there are any caches (InMemory or AsyncCache) preceding the data source that returned a value, all of them will be updated with that value;
 - If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loadingOperation.get`, instead of starting a new retrieval.
 - You can use just the memory cache, just the asynchronous one, neither, or both. Unconfigured layer will be simply skipped for all operations (both storage and retrieval).
@@ -69,7 +71,7 @@ class ClassifiersLoader implements Loader<Record<string, any>> {
   }
 }
 
-const operation = new LoadingOperation<string>({
+const operation = new Loader<string>({
     // this cache will be checked first
     inMemoryCache: {
         cacheType: 'lru', // you can choose between lru and fifo caches, fifo being 10% slightly faster
@@ -91,20 +93,20 @@ const operation = new LoadingOperation<string>({
 const classifier = await operation.get('1')
 ```
 
-## LoadingOperation API
+## Loader API
 
-LoadingOperation has the following config parameters:
+Loader has the following config parameters:
 
 - `throwIfUnresolved: boolean` - if true, error will be thrown if all data sources return `undefined`;
 - `throwIfLoadError: boolean` - if true, error will be thrown if any Loader throws an error;
 - `cacheUpdateErrorHandler: LoaderErrorHandler` - error handler to use when cache throws an error during update;
 - `loadErrorHandler: LoaderErrorHandler` - error handler to use when non-last data source throws an error during data retrieval.
 
-LoadingOperation provides following methods:
+Loader provides following methods:
 
-- `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this LoadingOperation;
-- `invalidateCache(): Promise<void>` - expunge all entries from all caches of this LoadingOperation;
-- `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the LoadingOperation constructor.
+- `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this Loader;
+- `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
+- `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the Loader constructor.
 
 ## Parametrized loading
 
@@ -123,7 +125,7 @@ class MyLoaderWithParams implements Loader<string, MyLoaderParams> {
     }
 }
 
-const operation = new LoadingOperation<string, MyLoaderParams>({
+const operation = new Loader<string, MyLoaderParams>({
   inMemoryCache: IN_MEMORY_CACHE_CONFIG,
   loaders: [new MyParametrizedLoader()],
 })
@@ -136,7 +138,7 @@ Sometimes you may want to avoid implementing loader in the chain (e. g. when ret
 while still having a sequence of caches. In that case you can define a caching operation:
 
 ```ts
-const operation = new CachingOperation<string>({
+const operation = new ManualCache<string>({
     // this cache will be checked first
     inMemoryCache: {
         ttlInMsecs: 1000 * 60,
@@ -163,7 +165,7 @@ Note that LoadingOperations are generally recommended over CachingOperations, as
 
 In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval altogether in case there is a value already available in in-memory cache. Here is the example:
 ```ts
-const operation = new CachingOperation<string>({
+const operation = new ManualCache<string>({
     inMemoryCache: {
         // configuration here
     },
@@ -194,4 +196,4 @@ It has following configuration options:
 - `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`;
 - `timeoutInMsecs?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 - `separator?: number` - What text should be used between different parts of the key prefix. Default is `':'`
-- `ttlLeftBeforeRefreshInMsecs?: number` - if set within a LoadingOperation or GroupedLoadingOperation, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening.
+- `ttlLeftBeforeRefreshInMsecs?: number` - if set within a Loader or GroupLoader, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening.

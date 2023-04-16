@@ -1,6 +1,6 @@
-import type { Loader } from '../../lib/types/DataSources'
+import type { DataSource } from '../../lib/types/DataSources'
 
-export class DummyLoader implements Loader<string> {
+export class DummyLoader implements DataSource<string> {
   value: string | undefined | null
   name = 'Dummy loader'
   isCache = false
