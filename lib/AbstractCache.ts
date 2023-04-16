@@ -24,12 +24,13 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache,
 
 export type CommonCacheConfig<
   LoadedValue,
-  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>
+  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
+  InMemoryCacheType extends InMemoryCacheConfiguration | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration
 > = {
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
   loadErrorHandler?: LoaderErrorHandler
-  inMemoryCache?: InMemoryCacheConfiguration | InMemoryGroupCacheConfiguration | false
+  inMemoryCache?: InMemoryCacheType | false
   asyncCache?: CacheType
 }
 
