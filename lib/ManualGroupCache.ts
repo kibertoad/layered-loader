@@ -2,12 +2,14 @@ import type { GroupCache } from './types/DataSources'
 import type { CommonCacheConfig } from './AbstractCache'
 import { AbstractGroupCache } from './AbstractGroupCache'
 import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
 export type ManualGroupCacheConfig<LoadedValue> = CommonCacheConfig<
   LoadedValue,
   GroupCache<LoadedValue>,
   InMemoryGroupCacheConfiguration,
-  InMemoryGroupCache<LoadedValue>
+  InMemoryGroupCache<LoadedValue>,
+  GroupNotificationPublisher<LoadedValue>
 >
 
 export class ManualGroupCache<LoadedValue> extends AbstractGroupCache<LoadedValue> {

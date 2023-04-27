@@ -4,6 +4,8 @@ import { AbstractFlatCache } from './AbstractFlatCache'
 import type { InMemoryCacheConfiguration } from './memory'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
+import type { NotificationPublisher } from './notifications/NotificationPublisher'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
 export type LoaderConfig<
   LoadedValue,
@@ -15,12 +17,15 @@ export type LoaderConfig<
     | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
   InMemoryCacheType extends
     | SynchronousCache<LoadedValue>
-    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>
+    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
+  NotificationPublisherType extends
+    | NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
 > = {
   dataSources?: readonly DataSourceType[]
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
-} & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType>
+} & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType>
 
 export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<LoadedValue, LoaderParams> {
   private readonly dataSources: readonly DataSource<LoadedValue, LoaderParams>[]

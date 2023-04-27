@@ -12,26 +12,32 @@ export interface GroupCacheConfiguration extends CommonCacheConfiguration {
   ttlCacheGroupSize?: number
 }
 
-export interface Cache<LoadedValue> {
-  readonly ttlLeftBeforeRefreshInMsecs?: number
-  readonly expirationTimeLoadingOperation: Loader<number>
-  get: (key: string) => Promise<LoadedValue | undefined | null>
+export interface WriteCache<LoadedValue> {
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
-  getExpirationTime: (key: string) => Promise<number | undefined>
   delete: (key: string) => Promise<unknown>
   clear: () => Promise<void>
 }
 
-export interface GroupCache<LoadedValue> {
+export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
+  readonly ttlLeftBeforeRefreshInMsecs?: number
+  readonly expirationTimeLoadingOperation: Loader<number>
+  get: (key: string) => Promise<LoadedValue | undefined | null>
+  getExpirationTime: (key: string) => Promise<number | undefined>
+}
+
+export interface GroupWriteCache<LoadedValue> {
+  setForGroup: (key: string, value: LoadedValue | null, group: string) => Promise<void>
+  deleteGroup: (group: string) => Promise<unknown>
+  deleteFromGroup: (key: string, group: string) => Promise<void>
+  clear: () => Promise<void>
+}
+
+export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
   readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
 
   getFromGroup: (key: string, group: string) => Promise<LoadedValue | undefined | null>
-  setForGroup: (key: string, value: LoadedValue | null, group: string) => Promise<void>
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
-  deleteGroup: (group: string) => Promise<unknown>
-  deleteFromGroup: (key: string, group: string) => Promise<void>
-  clear: () => Promise<void>
 }
 
 export interface DataSource<LoadedValue, LoadParams = undefined> {

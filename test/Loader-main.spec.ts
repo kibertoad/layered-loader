@@ -10,6 +10,7 @@ import { DummyCache } from './fakes/DummyCache'
 import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
+import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
@@ -37,17 +38,40 @@ describe('Loader Main', () => {
       expect(resultPost).toBe('value2')
     })
 
-    it('Closes notification consumer', async () => {
+    it('Handles simple notification publisher', async () => {
       const notificationConsumer = new DummyNotificationConsumer()
+      const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
 
       const operation = new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: new DummyCache('value'),
         notificationConsumer,
+        notificationPublisher,
+      })
+
+      await operation.getAsyncOnly('key')
+      const resultPre = operation.getInMemoryOnly('key')
+      await notificationPublisher.set('key', 'value2')
+      const resultPost = operation.getInMemoryOnly('key')
+
+      expect(resultPre).toBe('value')
+      expect(resultPost).toBe('value2')
+    })
+
+    it('Closes notification consumer and publisher', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+        notificationPublisher,
       })
 
       await operation.close()
       expect(notificationConsumer.closed).toBe(true)
+      expect(notificationPublisher.closed).toBe(true)
     })
 
     it('Throws an error when resetting target cache', async () => {

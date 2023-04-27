@@ -16,7 +16,11 @@ export class DummyNotificationConsumer extends AbstractNotificationConsumer<stri
     this.targetCache.set(key, value)
   }
 
-  invalidate(key: string) {
+  delete(key: string) {
     this.targetCache.delete(key)
+  }
+
+  clear() {
+    this.targetCache.clear()
   }
 }

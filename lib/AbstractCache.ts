@@ -7,6 +7,8 @@ import { defaultLogger } from './util/Logger'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
 import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
+import type { NotificationPublisher } from './notifications/NotificationPublisher'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
 export type LoaderErrorHandler = (
   err: Error,
@@ -31,7 +33,10 @@ export type CommonCacheConfig<
     | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
   InMemoryCacheType extends
     | SynchronousCache<LoadedValue>
-    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>
+    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
+  NotificationPublisherType extends
+    | NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
 > = {
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
@@ -39,6 +44,7 @@ export type CommonCacheConfig<
   inMemoryCache?: InMemoryCacheConfigType | false
   asyncCache?: CacheType
   notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
+  notificationPublisher?: NotificationPublisherType
 }
 
 export abstract class AbstractCache<
@@ -50,7 +56,10 @@ export abstract class AbstractCache<
     | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
   InMemoryCacheConfigType extends
     | InMemoryCacheConfiguration
-    | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration
+    | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
+  NotificationPublisherType extends
+    | NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
 > {
   protected readonly inMemoryCache: InMemoryCacheType
   protected readonly asyncCache?: CacheType
@@ -61,10 +70,19 @@ export abstract class AbstractCache<
 
   protected readonly runningLoads: Map<string, LoadChildType>
   private readonly notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
+  protected readonly notificationPublisher?: NotificationPublisherType
 
   abstract isGroupCache(): boolean
 
-  constructor(config: CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType>) {
+  constructor(
+    config: CommonCacheConfig<
+      LoadedValue,
+      CacheType,
+      InMemoryCacheConfigType,
+      InMemoryCacheType,
+      NotificationPublisherType
+    >
+  ) {
     if (config.inMemoryCache) {
       if (this.isGroupCache()) {
         // @ts-ignore
@@ -92,6 +110,11 @@ export abstract class AbstractCache<
       void this.notificationConsumer.subscribe()
     }
 
+    if (config.notificationPublisher) {
+      this.notificationPublisher = config.notificationPublisher
+      void this.notificationPublisher.subscribe()
+    }
+
     this.runningLoads = new Map()
   }
 
@@ -109,6 +132,9 @@ export abstract class AbstractCache<
   public async close() {
     if (this.notificationConsumer) {
       await this.notificationConsumer.close()
+    }
+    if (this.notificationPublisher) {
+      await this.notificationPublisher.close()
     }
   }
 }

@@ -76,5 +76,8 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
     }
 
     this.runningLoads.delete(key)
+    if (this.notificationPublisher) {
+      void this.notificationPublisher.delete(key)
+    }
   }
 }
