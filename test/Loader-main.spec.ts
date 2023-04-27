@@ -9,12 +9,71 @@ import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
 import { DummyCache } from './fakes/DummyCache'
 import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
+import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('Loader Main', () => {
   beforeEach(async () => {
     jest.resetAllMocks()
+  })
+
+  describe('notificationConsumer', () => {
+    it('Handles simple notification consumer', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+      })
+
+      await operation.getAsyncOnly('key')
+      const resultPre = operation.getInMemoryOnly('key')
+      notificationConsumer.set('key', 'value2')
+      const resultPost = operation.getInMemoryOnly('key')
+
+      expect(resultPre).toBe('value')
+      expect(resultPost).toBe('value2')
+    })
+
+    it('Closes notification consumer', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+      })
+
+      await operation.close()
+      expect(notificationConsumer.closed).toBe(true)
+    })
+
+    it('Throws an error when resetting target cache', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+      })
+
+      expect(() => {
+        notificationConsumer.setTargetCache(null)
+      }).toThrow(/Cannot modify already set target cache/)
+    })
+
+    it('Throws an error when inmemory cache is disabled', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      expect(() => {
+        new Loader({
+          asyncCache: new DummyCache('value'),
+          notificationConsumer,
+        })
+      }).toThrow(/Cannot set notificationConsumer when InMemoryCache is disabled/)
+    })
   })
 
   describe('getInMemoryOnly', () => {

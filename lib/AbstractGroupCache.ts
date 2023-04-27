@@ -1,12 +1,14 @@
 import { AbstractCache } from './AbstractCache'
 import type { GroupCache } from './types/DataSources'
 import type { SynchronousGroupCache } from './types/SyncDataSources'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 
 export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupCache<LoadedValue>,
-  SynchronousGroupCache<LoadedValue>
+  SynchronousGroupCache<LoadedValue>,
+  InMemoryGroupCacheConfiguration
 > {
   override isGroupCache() {
     return true
