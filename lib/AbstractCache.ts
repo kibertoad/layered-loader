@@ -127,6 +127,10 @@ export abstract class AbstractCache<
     }
 
     this.runningLoads.clear()
+
+    if (this.notificationPublisher) {
+      void this.notificationPublisher.clear()
+    }
   }
 
   public async close() {
