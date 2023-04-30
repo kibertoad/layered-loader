@@ -6,6 +6,7 @@ import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory'
 import { DummyCache } from '../fakes/DummyCache'
 import { setTimeout } from 'timers/promises'
+import { waitAndRetry } from '../utils/waitUtils'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
@@ -56,6 +57,16 @@ describe('RedisNotificationPublisher', () => {
     expect(resultPre1).toBe('value')
     expect(resultPre2).toBe('value')
 
+    await waitAndRetry(
+      () => {
+        const resultPost1 = operation.getInMemoryOnly('key')
+        const resultPost2 = operation2.getInMemoryOnly('key')
+        return resultPost1 === undefined && resultPost2 === undefined
+      },
+      50,
+      100
+    )
+
     expect(resultPost1).toBeUndefined()
     expect(resultPost2).toBeUndefined()
 
@@ -88,7 +99,17 @@ describe('RedisNotificationPublisher', () => {
     const resultPre1 = operation.getInMemoryOnly('key')
     const resultPre2 = operation2.getInMemoryOnly('key')
     await operation.invalidateCache()
-    await setTimeout(50)
+
+    await waitAndRetry(
+      () => {
+        const resultPost1 = operation.getInMemoryOnly('key')
+        const resultPost2 = operation2.getInMemoryOnly('key')
+        return resultPost1 === undefined && resultPost2 === undefined
+      },
+      50,
+      100
+    )
+
     const resultPost1 = operation.getInMemoryOnly('key')
     const resultPost2 = operation2.getInMemoryOnly('key')
 
