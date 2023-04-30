@@ -27,10 +27,6 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
     await this.redis.unsubscribe(this.channel)
   }
 
-  async init() {
-    await this.subscribePromise
-  }
-
   subscribe(): Promise<void> {
     this.subscribePromise = this.redis.subscribe(this.channel)
     return this.subscribePromise.then(() => {

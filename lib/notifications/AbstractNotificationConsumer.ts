@@ -21,7 +21,6 @@ export abstract class AbstractNotificationConsumer<
     this.targetCache = targetCache
   }
 
-  abstract init(): Promise<unknown>
   abstract subscribe(): Promise<unknown>
   abstract close(): Promise<void>
 }

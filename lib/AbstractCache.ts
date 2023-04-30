@@ -74,6 +74,8 @@ export abstract class AbstractCache<
 
   abstract isGroupCache(): boolean
 
+  private initPromises: Promise<unknown>[]
+
   constructor(
     config: CommonCacheConfig<
       LoadedValue,
@@ -83,6 +85,8 @@ export abstract class AbstractCache<
       NotificationPublisherType
     >
   ) {
+    this.initPromises = []
+
     if (config.inMemoryCache) {
       if (this.isGroupCache()) {
         // @ts-ignore
@@ -107,15 +111,20 @@ export abstract class AbstractCache<
       }
       this.notificationConsumer = config.notificationConsumer
       this.notificationConsumer.setTargetCache(this.inMemoryCache)
-      void this.notificationConsumer.subscribe()
+      this.initPromises.push(this.notificationConsumer.subscribe())
     }
 
     if (config.notificationPublisher) {
       this.notificationPublisher = config.notificationPublisher
-      void this.notificationPublisher.subscribe()
+      this.initPromises.push(this.notificationPublisher.subscribe())
     }
 
     this.runningLoads = new Map()
+  }
+
+  public async init() {
+    await Promise.all(this.initPromises)
+    this.initPromises = []
   }
 
   public async invalidateCache() {
