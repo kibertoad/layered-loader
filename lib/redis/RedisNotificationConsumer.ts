@@ -14,7 +14,6 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 > {
   private readonly redis: Redis
   private readonly channel: string
-  private subscribePromise?: Promise<unknown>
 
   constructor(redis: Redis, config: RedisConsumerConfig) {
     super(config.serverUuid)
@@ -28,8 +27,7 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   }
 
   subscribe(): Promise<void> {
-    this.subscribePromise = this.redis.subscribe(this.channel)
-    return this.subscribePromise.then(() => {
+    return this.redis.subscribe(this.channel).then(() => {
       this.redis.on('message', (channel, message) => {
         const parsedMessage: NotificationCommand = JSON.parse(message)
         // this is a local message, ignore
