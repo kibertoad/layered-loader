@@ -102,7 +102,7 @@ describe('RedisGroupCache', () => {
         groupTtlInMsecs: 1,
       })
       await cache.setForGroup('key', 'value', 'group')
-      await setTimeout(10)
+      await setTimeout(15)
 
       const preValue = await cache.getFromGroup('key', 'group')
       expect(preValue).toBeUndefined()
