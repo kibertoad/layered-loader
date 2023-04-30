@@ -45,6 +45,7 @@ describe('Loader Async', () => {
       expect(await operation.get('key')).toBe('value')
       await setTimeout(1)
       await Promise.resolve()
+      await Promise.resolve()
       expect(loader.counter).toBe(2)
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
