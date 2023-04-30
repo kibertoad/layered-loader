@@ -2,11 +2,13 @@ import type { NotificationPublisher } from '../notifications/NotificationPublish
 import type { Redis } from 'ioredis'
 
 export type RedisPublisherConfig = {
+  serverUuid: string
   channel: string
 }
 
 export type NotificationCommand = {
   actionId: typeof CLEAR_COMMAND | typeof DELETE_COMMAND
+  originUuid: string
 }
 
 export type DeleteNotificationCommand = NotificationCommand & {
@@ -19,10 +21,12 @@ export const DELETE_COMMAND = 'DELETE'
 export class RedisNotificationPublisher<LoadedValue> implements NotificationPublisher<LoadedValue> {
   private readonly redis: Redis
   private readonly channel: string
+  private readonly serverUuid: string
 
   constructor(redis: Redis, config: RedisPublisherConfig) {
     this.redis = redis
     this.channel = config.channel
+    this.serverUuid = config.serverUuid
   }
 
   async clear(): Promise<void> {
@@ -30,6 +34,7 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
       this.channel,
       JSON.stringify({
         actionId: CLEAR_COMMAND,
+        originUuid: this.serverUuid,
       } satisfies NotificationCommand)
     )
   }
@@ -39,16 +44,13 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
       this.channel,
       JSON.stringify({
         actionId: DELETE_COMMAND,
+        originUuid: this.serverUuid,
         key,
       } satisfies DeleteNotificationCommand)
     )
   }
 
-  async close(): Promise<void> {
-    //await this.redis.unsubscribe(this.channel)
-  }
+  async close() {}
 
-  async subscribe() {
-    //await this.redis.subscribe(this.channel)
-  }
+  async subscribe() {}
 }

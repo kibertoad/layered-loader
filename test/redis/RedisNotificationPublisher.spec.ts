@@ -1,12 +1,10 @@
 import Redis from 'ioredis'
 import { redisOptions } from '../fakes/TestRedisConfig'
-import { RedisNotificationConsumer } from '../../lib/redis/RedisNotificationConsumer'
-import { RedisNotificationPublisher } from '../../lib/redis/RedisNotificationPublisher'
 import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory'
 import { DummyCache } from '../fakes/DummyCache'
-import { setTimeout } from 'timers/promises'
 import { waitAndRetry } from '../utils/waitUtils'
+import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
@@ -25,12 +23,30 @@ describe('RedisNotificationPublisher', () => {
     await redisConsumer.disconnect()
   })
 
-  it('Propagates invalidation event to remote cache', async () => {
-    const notificationConsumer1 = new RedisNotificationConsumer(redisConsumer, { channel: CHANNEL_ID })
-    const notificationConsumer2 = new RedisNotificationConsumer(redisConsumer, { channel: CHANNEL_ID })
-    const notificationPublisher1 = new RedisNotificationPublisher(redisPublisher, { channel: CHANNEL_ID })
-    const notificationPublisher2 = new RedisNotificationPublisher(redisPublisher, { channel: CHANNEL_ID })
+  it('throws an error if same Redis instance is used for both pub and sub', () => {
+    expect(() =>
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisConsumer,
+      })
+    ).toThrow(
+      /Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection/
+    )
+  })
 
+  it('Propagates invalidation event to remote cache', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
+
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
@@ -50,12 +66,6 @@ describe('RedisNotificationPublisher', () => {
     const resultPre1 = operation.getInMemoryOnly('key')
     const resultPre2 = operation2.getInMemoryOnly('key')
     await operation.invalidateCacheFor('key')
-    await setTimeout(50)
-    const resultPost1 = operation.getInMemoryOnly('key')
-    const resultPost2 = operation2.getInMemoryOnly('key')
-
-    expect(resultPre1).toBe('value')
-    expect(resultPre2).toBe('value')
 
     await waitAndRetry(
       () => {
@@ -67,6 +77,12 @@ describe('RedisNotificationPublisher', () => {
       100
     )
 
+    const resultPost1 = operation.getInMemoryOnly('key')
+    const resultPost2 = operation2.getInMemoryOnly('key')
+
+    expect(resultPre1).toBe('value')
+    expect(resultPre2).toBe('value')
+
     expect(resultPost1).toBeUndefined()
     expect(resultPost2).toBeUndefined()
 
@@ -75,10 +91,17 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates clear event to remote cache', async () => {
-    const notificationConsumer1 = new RedisNotificationConsumer(redisConsumer, { channel: CHANNEL_ID })
-    const notificationConsumer2 = new RedisNotificationConsumer(redisConsumer, { channel: CHANNEL_ID })
-    const notificationPublisher1 = new RedisNotificationPublisher(redisPublisher, { channel: CHANNEL_ID })
-    const notificationPublisher2 = new RedisNotificationPublisher(redisPublisher, { channel: CHANNEL_ID })
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
+
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,

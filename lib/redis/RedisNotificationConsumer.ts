@@ -5,6 +5,7 @@ import type { DeleteNotificationCommand, NotificationCommand } from './RedisNoti
 
 export type RedisConsumerConfig = {
   channel: string
+  serverUuid: string
 }
 
 export class RedisNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
@@ -15,9 +16,10 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   private readonly channel: string
 
   constructor(redis: Redis, config: RedisConsumerConfig) {
-    super()
+    super(config.serverUuid)
     this.redis = redis
     this.channel = config.channel
+    this.serverUuid = config.serverUuid
   }
 
   async close() {
@@ -29,6 +31,10 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 
     this.redis.on('message', (channel, message) => {
       const parsedMessage: NotificationCommand = JSON.parse(message)
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
 
       if (parsedMessage.actionId === 'CLEAR') {
         return this.targetCache.clear()
