@@ -49,7 +49,7 @@ describe('RedisNotificationPublisher', () => {
     const resultPre1 = operation.getInMemoryOnly('key')
     const resultPre2 = operation2.getInMemoryOnly('key')
     await operation.invalidateCacheFor('key')
-    await setTimeout(30)
+    await setTimeout(50)
     const resultPost1 = operation.getInMemoryOnly('key')
     const resultPost2 = operation2.getInMemoryOnly('key')
 
@@ -88,7 +88,7 @@ describe('RedisNotificationPublisher', () => {
     const resultPre1 = operation.getInMemoryOnly('key')
     const resultPre2 = operation2.getInMemoryOnly('key')
     await operation.invalidateCache()
-    await setTimeout(30)
+    await setTimeout(50)
     const resultPost1 = operation.getInMemoryOnly('key')
     const resultPost2 = operation2.getInMemoryOnly('key')
 
