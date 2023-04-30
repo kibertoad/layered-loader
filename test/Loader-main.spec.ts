@@ -9,12 +9,174 @@ import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
 import { DummyCache } from './fakes/DummyCache'
 import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
+import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
+import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
+import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
 describe('Loader Main', () => {
   beforeEach(async () => {
     jest.resetAllMocks()
+  })
+
+  describe('notificationConsumer', () => {
+    it('Handles simple notification consumer', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+      })
+
+      await operation.getAsyncOnly('key')
+      const resultPre = operation.getInMemoryOnly('key')
+      notificationConsumer.set('key', 'value2')
+      const resultPost = operation.getInMemoryOnly('key')
+
+      expect(resultPre).toBe('value')
+      expect(resultPost).toBe('value2')
+    })
+
+    it('Handles simple notification publisher', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+        notificationPublisher,
+      })
+
+      await operation.getAsyncOnly('key')
+      const resultPre = operation.getInMemoryOnly('key')
+      await notificationPublisher.set('key', 'value2')
+      const resultPost = operation.getInMemoryOnly('key')
+
+      expect(resultPre).toBe('value')
+      expect(resultPost).toBe('value2')
+    })
+
+    it('Propagates invalidation event to remote cache', async () => {
+      const notificationConsumer1 = new DummyNotificationConsumer()
+      const notificationConsumer2 = new DummyNotificationConsumer()
+      const notificationMultiplexer = new DummyNotificationConsumerMultiplexer([
+        notificationConsumer1,
+        notificationConsumer2,
+      ])
+      const notificationPublisher1 = new DummyNotificationPublisher(notificationMultiplexer)
+      const notificationPublisher2 = new DummyNotificationPublisher(notificationMultiplexer)
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.getAsyncOnly('key')
+      await operation2.getAsyncOnly('key')
+      const resultPre1 = operation.getInMemoryOnly('key')
+      const resultPre2 = operation2.getInMemoryOnly('key')
+      await operation.invalidateCacheFor('key')
+      const resultPost1 = operation.getInMemoryOnly('key')
+      const resultPost2 = operation2.getInMemoryOnly('key')
+
+      expect(resultPre1).toBe('value')
+      expect(resultPre2).toBe('value')
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+    })
+
+    it('Propagates complete invalidation event to remote cache', async () => {
+      const notificationConsumer1 = new DummyNotificationConsumer()
+      const notificationConsumer2 = new DummyNotificationConsumer()
+      const notificationMultiplexer = new DummyNotificationConsumerMultiplexer([
+        notificationConsumer1,
+        notificationConsumer2,
+      ])
+      const notificationPublisher1 = new DummyNotificationPublisher(notificationMultiplexer)
+      const notificationPublisher2 = new DummyNotificationPublisher(notificationMultiplexer)
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.getAsyncOnly('key')
+      await operation2.getAsyncOnly('key')
+      const resultPre1 = operation.getInMemoryOnly('key')
+      const resultPre2 = operation2.getInMemoryOnly('key')
+      await operation.invalidateCache()
+      const resultPost1 = operation.getInMemoryOnly('key')
+      const resultPost2 = operation2.getInMemoryOnly('key')
+
+      expect(resultPre1).toBe('value')
+      expect(resultPre2).toBe('value')
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+    })
+
+    it('Closes notification consumer and publisher', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
+
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+        notificationPublisher,
+      })
+
+      await operation.close()
+      expect(notificationConsumer.closed).toBe(true)
+      expect(notificationPublisher.closed).toBe(true)
+    })
+
+    it('Throws an error when resetting target cache', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        notificationConsumer,
+      })
+
+      expect(() => {
+        notificationConsumer.setTargetCache(null)
+      }).toThrow(/Cannot modify already set target cache/)
+    })
+
+    it('Throws an error when inmemory cache is disabled', async () => {
+      const notificationConsumer = new DummyNotificationConsumer()
+
+      expect(() => {
+        new Loader({
+          asyncCache: new DummyCache('value'),
+          notificationConsumer,
+        })
+      }).toThrow(/Cannot set notificationConsumer when InMemoryCache is disabled/)
+    })
   })
 
   describe('getInMemoryOnly', () => {

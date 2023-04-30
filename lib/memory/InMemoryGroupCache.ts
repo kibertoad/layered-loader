@@ -1,11 +1,11 @@
 import type { CacheConstructor, ToadCache } from 'toad-cache'
 import type { SynchronousGroupCache } from '../types/SyncDataSources'
-import type { InMemoryCacheConfiguration } from './InMemoryCache'
 import { resolveCacheConstructor } from './memoryCacheUtils'
+import type { CommonCacheConfiguration } from '../types/DataSources'
 
 type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object'
 
-export interface InMemoryGroupCacheConfiguration extends InMemoryCacheConfiguration {
+export interface InMemoryGroupCacheConfiguration extends CommonCacheConfiguration {
   cacheType?: CacheTypeId
   groupCacheType?: CacheTypeId
   maxGroups?: number

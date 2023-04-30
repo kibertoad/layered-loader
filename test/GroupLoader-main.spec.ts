@@ -10,6 +10,9 @@ import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
 import { setTimeout } from 'timers/promises'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
+import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
+import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
+import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryGroupCacheConfiguration
 
@@ -38,6 +41,8 @@ const userValues = {
   },
 }
 
+const newUser: User = { userId: 'dummy', companyId: 'dummy' }
+
 const userValuesUndefined = {
   [user1.companyId]: {},
   [user3.companyId]: {},
@@ -46,6 +51,204 @@ const userValuesUndefined = {
 describe('GroupLoader Main', () => {
   beforeEach(() => {
     jest.resetAllMocks()
+  })
+
+  describe('notificationConsumer', () => {
+    it('Handles simple notification consumer', async () => {
+      const notificationConsumer = new DummyGroupNotificationConsumer()
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer,
+      })
+
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPre = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      notificationConsumer.setForGroup(user1.userId, newUser, user1.companyId)
+      const resultPost = operation.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre).toEqual(user1)
+      expect(resultPost).toEqual(newUser)
+    })
+
+    it('Handles simple notification publisher', async () => {
+      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationPublisher = new DummyGroupNotificationPublisher(notificationConsumer)
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer,
+        notificationPublisher,
+      })
+
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPre = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      await notificationPublisher.setForGroup(user1.userId, newUser, user1.companyId)
+      const resultPost = operation.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre).toEqual(user1)
+      expect(resultPost).toEqual(newUser)
+    })
+
+    it('Propagates invalidation event to remote cache', async () => {
+      const notificationConsumer1 = new DummyGroupNotificationConsumer()
+      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
+        notificationConsumer1,
+        notificationConsumer2,
+      ])
+      const notificationPublisher1 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+      const notificationPublisher2 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      await operation2.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPre1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPre2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+      await operation.invalidateCacheFor(user1.userId, user1.companyId)
+      const resultPost1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPost2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+    })
+
+    it('Propagates complete invalidation event to remote cache', async () => {
+      const notificationConsumer1 = new DummyGroupNotificationConsumer()
+      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
+        notificationConsumer1,
+        notificationConsumer2,
+      ])
+      const notificationPublisher1 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+      const notificationPublisher2 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      await operation2.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPre1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPre2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+      await operation.invalidateCache()
+      const resultPost1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPost2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+    })
+
+    it('Propagates delete group event to remote cache', async () => {
+      const notificationConsumer1 = new DummyGroupNotificationConsumer()
+      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
+        notificationConsumer1,
+        notificationConsumer2,
+      ])
+      const notificationPublisher1 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+      const notificationPublisher2 = new DummyGroupNotificationPublisher(notificationMultiplexer)
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.getAsyncOnly(user1.userId, user1.companyId)
+      await operation2.getAsyncOnly(user1.userId, user1.companyId)
+      const resultPre1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPre2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+      await operation.invalidateCacheForGroup(user1.companyId)
+      const resultPost1 = operation.getInMemoryOnly(user1.userId, user1.companyId)
+      const resultPost2 = operation2.getInMemoryOnly(user1.userId, user1.companyId)
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+    })
+
+    it('Closes notification consumer and publisher', async () => {
+      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationPublisher = new DummyGroupNotificationPublisher(notificationConsumer)
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer,
+        notificationPublisher,
+      })
+
+      await operation.close()
+      expect(notificationConsumer.closed).toBe(true)
+      expect(notificationPublisher.closed).toBe(true)
+    })
+
+    it('Throws an error when resetting target cache', async () => {
+      const notificationConsumer = new DummyGroupNotificationConsumer()
+
+      new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer,
+      })
+
+      expect(() => {
+        notificationConsumer.setTargetCache(null)
+      }).toThrow(/Cannot modify already set target cache/)
+    })
+
+    it('Throws an error when inmemory cache is disabled', async () => {
+      const notificationConsumer = new DummyGroupNotificationConsumer()
+
+      expect(() => {
+        new GroupLoader({
+          asyncCache: new DummyGroupedCache(userValues),
+          notificationConsumer,
+        })
+      }).toThrow(/Cannot set notificationConsumer when InMemoryCache is disabled/)
+    })
   })
 
   describe('getInMemoryOnly', () => {

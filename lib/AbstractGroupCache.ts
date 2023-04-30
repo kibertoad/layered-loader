@@ -1,12 +1,16 @@
 import { AbstractCache } from './AbstractCache'
 import type { GroupCache } from './types/DataSources'
 import type { SynchronousGroupCache } from './types/SyncDataSources'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
 export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupCache<LoadedValue>,
-  SynchronousGroupCache<LoadedValue>
+  SynchronousGroupCache<LoadedValue>,
+  InMemoryGroupCacheConfiguration,
+  GroupNotificationPublisher<LoadedValue>
 > {
   override isGroupCache() {
     return true
@@ -21,6 +25,10 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
 
     this.inMemoryCache.deleteGroup(group)
     this.runningLoads.delete(group)
+
+    if (this.notificationPublisher) {
+      void this.notificationPublisher.deleteGroup(group)
+    }
   }
 
   public getInMemoryOnly(key: string, group: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
@@ -84,6 +92,10 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
 
     const groupLoads = this.resolveGroupLoads(group)
     this.deleteGroupRunningLoad(groupLoads, group, key)
+
+    if (this.notificationPublisher) {
+      void this.notificationPublisher.deleteFromGroup(key, group)
+    }
   }
 
   protected async resolveGroupValue(
