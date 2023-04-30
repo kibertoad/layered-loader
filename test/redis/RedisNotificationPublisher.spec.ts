@@ -61,6 +61,7 @@ describe('RedisNotificationPublisher', () => {
       notificationPublisher: notificationPublisher2,
     })
     await operation.init()
+    await operation2.init()
 
     await operation.getAsyncOnly('key')
     await operation2.getAsyncOnly('key')
@@ -110,7 +111,6 @@ describe('RedisNotificationPublisher', () => {
       notificationConsumer: notificationConsumer1,
       notificationPublisher: notificationPublisher1,
     })
-    await operation.init()
 
     const operation2 = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -118,6 +118,9 @@ describe('RedisNotificationPublisher', () => {
       notificationConsumer: notificationConsumer2,
       notificationPublisher: notificationPublisher2,
     })
+
+    await operation.init()
+    await operation2.init()
 
     await operation.getAsyncOnly('key')
     await operation2.getAsyncOnly('key')
