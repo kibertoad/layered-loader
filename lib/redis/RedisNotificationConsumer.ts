@@ -19,7 +19,6 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
     super(config.serverUuid)
     this.redis = redis
     this.channel = config.channel
-    this.serverUuid = config.serverUuid
   }
 
   async close() {
