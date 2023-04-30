@@ -6,9 +6,9 @@ import type { Logger } from './util/Logger'
 import { defaultLogger } from './util/Logger'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
-import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
 
 export type LoaderErrorHandler = (
   err: Error,
