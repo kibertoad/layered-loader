@@ -1,10 +1,13 @@
 import type { GroupNotificationPublisher } from '../../lib/notifications/GroupNotificationPublisher'
 import type { User } from '../types/testTypes'
 import type { DummyGroupNotificationConsumer } from './DummyGroupNotificationConsumer'
+import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../../lib/notifications/NotificationPublisher'
 
 export class DummyGroupNotificationPublisher implements GroupNotificationPublisher<User> {
   public closed = false
   private consumer: DummyGroupNotificationConsumer
+  public errorHandler = DEFAULT_NOTIFICATION_ERROR_HANDLER
+  public channel = 'dummy'
 
   constructor(consumer: DummyGroupNotificationConsumer) {
     this.consumer = consumer
