@@ -27,7 +27,9 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     this.runningLoads.delete(group)
 
     if (this.notificationPublisher) {
-      void this.notificationPublisher.deleteGroup(group)
+      void this.notificationPublisher.deleteGroup(group).catch((err) => {
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+      })
     }
   }
 
@@ -94,7 +96,9 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     this.deleteGroupRunningLoad(groupLoads, group, key)
 
     if (this.notificationPublisher) {
-      void this.notificationPublisher.deleteFromGroup(key, group)
+      void this.notificationPublisher.deleteFromGroup(key, group).catch((err) => {
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+      })
     }
   }
 

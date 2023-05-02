@@ -2,11 +2,13 @@ import type { Redis } from 'ioredis'
 import { RedisNotificationConsumer } from './RedisNotificationConsumer'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher'
 import { randomUUID } from 'node:crypto'
+import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
 
 export type RedisNotificationConfig = {
   channel: string
   publisherRedis: Redis
   consumerRedis: Redis
+  errorHandler?: PublisherErrorHandler
 }
 
 export function createNotificationPair(config: RedisNotificationConfig) {
@@ -24,6 +26,7 @@ export function createNotificationPair(config: RedisNotificationConfig) {
 
   const publisher = new RedisNotificationPublisher(config.publisherRedis, {
     channel: config.channel,
+    errorHandler: config.errorHandler,
     serverUuid,
   })
 

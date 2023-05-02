@@ -138,7 +138,9 @@ export abstract class AbstractCache<
     this.runningLoads.clear()
 
     if (this.notificationPublisher) {
-      void this.notificationPublisher.clear()
+      this.notificationPublisher.clear().catch((err) => {
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+      })
     }
   }
 
