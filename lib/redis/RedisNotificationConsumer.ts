@@ -34,12 +34,12 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
           return
         }
 
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
-
         if (parsedMessage.actionId === 'DELETE') {
           return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
+        }
+
+        if (parsedMessage.actionId === 'CLEAR') {
+          return this.targetCache.clear()
         }
       })
     })
