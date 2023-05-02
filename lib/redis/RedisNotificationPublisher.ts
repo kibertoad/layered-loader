@@ -1,9 +1,14 @@
-import type { NotificationPublisher } from '../notifications/NotificationPublisher'
+import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import type { Redis } from 'ioredis'
+import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
+import type { Logger } from '../util/Logger'
+import { defaultLogger } from '../util/Logger'
 
 export type RedisPublisherConfig = {
   serverUuid: string
   channel: string
+  errorHandler?: PublisherErrorHandler
+  logger?: Logger
 }
 
 export type NotificationCommand = {
@@ -22,32 +27,44 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
   private readonly redis: Redis
   private readonly channel: string
   private readonly serverUuid: string
+  private readonly errorHandler: PublisherErrorHandler
+  private readonly logger: Logger
 
   constructor(redis: Redis, config: RedisPublisherConfig) {
     this.redis = redis
     this.channel = config.channel
     this.serverUuid = config.serverUuid
+    this.errorHandler = config.errorHandler ?? DEFAULT_NOTIFICATION_ERROR_HANDLER
+    this.logger = config.logger ?? defaultLogger
   }
 
-  async clear(): Promise<void> {
-    await this.redis.publish(
-      this.channel,
-      JSON.stringify({
-        actionId: CLEAR_COMMAND,
-        originUuid: this.serverUuid,
-      } satisfies NotificationCommand)
-    )
+  clear(): Promise<unknown> {
+    return this.redis
+      .publish(
+        this.channel,
+        JSON.stringify({
+          actionId: CLEAR_COMMAND,
+          originUuid: this.serverUuid,
+        } satisfies NotificationCommand)
+      )
+      .catch((err) => {
+        this.errorHandler(err, this.channel, this.logger)
+      })
   }
 
   async delete(key: string) {
-    await this.redis.publish(
-      this.channel,
-      JSON.stringify({
-        actionId: DELETE_COMMAND,
-        originUuid: this.serverUuid,
-        key,
-      } satisfies DeleteNotificationCommand)
-    )
+    return this.redis
+      .publish(
+        this.channel,
+        JSON.stringify({
+          actionId: DELETE_COMMAND,
+          originUuid: this.serverUuid,
+          key,
+        } satisfies DeleteNotificationCommand)
+      )
+      .catch((err) => {
+        this.errorHandler(err, this.channel, this.logger)
+      })
   }
 
   async close() {}

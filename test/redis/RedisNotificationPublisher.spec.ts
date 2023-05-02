@@ -5,6 +5,7 @@ import type { InMemoryCacheConfiguration } from '../../lib/memory'
 import { DummyCache } from '../fakes/DummyCache'
 import { waitAndRetry } from '../utils/waitUtils'
 import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
+import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
@@ -146,5 +147,70 @@ describe('RedisNotificationPublisher', () => {
 
     expect(resultPost1).toBeUndefined()
     expect(resultPost2).toBeUndefined()
+  })
+
+  it('Handles error on clear', async () => {
+    expect.assertions(1)
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: new FakeThrowingRedis(),
+      errorHandler: (err, channel) => {
+        expect(channel).toBe(CHANNEL_ID)
+      },
+    })
+
+    const operation = new Loader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    await operation.invalidateCache()
+  })
+
+  it('Handles error on delete', async () => {
+    expect.assertions(1)
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: new FakeThrowingRedis(),
+      errorHandler: (err, channel) => {
+        expect(channel).toBe(CHANNEL_ID)
+      },
+    })
+
+    const operation = new Loader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    await operation.invalidateCacheFor('key')
+  })
+
+  it('Handles error by default', async () => {
+    expect.assertions(1)
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: new FakeThrowingRedis(),
+      logger: {
+        error: (err) => {
+          expect(err).toBe('Error while publishing notification to channel test_channel: Operation has failed')
+        },
+      },
+    })
+
+    const operation = new Loader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    await operation.invalidateCacheFor('key')
   })
 })
