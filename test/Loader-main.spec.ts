@@ -22,7 +22,7 @@ describe('Loader Main', () => {
 
   describe('notificationConsumer', () => {
     it('Handles simple notification consumer', async () => {
-      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationConsumer = new DummyNotificationConsumer('a')
 
       const operation = new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -40,7 +40,7 @@ describe('Loader Main', () => {
     })
 
     it('Handles simple notification publisher', async () => {
-      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationConsumer = new DummyNotificationConsumer('a')
       const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
 
       const operation = new Loader({
@@ -60,8 +60,8 @@ describe('Loader Main', () => {
     })
 
     it('Propagates invalidation event to remote cache', async () => {
-      const notificationConsumer1 = new DummyNotificationConsumer()
-      const notificationConsumer2 = new DummyNotificationConsumer()
+      const notificationConsumer1 = new DummyNotificationConsumer('a')
+      const notificationConsumer2 = new DummyNotificationConsumer('b')
       const notificationMultiplexer = new DummyNotificationConsumerMultiplexer([
         notificationConsumer1,
         notificationConsumer2,
@@ -99,8 +99,8 @@ describe('Loader Main', () => {
     })
 
     it('Propagates complete invalidation event to remote cache', async () => {
-      const notificationConsumer1 = new DummyNotificationConsumer()
-      const notificationConsumer2 = new DummyNotificationConsumer()
+      const notificationConsumer1 = new DummyNotificationConsumer('a')
+      const notificationConsumer2 = new DummyNotificationConsumer('b')
       const notificationMultiplexer = new DummyNotificationConsumerMultiplexer([
         notificationConsumer1,
         notificationConsumer2,
@@ -138,7 +138,7 @@ describe('Loader Main', () => {
     })
 
     it('Closes notification consumer and publisher', async () => {
-      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationConsumer = new DummyNotificationConsumer('a')
       const notificationPublisher = new DummyNotificationPublisher(notificationConsumer)
 
       const operation = new Loader({
@@ -154,7 +154,7 @@ describe('Loader Main', () => {
     })
 
     it('Throws an error when resetting target cache', async () => {
-      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationConsumer = new DummyNotificationConsumer('a')
 
       new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -168,7 +168,7 @@ describe('Loader Main', () => {
     })
 
     it('Throws an error when inmemory cache is disabled', async () => {
-      const notificationConsumer = new DummyNotificationConsumer()
+      const notificationConsumer = new DummyNotificationConsumer('a')
 
       expect(() => {
         new Loader({

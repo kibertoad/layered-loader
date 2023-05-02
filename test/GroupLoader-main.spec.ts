@@ -55,7 +55,7 @@ describe('GroupLoader Main', () => {
 
   describe('notificationConsumer', () => {
     it('Handles simple notification consumer', async () => {
-      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationConsumer = new DummyGroupNotificationConsumer('a')
 
       const operation = new GroupLoader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -73,7 +73,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('Handles simple notification publisher', async () => {
-      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationConsumer = new DummyGroupNotificationConsumer('a')
       const notificationPublisher = new DummyGroupNotificationPublisher(notificationConsumer)
 
       const operation = new GroupLoader({
@@ -93,8 +93,8 @@ describe('GroupLoader Main', () => {
     })
 
     it('Propagates invalidation event to remote cache', async () => {
-      const notificationConsumer1 = new DummyGroupNotificationConsumer()
-      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationConsumer1 = new DummyGroupNotificationConsumer('a')
+      const notificationConsumer2 = new DummyGroupNotificationConsumer('b')
       const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
         notificationConsumer1,
         notificationConsumer2,
@@ -132,8 +132,8 @@ describe('GroupLoader Main', () => {
     })
 
     it('Propagates complete invalidation event to remote cache', async () => {
-      const notificationConsumer1 = new DummyGroupNotificationConsumer()
-      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationConsumer1 = new DummyGroupNotificationConsumer('a')
+      const notificationConsumer2 = new DummyGroupNotificationConsumer('b')
       const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
         notificationConsumer1,
         notificationConsumer2,
@@ -171,8 +171,8 @@ describe('GroupLoader Main', () => {
     })
 
     it('Propagates delete group event to remote cache', async () => {
-      const notificationConsumer1 = new DummyGroupNotificationConsumer()
-      const notificationConsumer2 = new DummyGroupNotificationConsumer()
+      const notificationConsumer1 = new DummyGroupNotificationConsumer('a')
+      const notificationConsumer2 = new DummyGroupNotificationConsumer('b')
       const notificationMultiplexer = new DummyGroupNotificationConsumerMultiplexer([
         notificationConsumer1,
         notificationConsumer2,
@@ -210,7 +210,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('Closes notification consumer and publisher', async () => {
-      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationConsumer = new DummyGroupNotificationConsumer('a')
       const notificationPublisher = new DummyGroupNotificationPublisher(notificationConsumer)
 
       const operation = new GroupLoader({
@@ -226,7 +226,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('Throws an error when resetting target cache', async () => {
-      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationConsumer = new DummyGroupNotificationConsumer('a')
 
       new GroupLoader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -240,7 +240,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('Throws an error when inmemory cache is disabled', async () => {
-      const notificationConsumer = new DummyGroupNotificationConsumer()
+      const notificationConsumer = new DummyGroupNotificationConsumer('a')
 
       expect(() => {
         new GroupLoader({

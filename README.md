@@ -137,6 +137,47 @@ const loader = new Loader<string, MyLoaderParams>({
 await operation.get('key', {jwtToken: 'someTokenValue'}) 
 ```
 
+## Update notifications
+
+It is possible to mostly rely on fast in-memory caches and still keep data in sync across multiple nodes in a distributed system. In order to achieve this, you need to use Notification Publisher/Consumer pair.
+The way it works - whenever there is an invalidation event within the loader (`invalidate`, `invalidateFor` or `invalidatForGroup` methods are invoked), publisher sends a fanout notification to all subscribed consumers, and they invalidate their own caches as well.
+
+Here is an example:
+
+```ts
+import Redis from 'ioredis'
+import type { RedisOptions } from 'ioredis'
+
+const redisOptions: RedisOptions = {
+    host: 'localhost',
+    port: 6379,
+    password: 'sOmE_sEcUrE_pAsS',
+}
+
+export type User = {
+    // some type
+}
+
+const redisPublisher = new Redis(redisOptions)
+const redisConsumer = new Redis(redisOptions)
+const redisCache = new Redis(redisOptions)
+
+const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+    channel: 'user-cache-notifications',
+    consumerRedis: redisConsumer,
+    publisherRedis: redisPublisher,
+})
+
+const userLoader = new Loader({
+    inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+    asyncCache: new RedisCache<User>(redisCache, {
+        ttlInMsecs: 1000 * 60 * 60,
+    }),
+    notificationConsumer,
+    notificationPublisher,
+})
+```
+
 ## Cache-only operations
 
 Sometimes you may want to avoid implementing loader in the chain (e. g. when retrieval is too complex to be fit into a single key paradigm),
