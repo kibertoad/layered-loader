@@ -8,6 +8,9 @@ export const DEFAULT_NOTIFICATION_ERROR_HANDLER: PublisherErrorHandler = (err, c
 }
 
 export interface NotificationPublisher<LoadedValue> extends Pick<WriteCache<LoadedValue>, 'delete' | 'clear'> {
+  readonly errorHandler: PublisherErrorHandler
+  readonly channel: string
+
   subscribe(): Promise<unknown>
   close(): Promise<void>
 }

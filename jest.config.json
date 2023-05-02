@@ -10,7 +10,8 @@
     "<rootDir>/node_modules/",
     "<rootDir>/coverage/",
     "<rootDir>/test",
-    "<rootDir>/lib/memory/NoopCache.ts"
+    "<rootDir>/lib/memory/NoopCache.ts",
+    "<rootDir>/lib/AbstractGroupCache.ts"
   ],
   "coverageThreshold": {
     "global": {

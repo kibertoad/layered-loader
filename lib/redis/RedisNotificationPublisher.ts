@@ -2,7 +2,6 @@ import type { NotificationPublisher, PublisherErrorHandler } from '../notificati
 import type { Redis } from 'ioredis'
 import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
 import type { Logger } from '../util/Logger'
-import { defaultLogger } from '../util/Logger'
 
 export type RedisPublisherConfig = {
   serverUuid: string
@@ -24,47 +23,38 @@ export const CLEAR_COMMAND = 'CLEAR'
 export const DELETE_COMMAND = 'DELETE'
 
 export class RedisNotificationPublisher<LoadedValue> implements NotificationPublisher<LoadedValue> {
+  public readonly channel: string
+  public readonly errorHandler: PublisherErrorHandler
+
   private readonly redis: Redis
-  private readonly channel: string
   private readonly serverUuid: string
-  private readonly errorHandler: PublisherErrorHandler
-  private readonly logger: Logger
 
   constructor(redis: Redis, config: RedisPublisherConfig) {
     this.redis = redis
     this.channel = config.channel
     this.serverUuid = config.serverUuid
     this.errorHandler = config.errorHandler ?? DEFAULT_NOTIFICATION_ERROR_HANDLER
-    this.logger = config.logger ?? defaultLogger
   }
 
   clear(): Promise<unknown> {
-    return this.redis
-      .publish(
-        this.channel,
-        JSON.stringify({
-          actionId: CLEAR_COMMAND,
-          originUuid: this.serverUuid,
-        } satisfies NotificationCommand)
-      )
-      .catch((err) => {
-        this.errorHandler(err, this.channel, this.logger)
-      })
+    return this.redis.publish(
+      this.channel,
+      JSON.stringify({
+        actionId: CLEAR_COMMAND,
+        originUuid: this.serverUuid,
+      } satisfies NotificationCommand)
+    )
   }
 
-  async delete(key: string) {
-    return this.redis
-      .publish(
-        this.channel,
-        JSON.stringify({
-          actionId: DELETE_COMMAND,
-          originUuid: this.serverUuid,
-          key,
-        } satisfies DeleteNotificationCommand)
-      )
-      .catch((err) => {
-        this.errorHandler(err, this.channel, this.logger)
-      })
+  delete(key: string): Promise<unknown> {
+    return this.redis.publish(
+      this.channel,
+      JSON.stringify({
+        actionId: DELETE_COMMAND,
+        originUuid: this.serverUuid,
+        key,
+      } satisfies DeleteNotificationCommand)
+    )
   }
 
   async close() {}

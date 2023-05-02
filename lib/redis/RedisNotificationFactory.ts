@@ -3,14 +3,12 @@ import { RedisNotificationConsumer } from './RedisNotificationConsumer'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher'
 import { randomUUID } from 'node:crypto'
 import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
-import type { Logger } from '../util/Logger'
 
 export type RedisNotificationConfig = {
   channel: string
   publisherRedis: Redis
   consumerRedis: Redis
   errorHandler?: PublisherErrorHandler
-  logger?: Logger
 }
 
 export function createNotificationPair(config: RedisNotificationConfig) {
@@ -30,7 +28,6 @@ export function createNotificationPair(config: RedisNotificationConfig) {
     channel: config.channel,
     errorHandler: config.errorHandler,
     serverUuid,
-    logger: config.logger,
   })
 
   return {
