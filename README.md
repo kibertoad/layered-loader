@@ -176,6 +176,10 @@ const userLoader = new Loader({
     notificationConsumer,
     notificationPublisher,
 })
+
+await userLoader.init() // this will ensure that consumers have definitely finished registering on startup, but is not required
+
+await userLoader.invalidateCacheFor('key') // this will transparently invalidate cache across all instances of your application
 ```
 
 ## Cache-only operations
