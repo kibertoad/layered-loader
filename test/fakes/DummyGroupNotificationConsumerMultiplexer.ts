@@ -2,6 +2,7 @@ import { AbstractNotificationConsumer } from '../../lib/notifications/AbstractNo
 import type { User } from '../types/testTypes'
 import type { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
 import type { DummyGroupNotificationConsumer } from './DummyGroupNotificationConsumer'
+import { randomUUID } from 'node:crypto'
 
 export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificationConsumer<
   User,
@@ -11,7 +12,7 @@ export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificat
   private notificationConsumers: DummyGroupNotificationConsumer[]
 
   constructor(notificationConsumers: DummyGroupNotificationConsumer[]) {
-    super()
+    super(randomUUID())
     this.notificationConsumers = notificationConsumers
   }
 

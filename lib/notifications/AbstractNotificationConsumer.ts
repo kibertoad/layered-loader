@@ -8,6 +8,11 @@ export abstract class AbstractNotificationConsumer<
 > {
   // @ts-ignore
   protected targetCache: InMemoryCacheType
+  protected serverUuid: string
+
+  constructor(serverUuid: string) {
+    this.serverUuid = serverUuid
+  }
 
   setTargetCache(targetCache: InMemoryCacheType) {
     if (this.targetCache) {
