@@ -14,7 +14,10 @@ import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationCo
 import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
 
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 9999999 } satisfies InMemoryGroupCacheConfiguration
+const IN_MEMORY_CACHE_CONFIG = {
+  cacheId: 'dummy',
+  ttlInMsecs: 9999999,
+} satisfies InMemoryGroupCacheConfiguration
 
 const user1: User = {
   companyId: '1',
@@ -289,6 +292,7 @@ describe('GroupLoader Main', () => {
 
       const operation = new GroupLoader<User>({
         inMemoryCache: {
+          cacheId: 'dummy',
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
         },

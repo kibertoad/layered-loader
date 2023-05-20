@@ -12,8 +12,12 @@ import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
+import { HitStatisticsRecord } from 'toad-cache'
+import { getTimestamp } from './utils/dateUtils'
 
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
+const IN_MEMORY_CACHE_CONFIG = {
+  ttlInMsecs: 999,
+} satisfies InMemoryCacheConfiguration
 
 describe('Loader Main', () => {
   beforeEach(async () => {
@@ -198,6 +202,45 @@ describe('Loader Main', () => {
       expect(result).toBe(undefined)
     })
 
+    it('returns statistics when appropriate cache type is used', () => {
+      const record = new HitStatisticsRecord()
+      const operation = new Loader({
+        inMemoryCache: {
+          ttlInMsecs: 99999,
+          cacheId: 'some cache',
+          globalStatisticsRecord: record,
+          cacheType: 'lru-object-statistics',
+        },
+      })
+
+      operation.getInMemoryOnly('value')
+
+      const timestamp = getTimestamp(new Date())
+      expect(record.records).toEqual({
+        'some cache': {
+          [timestamp]: {
+            expirations: 0,
+            hits: 0,
+            misses: 1,
+          },
+        },
+      })
+    })
+
+    it('throws an error when statistics with no cache id are used', () => {
+      const record = new HitStatisticsRecord()
+      expect(
+        () =>
+          new Loader({
+            inMemoryCache: {
+              ttlInMsecs: 99999,
+              globalStatisticsRecord: record,
+              cacheType: 'lru-object-statistics',
+            },
+          })
+      ).toThrow(/Cache id is mandatory/)
+    })
+
     it('returns cached value', async () => {
       const operation = new Loader({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -217,6 +260,7 @@ describe('Loader Main', () => {
 
       const operation = new Loader<string>({
         inMemoryCache: {
+          cacheId: 'dummy',
           ttlInMsecs: 150,
           ttlLeftBeforeRefreshInMsecs: 75,
         },

@@ -40,6 +40,7 @@ export class RedisGroupCache<T>
     this.expirationTimeLoadingGroupedOperation = new GroupLoader<number>({
       inMemoryCache: config.ttlCacheTtl
         ? {
+            cacheId: 'expiration-time-loading-cache',
             ttlInMsecs: config.ttlCacheTtl,
             maxGroups: config.ttlCacheGroupSize ?? 200,
             maxItemsPerGroup: config.ttlCacheSize ?? 500,

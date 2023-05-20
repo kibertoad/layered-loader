@@ -2,12 +2,16 @@ import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
 import { InMemoryCache } from '../../lib/memory/InMemoryCache'
 import { setTimeout } from 'node:timers/promises'
 
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
+const IN_MEMORY_CACHE_CONFIG = {
+  cacheId: 'dummy',
+  ttlInMsecs: 999,
+} satisfies InMemoryCacheConfiguration
 
 describe('InMemoryCache', () => {
   describe('set', () => {
     it('expires LRU', () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         cacheType: 'lru-map',
         maxItems: 2,
         ttlInMsecs: 2,
@@ -29,6 +33,7 @@ describe('InMemoryCache', () => {
 
     it('expires LRU-object', () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         cacheType: 'lru-object',
         maxItems: 2,
         ttlInMsecs: 5,
@@ -50,6 +55,7 @@ describe('InMemoryCache', () => {
 
     it('expires FIFO', () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         cacheType: 'fifo-map',
         maxItems: 2,
         ttlInMsecs: 2,
@@ -71,6 +77,7 @@ describe('InMemoryCache', () => {
 
     it('expires FIFO-Object', () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         cacheType: 'fifo-object',
         maxItems: 2,
         ttlInMsecs: 5,
@@ -92,6 +99,7 @@ describe('InMemoryCache', () => {
 
     it('defaults to infinite ttl', async () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         ttlInMsecs: undefined,
       })
       cache.set('key', 'value')
@@ -113,6 +121,7 @@ describe('InMemoryCache', () => {
 
     it('returns past time for expired entry', async () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         ttlInMsecs: 1,
       })
       cache.set('key', 'value')
@@ -138,6 +147,7 @@ describe('InMemoryCache', () => {
 
     it('resets expiration time for reset entry', async () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         ttlInMsecs: 1000,
       })
       cache.set('key', 'value')
@@ -161,6 +171,7 @@ describe('InMemoryCache', () => {
   describe('clear', () => {
     it('clears values correctly', () => {
       const cache = new InMemoryCache({
+        cacheId: 'dummy',
         ttlInMsecs: 9999,
       })
       cache.set('key', 'value')
