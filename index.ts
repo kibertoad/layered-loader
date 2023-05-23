@@ -27,3 +27,5 @@ export type { GroupLoaderConfig } from './lib/GroupLoader'
 export type { ManualGroupCacheConfig } from './lib/ManualGroupCache'
 export type { DataSource, Cache, CommonCacheConfiguration } from './lib/types/DataSources'
 export type { Logger, LogFn } from './lib/util/Logger'
+
+export { HitStatisticsRecord } from 'toad-cache'

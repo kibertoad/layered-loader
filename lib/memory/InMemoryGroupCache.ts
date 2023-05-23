@@ -1,11 +1,13 @@
-import type { CacheConstructor, ToadCache } from 'toad-cache'
+import type { CacheConstructor, HitStatisticsRecord, ToadCache } from 'toad-cache'
 import type { SynchronousGroupCache } from '../types/SyncDataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 
-type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object'
+type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object' | 'lru-object-statistics'
 
 export interface InMemoryGroupCacheConfiguration extends CommonCacheConfiguration {
+  cacheId?: string
+  globalStatisticsRecord?: HitStatisticsRecord
   cacheType?: CacheTypeId
   groupCacheType?: CacheTypeId
   maxGroups?: number
@@ -27,6 +29,8 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   private readonly cacheConstructor: CacheConstructor<ToadCache<T>>
   private readonly groupCacheConstructor: CacheConstructor<ToadCache<ToadCache<T | null>>>
+  private readonly cacheId?: string
+  private readonly globalStatisticsRecord?: HitStatisticsRecord
 
   constructor(config: InMemoryGroupCacheConfiguration) {
     this.cacheConstructor = resolveCacheConstructor<CacheTypeId, T>(
@@ -40,6 +44,8 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_GROUP_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
+    this.cacheId = config.cacheId
+    this.globalStatisticsRecord = config.globalStatisticsRecord
   }
 
   private resolveGroup(groupId: string) {
@@ -48,7 +54,13 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
       return groupCache
     }
 
-    const newGroupCache = new this.cacheConstructor(this.maxItemsPerGroup, this.ttlInMsecs)
+    const newGroupCache = new this.cacheConstructor(
+      this.maxItemsPerGroup,
+      this.ttlInMsecs,
+      this.cacheId,
+      // @ts-ignore
+      this.globalStatisticsRecord
+    )
     this.groups.set(groupId, newGroupCache)
     return newGroupCache
   }

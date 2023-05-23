@@ -1,11 +1,13 @@
-import type { CacheConstructor, ToadCache } from 'toad-cache'
+import type { CacheConstructor, ToadCache, HitStatisticsRecord } from 'toad-cache'
 import type { SynchronousCache } from '../types/SyncDataSources'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
 
-type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object'
+type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object' | 'lru-object-statistics'
 
 export interface InMemoryCacheConfiguration extends CommonCacheConfiguration {
+  cacheId?: string
+  globalStatisticsRecord?: HitStatisticsRecord
   cacheType?: CacheTypeId
   maxItems?: number
 }
@@ -25,7 +27,13 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
   constructor(config: InMemoryCacheConfiguration) {
     this.cacheConstructor = resolveCacheConstructor<CacheTypeId, T>(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
 
-    this.cache = new this.cacheConstructor(config.maxItems ?? DEFAULT_CONFIGURATION.maxItems, config.ttlInMsecs ?? 0)
+    this.cache = new this.cacheConstructor(
+      config.maxItems ?? DEFAULT_CONFIGURATION.maxItems,
+      config.ttlInMsecs ?? 0,
+      config.cacheId,
+      // @ts-ignore
+      config.globalStatisticsRecord
+    )
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
   }

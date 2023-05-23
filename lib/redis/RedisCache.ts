@@ -21,6 +21,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     this.expirationTimeLoadingOperation = new Loader<number>({
       inMemoryCache: config.ttlCacheTtl
         ? {
+            cacheId: 'ttl-cache',
             ttlInMsecs: config.ttlCacheTtl,
             maxItems: config.ttlCacheSize ?? 500,
           }

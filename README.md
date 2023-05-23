@@ -147,6 +147,7 @@ Here is an example:
 ```ts
 import Redis from 'ioredis'
 import type { RedisOptions } from 'ioredis'
+import { createNotificationPair, Loader } from 'layered-loader'
 
 const redisOptions: RedisOptions = {
     host: 'localhost',
@@ -181,6 +182,79 @@ await userLoader.init() // this will ensure that consumers have definitely finis
 
 await userLoader.invalidateCacheFor('key') // this will transparently invalidate cache across all instances of your application
 ```
+
+There is an equivalent for group loaders as well:
+```ts
+import Redis from 'ioredis'
+import type { RedisOptions } from 'ioredis'
+import { createGroupNotificationPair, GroupLoader } from 'layered-loader'
+
+const redisOptions: RedisOptions = {
+    host: 'localhost',
+    port: 6379,
+    password: 'sOmE_sEcUrE_pAsS',
+}
+
+export type User = {
+    // some type
+}
+
+const redisPublisher = new Redis(redisOptions)
+const redisConsumer = new Redis(redisOptions)
+const redisCache = new Redis(redisOptions)
+
+const { publisher: notificationPublisher, consumer: notificationConsumer } = createGroupNotificationPair({
+    channel: 'user-cache-notifications',
+    consumerRedis: redisConsumer,
+    publisherRedis: redisPublisher,
+})
+
+const userLoader = new GroupLoader({
+    inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+    asyncCache: new RedisCache<User>(redisCache, {
+        ttlInMsecs: 1000 * 60 * 60,
+    }),
+    notificationConsumer,
+    notificationPublisher,
+})
+
+await userLoader.init() // this will ensure that consumers have definitely finished registering on startup, but is not required
+
+await userLoader.invalidateCacheFor('key', 'group') // this will transparently invalidate cache across all instances of your application
+```
+
+## Hit/miss/expiration statistics
+
+You can keep track of how effective cache is by using special cache type - `lru-object-statistics`:
+
+```ts
+import { HitStatisticsRecord, Loader } from 'layered-loader'
+
+const record = new HitStatisticsRecord()
+const operation = new Loader({
+    inMemoryCache: {
+        ttlInMsecs: 99999,
+        cacheId: 'some cache',
+        globalStatisticsRecord: record,
+        cacheType: 'lru-object-statistics',
+    },
+})
+
+operation.getInMemoryOnly('value')
+
+expect(record.records).toEqual({
+    'some cache': {
+        '2023-05-20': {
+            expirations: 0,
+            hits: 0,
+            misses: 1,
+        },
+    },
+})
+```
+
+Note that statistics accumulation affects performance of the cache, and it is recommended
+to only enable it temporarily, while conducting cache effectiveness analysis.
 
 ## Cache-only operations
 

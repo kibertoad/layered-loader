@@ -5,7 +5,10 @@ import { DummyCache } from './fakes/DummyCache'
 import { CountingCache } from './fakes/CountingCache'
 import { TemporaryThrowingCache } from './fakes/TemporaryThrowingCache'
 
-const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
+const IN_MEMORY_CACHE_CONFIG = {
+  cacheId: 'dummy',
+  ttlInMsecs: 999,
+} satisfies InMemoryCacheConfiguration
 
 describe('ManualCache', () => {
   beforeEach(() => {
