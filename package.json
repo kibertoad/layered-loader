@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "10.0.0",
+  "version": "10.1.0",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
@@ -53,15 +53,15 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "toad-cache": "^3.1.2"
+    "toad-cache": "^3.2.0"
   },
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.3",
     "@rollup/plugin-typescript": "^11.1.1",
     "@types/jest": "^29.5.1",
-    "@types/node": "^20.2.1",
-    "@typescript-eslint/eslint-plugin": "^5.59.6",
-    "@typescript-eslint/parser": "^5.59.6",
+    "@types/node": "^20.2.3",
+    "@typescript-eslint/eslint-plugin": "^5.59.7",
+    "@typescript-eslint/parser": "^5.59.7",
     "del-cli": "^5.0.0",
     "eslint": "^8.41.0",
     "eslint-config-prettier": "^8.8.0",
