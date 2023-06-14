@@ -163,7 +163,7 @@ const redisPublisher = new Redis(redisOptions)
 const redisConsumer = new Redis(redisOptions)
 const redisCache = new Redis(redisOptions)
 
-const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<User>({
     channel: 'user-cache-notifications',
     consumerRedis: redisConsumer,
     publisherRedis: redisPublisher,
@@ -203,7 +203,7 @@ const redisPublisher = new Redis(redisOptions)
 const redisConsumer = new Redis(redisOptions)
 const redisCache = new Redis(redisOptions)
 
-const { publisher: notificationPublisher, consumer: notificationConsumer } = createGroupNotificationPair({
+const { publisher: notificationPublisher, consumer: notificationConsumer } = createGroupNotificationPair<User>({
     channel: 'user-cache-notifications',
     consumerRedis: redisConsumer,
     publisherRedis: redisPublisher,
