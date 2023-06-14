@@ -43,7 +43,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   getExpirationTime(key: string): Promise<number | undefined> {
     const now = Date.now()
 
-    return this.executeWithTimeout(this.redis.pttl(this.resolveKey(key))).then((remainingTtl) => {
+    return this.redis.pttl(this.resolveKey(key)).then((remainingTtl) => {
       return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
     })
   }
