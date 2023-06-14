@@ -1,8 +1,5 @@
 import type { Redis } from 'ioredis'
-import { RedisTimeoutError } from './RedisTimeoutError'
 import type { CommonCacheConfiguration } from '../types/DataSources'
-
-const TIMEOUT = Symbol()
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
   prefix: string
@@ -34,35 +31,9 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
     const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
     if (this.config.ttlInMsecs) {
-      return this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs))
+      return this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs)
     }
-    return this.executeWithTimeout(this.redis.set(resolvedKey, resolvedValue))
-  }
-
-  protected executeWithTimeout<T>(originalPromise: Promise<T>): Promise<T> {
-    if (!this.config.timeoutInMsecs) {
-      return originalPromise
-    }
-
-    let storedReject: any
-    let storedTimeout: any
-    const timeout = new Promise((resolve, reject) => {
-      storedReject = reject
-      storedTimeout = setTimeout(resolve, this.config.timeoutInMsecs, TIMEOUT)
-    })
-    return Promise.race([timeout, originalPromise]).then((result) => {
-      if (result === TIMEOUT) {
-        throw new RedisTimeoutError()
-      }
-
-      if (storedReject) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        storedReject(undefined)
-        clearTimeout(storedTimeout)
-      }
-      return result as T
-    })
+    return this.redis.set(resolvedKey, resolvedValue)
   }
 
   protected postprocessResult(redisResult: string | null) {
@@ -83,11 +54,11 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
     const pattern = this.resolveCachePattern()
     let cursor = '0'
     do {
-      const scanResults = await this.executeWithTimeout(this.redis.scan(cursor, 'MATCH', pattern))
+      const scanResults = await this.redis.scan(cursor, 'MATCH', pattern)
 
       cursor = scanResults[0]
       if (scanResults[1].length > 0) {
-        await this.executeWithTimeout(this.redis.del(scanResults[1]))
+        await this.redis.del(scanResults[1])
       }
     } while (cursor !== '0')
   }

@@ -61,36 +61,32 @@ export class RedisGroupCache<T>
   }
 
   async deleteFromGroup(key: string, group: string): Promise<void> {
-    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(group)))
+    const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(group))
     if (!currentGroupKey) {
       return
     }
-    await this.executeWithTimeout(this.redis.del(this.resolveKeyWithGroup(key, group, currentGroupKey)))
+    await this.redis.del(this.resolveKeyWithGroup(key, group, currentGroupKey))
   }
 
   async getFromGroup(key: string, groupId: string): Promise<T | undefined | null> {
-    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(groupId)))
+    const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(groupId))
     if (!currentGroupKey) {
       return undefined
     }
 
-    const redisResult = await this.executeWithTimeout(
-      this.redis.get(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
-    )
+    const redisResult = await this.redis.get(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     return this.postprocessResult(redisResult)
   }
 
   async getExpirationTimeFromGroup(key: string, groupId: string): Promise<number | undefined> {
     const now = Date.now()
 
-    const currentGroupKey = await this.executeWithTimeout(this.redis.get(this.resolveGroupIndexPrefix(groupId)))
+    const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(groupId))
     if (currentGroupKey === null) {
       return undefined
     }
 
-    const remainingTtl = await this.executeWithTimeout(
-      this.redis.pttl(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
-    )
+    const remainingTtl = await this.redis.pttl(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
@@ -103,7 +99,7 @@ export class RedisGroupCache<T>
         // @ts-ignore
         this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
 
-    const currentGroupKey = await this.executeWithTimeout<string>(getGroupKeyPromise)
+    const currentGroupKey = await getGroupKeyPromise
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)

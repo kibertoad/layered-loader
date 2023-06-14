@@ -31,11 +31,11 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   }
 
   delete(key: string): Promise<unknown> {
-    return this.executeWithTimeout(this.redis.del(this.resolveKey(key)))
+    return this.redis.del(this.resolveKey(key))
   }
 
   get(key: string): Promise<T | undefined> {
-    return this.executeWithTimeout(this.redis.get(this.resolveKey(key))).then((redisResult) => {
+    return this.redis.get(this.resolveKey(key)).then((redisResult) => {
       return this.postprocessResult(redisResult)
     })
   }
@@ -43,7 +43,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   getExpirationTime(key: string): Promise<number | undefined> {
     const now = Date.now()
 
-    return this.executeWithTimeout(this.redis.pttl(this.resolveKey(key))).then((remainingTtl) => {
+    return this.redis.pttl(this.resolveKey(key)).then((remainingTtl) => {
       return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
     })
   }
