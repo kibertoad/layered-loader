@@ -1,5 +1,5 @@
-import knex from 'knex'
-import { dbConfig } from './dbConfig.js'
+const knex = require('knex')
+const { dbConfig } = require('./dbConfig.js')
 
 const knexInstance = knex({
   ...dbConfig,

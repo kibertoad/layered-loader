@@ -1,9 +1,8 @@
-import { LoadingOperation } from '../../dist/lib/LoadingOperation.js'
-import { InMemoryCache } from '../../dist/lib/memory/index.js'
-import { RedisCache } from '../../dist/lib/redis/index.js'
-import { createRedisConnection } from '../common/setup.js'
+const { Loader } = require('../../dist/lib/Loader')
+const { RedisCache } = require('../../dist/lib/redis/')
+const { createRedisConnection } = require('../common/setup')
 
-export class DummyLoader {
+class DummyLoader {
   value
   name = 'Dummy loader'
   isCache = false
@@ -17,18 +16,23 @@ export class DummyLoader {
   }
 }
 
-export function createLoadingOperation() {
+function createLoadingOperation() {
   const redis = createRedisConnection()
   return {
     redis,
-    cache: new LoadingOperation([
-      new InMemoryCache({
+    cache: new Loader({
+      inMemoryCache: {
         ttlInMsecs: 5000,
-      }),
-      new RedisCache(redis, {
+      },
+      asyncCache: new RedisCache(redis, {
         ttlInMsecs: 60000,
       }),
-      new DummyLoader('value'),
-    ]),
+      dataSources: [new DummyLoader('value')],
+    }),
   }
+}
+
+module.exports = {
+  DummyLoader,
+  createLoadingOperation,
 }

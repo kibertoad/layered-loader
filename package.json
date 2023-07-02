@@ -9,11 +9,7 @@
       "email": "kibertoad@gmail.com"
     }
   ],
-  "main": "dist/layered-loader",
-  "exports": {
-    "import": "./dist/layered-loader.js",
-    "require": "./dist/layered-loader.cjs"
-  },
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",

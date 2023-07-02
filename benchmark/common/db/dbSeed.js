@@ -1,8 +1,8 @@
-import knex from 'knex'
-import { dbConfig } from './dbConfig.js'
-import { UserRepository } from './repository.js'
+const knex = require('knex')
+const { dbConfig } = require('./dbConfig.js')
+const { UserRepository } = require('./repository.js')
 
-export async function seedWithData() {
+async function seedWithData() {
   const knexInstance = knex({
     ...dbConfig,
     migrations: {
@@ -25,4 +25,4 @@ export async function seedWithData() {
   console.log('Finished seeding')
 }
 
-await seedWithData()
+seedWithData()

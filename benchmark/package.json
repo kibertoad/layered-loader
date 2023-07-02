@@ -1,10 +1,11 @@
 {
   "name": "benchmark",
   "version": "1.0.0",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "cd .. && npm run build",
-    "benchmark": "node autocannon-layered-loader.js",
+    "benchmark:full": "npm run build && npm run docker:start && npm run db:migrate && npm run db:seed && npm run benchmark:run && npm run docker:stop",
+    "benchmark:run": "node autocannon-layered-loader.js",
     "docker:start": "docker-compose -f docker-compose.yml up --build -d",
     "docker:stop": "docker-compose -f docker-compose.yml down",
     "db:migrate": "node common/db/dbMigrate.js",
@@ -26,5 +27,8 @@
   "devDependencies": {
     "@types/autocannon": "^7.9.0",
     "prettier": "^2.8.4"
+  },
+  "engines": {
+    "node": ">= 16 < 20"
   }
 }
