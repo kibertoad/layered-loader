@@ -1,9 +1,9 @@
-import autocannon from 'autocannon'
+const autocannon = require('autocannon')
 
-import { createFastifyApp, startApp } from './common/setup.js'
-import { createLoadingOperation } from './layered-loader/caches.js'
-import { getSpecs } from './common/results.js'
-import { autocannonConfig } from './common/autocannonConfig.js'
+const { createFastifyApp, startApp } = require('./common/setup.js')
+const { createLoadingOperation } = require('./layered-loader/caches.js')
+const { getSpecs } = require('./common/results.js')
+const { autocannonConfig } = require('./common/autocannonConfig.js')
 
 const app = createFastifyApp()
 const { cache, redis } = createLoadingOperation()

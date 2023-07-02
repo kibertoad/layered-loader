@@ -1,10 +1,14 @@
-import { AbstractRepository } from 'knex-repositories'
+const { AbstractRepository } = require('knex-repositories')
 
-export class UserRepository extends AbstractRepository {
+class UserRepository extends AbstractRepository {
   constructor(knex) {
     super(knex, {
       tableName: 'users',
       idColumn: 'id',
     })
   }
+}
+
+module.exports = {
+  UserRepository,
 }

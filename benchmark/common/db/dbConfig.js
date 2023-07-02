@@ -1,4 +1,4 @@
-export const dbConfig = {
+const dbConfig = {
   client: 'postgres',
   connection: {
     adapter: 'postgresql',
@@ -8,4 +8,8 @@ export const dbConfig = {
     port: 25432,
     database: 'cache_test',
   },
+}
+
+module.exports = {
+  dbConfig,
 }

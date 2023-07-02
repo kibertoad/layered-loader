@@ -1,6 +1,6 @@
-import systemInformation from 'systeminformation'
+const systemInformation = require('systeminformation')
 
-export async function getSpecs() {
+async function getSpecs() {
   const cpuInfo = await systemInformation.cpu()
 
   return {
@@ -9,4 +9,8 @@ export async function getSpecs() {
       speed: `${cpuInfo.speed} GHz`,
     },
   }
+}
+
+module.exports = {
+  getSpecs,
 }
