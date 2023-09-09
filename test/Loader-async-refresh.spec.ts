@@ -9,7 +9,7 @@ import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
 describe('Loader Async', () => {
   let redis: Redis
   beforeEach(async () => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
     redis = new Redis(redisOptions)
     await redis.flushall()
   })
@@ -78,12 +78,12 @@ describe('Loader Async', () => {
       const promise0 = operation.get('key')
       await setTimeout(2)
       await loader.finishLoading()
-      expect(await promise0).toEqual('value')
+      expect(await promise0).toBe('value')
       expect(loader.counter).toBe(1)
       // @ts-ignore
       const expirationTimePre = await operation.asyncCache.getExpirationTime('key')
 
-      expect(await operation.get('key')).toEqual('value')
+      expect(await operation.get('key')).toBe('value')
       await setTimeout(90)
       expect(loader.counter).toBe(1)
       // kick off the refresh
@@ -92,14 +92,14 @@ describe('Loader Async', () => {
       void operation.get('key')
       await setTimeout(10)
       await loader.finishLoading()
-      expect(await promise2).toEqual('value')
+      expect(await promise2).toBe('value')
 
       expect(loader.counter).toBe(2)
       await setTimeout(5)
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
 
-      expect(await operation.get('key')).toEqual('value')
+      expect(await operation.get('key')).toBe('value')
       await Promise.resolve()
       expect(loader.counter).toBe(2)
       expect(expirationTimePre).toBeDefined()

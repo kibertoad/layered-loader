@@ -88,8 +88,8 @@ describe('RedisCache', () => {
       const value1 = await cache.get('key')
       const value2 = await cache.get('key2')
 
-      expect(value1).toEqual('value')
-      expect(value2).toEqual('value2')
+      expect(value1).toBe('value')
+      expect(value2).toBe('value2')
     })
   })
 
@@ -217,9 +217,9 @@ describe('RedisCache', () => {
       const value2 = await cache.get('key2')
       const value3 = await cache.get('key3')
 
-      expect(value1).toEqual('true')
-      expect(value2).toEqual('false')
-      expect(value3).toEqual(undefined)
+      expect(value1).toBe('true')
+      expect(value2).toBe('false')
+      expect(value3).toBeUndefined()
     })
 
     it('sets json boolean values correctly', async () => {
@@ -234,9 +234,9 @@ describe('RedisCache', () => {
       const value2 = await cache.get('key2')
       const value3 = await cache.get('key3')
 
-      expect(value1).toEqual(true)
-      expect(value2).toEqual(false)
-      expect(value3).toEqual(undefined)
+      expect(value1).toBe(true)
+      expect(value2).toBe(false)
+      expect(value3).toBeUndefined()
     })
 
     it('sets expiration correctly', async () => {

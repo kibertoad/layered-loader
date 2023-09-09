@@ -53,7 +53,7 @@ const userValuesUndefined = {
 
 describe('GroupLoader Main', () => {
   beforeEach(() => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
   })
 
   describe('notificationConsumer', () => {
@@ -369,7 +369,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('logs error during load', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new GroupLoader({ dataSources: [new ThrowingGroupedLoader()], throwIfLoadError: true })
 
       await expect(() => {
@@ -408,7 +408,7 @@ describe('GroupLoader Main', () => {
     })
 
     it('correctly handles error during cache update', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new GroupLoader({
         asyncCache: new ThrowingGroupedCache(),
         dataSources: [new DummyGroupedLoader(userValues)],
@@ -479,7 +479,7 @@ describe('GroupLoader Main', () => {
       const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
       const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
 
-      expect(valuePre).toBe(undefined)
+      expect(valuePre).toBeUndefined()
       expect(valuePost).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
       expect(valuePost2).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
     })

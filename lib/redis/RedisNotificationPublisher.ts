@@ -42,7 +42,7 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
       JSON.stringify({
         actionId: CLEAR_COMMAND,
         originUuid: this.serverUuid,
-      } satisfies NotificationCommand)
+      } satisfies NotificationCommand),
     )
   }
 
@@ -53,7 +53,7 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
         actionId: DELETE_COMMAND,
         originUuid: this.serverUuid,
         key,
-      } satisfies DeleteNotificationCommand)
+      } satisfies DeleteNotificationCommand),
     )
   }
 

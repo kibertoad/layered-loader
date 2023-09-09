@@ -34,10 +34,10 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
 
   constructor(config: InMemoryGroupCacheConfiguration) {
     this.cacheConstructor = resolveCacheConstructor<CacheTypeId, T>(
-      config.cacheType ?? DEFAULT_GROUP_CONFIGURATION.cacheType
+      config.cacheType ?? DEFAULT_GROUP_CONFIGURATION.cacheType,
     )
     this.groupCacheConstructor = resolveCacheConstructor<CacheTypeId, ToadCache<T>>(
-      config.groupCacheType ?? DEFAULT_GROUP_CONFIGURATION.groupCacheType
+      config.groupCacheType ?? DEFAULT_GROUP_CONFIGURATION.groupCacheType,
     )
 
     this.groups = new this.groupCacheConstructor(config.maxGroups ?? DEFAULT_GROUP_CONFIGURATION.maxGroups)
@@ -59,7 +59,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
       this.ttlInMsecs,
       this.cacheId,
       // @ts-ignore
-      this.globalStatisticsRecord
+      this.globalStatisticsRecord,
     )
     this.groups.set(groupId, newGroupCache)
     return newGroupCache

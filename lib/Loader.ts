@@ -20,7 +20,7 @@ export type LoaderConfig<
     | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
-    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
 > = {
   dataSources?: readonly DataSourceType[]
   throwIfLoadError?: boolean

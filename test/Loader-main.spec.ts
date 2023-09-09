@@ -21,7 +21,7 @@ const IN_MEMORY_CACHE_CONFIG = {
 
 describe('Loader Main', () => {
   beforeEach(async () => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
   })
 
   describe('notificationConsumer', () => {
@@ -189,7 +189,7 @@ describe('Loader Main', () => {
 
       const result = operation.getInMemoryOnly('value')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('returns undefined when no value is cached', () => {
@@ -199,7 +199,7 @@ describe('Loader Main', () => {
 
       const result = operation.getInMemoryOnly('value')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('returns statistics when appropriate cache type is used', () => {
@@ -237,7 +237,7 @@ describe('Loader Main', () => {
               globalStatisticsRecord: record,
               cacheType: 'lru-object-statistics',
             },
-          })
+          }),
       ).toThrow(/Cache id is mandatory/)
     })
 
@@ -304,7 +304,7 @@ describe('Loader Main', () => {
 
       const result = await operation.get('value')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('throws when fails to resolve value, no loaders and flag is set', async () => {
@@ -339,11 +339,11 @@ describe('Loader Main', () => {
       })
 
       const value = await operation.get('key')
-      expect(value).toEqual('value')
+      expect(value).toBe('value')
     })
 
     it('logs error during load', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new Loader({ dataSources: [new ThrowingLoader()], throwIfLoadError: true })
 
       await expect(() => {
@@ -382,7 +382,7 @@ describe('Loader Main', () => {
     })
 
     it('handles error during cache update', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new Loader({ asyncCache: new ThrowingCache(), dataSources: [new DummyLoader('value')] })
       const value = await operation.get('value')
       expect(value).toBe('value')
@@ -428,7 +428,7 @@ describe('Loader Main', () => {
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
-      expect(valuePre).toBe(undefined)
+      expect(valuePre).toBeUndefined()
       expect(valuePost).toBe('value')
       expect(valuePost2).toBe('value')
     })
@@ -448,7 +448,7 @@ describe('Loader Main', () => {
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
-      expect(valuePre).toBe(undefined)
+      expect(valuePre).toBeUndefined()
       expect(valuePost).toBe('prevaluepost')
       expect(valuePost2).toBe('prevaluepost')
     })

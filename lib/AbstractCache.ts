@@ -14,7 +14,7 @@ export type LoaderErrorHandler = (
   err: Error,
   key: string | undefined,
   loader: Record<string, any>,
-  logger: Logger
+  logger: Logger,
 ) => void
 
 export const DEFAULT_LOAD_ERROR_HANDLER: LoaderErrorHandler = (err, key, loader, logger) => {
@@ -36,7 +36,7 @@ export type CommonCacheConfig<
     | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
-    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
 > = {
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
@@ -59,7 +59,7 @@ export abstract class AbstractCache<
     | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
-    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
 > {
   protected readonly inMemoryCache: InMemoryCacheType
   protected readonly asyncCache?: CacheType
@@ -83,7 +83,7 @@ export abstract class AbstractCache<
       InMemoryCacheConfigType,
       InMemoryCacheType,
       NotificationPublisherType
-    >
+    >,
   ) {
     this.initPromises = []
 

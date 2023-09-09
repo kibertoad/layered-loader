@@ -41,7 +41,7 @@ export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotifi
       JSON.stringify({
         actionId: CLEAR_COMMAND,
         originUuid: this.serverUuid,
-      } satisfies GroupNotificationCommand)
+      } satisfies GroupNotificationCommand),
     )
   }
 
@@ -53,7 +53,7 @@ export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotifi
         key,
         group,
         originUuid: this.serverUuid,
-      } satisfies DeleteFromGroupNotificationCommand)
+      } satisfies DeleteFromGroupNotificationCommand),
     )
   }
 
@@ -64,7 +64,7 @@ export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotifi
         actionId: DELETE_GROUP_COMMAND,
         group,
         originUuid: this.serverUuid,
-      } satisfies DeleteGroupNotificationCommand)
+      } satisfies DeleteGroupNotificationCommand),
     )
   }
 

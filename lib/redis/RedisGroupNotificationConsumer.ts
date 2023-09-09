@@ -37,7 +37,7 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
         if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
           return this.targetCache.deleteFromGroup(
             (parsedMessage as DeleteFromGroupNotificationCommand).key,
-            (parsedMessage as DeleteFromGroupNotificationCommand).group
+            (parsedMessage as DeleteFromGroupNotificationCommand).group,
           )
         }
 
