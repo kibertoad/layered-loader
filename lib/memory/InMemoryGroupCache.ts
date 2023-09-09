@@ -1,5 +1,5 @@
 import type { CacheConstructor, HitStatisticsRecord, ToadCache } from 'toad-cache'
-import type { SynchronousGroupCache } from '../types/SyncDataSources'
+import type { GetManyResult, SynchronousGroupCache } from '../types/SyncDataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 
@@ -73,6 +73,26 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
     const group = this.resolveGroup(groupId)
     return group.get(key)
   }
+
+  getManyFromGroup(keys: string[], group: string): GetManyResult<T> {
+    const resolvedValues: T[] = []
+    const unresolvedKeys: string[] = []
+
+    for (let i = 0; i < keys.length; i++) {
+      const resolvedValue = this.getFromGroup(keys[i], group)
+      if (resolvedValue) {
+        resolvedValues.push(resolvedValue)
+      } else {
+        unresolvedKeys.push(keys[i])
+      }
+    }
+
+    return {
+      resolvedValues,
+      unresolvedKeys,
+    }
+  }
+
   setForGroup(key: string, value: T | null, groupId: string) {
     const group = this.resolveGroup(groupId)
     group.set(key, value)

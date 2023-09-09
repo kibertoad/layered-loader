@@ -93,6 +93,33 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('getManyFromGroup', () => {
+    it('returns unresolved keys', async () => {
+      const cache = new RedisCache(redis)
+      await cache.set('key2', 'value2')
+      await cache.set('key3', 'value3')
+
+      const values = await cache.getMany(['key', 'key2'])
+      expect(values).toEqual({
+        unresolvedKeys: ['key'],
+        resolvedValues: ['value2'],
+      })
+    })
+
+    it('resolves multiple values', async () => {
+      const cache = new RedisCache(redis)
+      await cache.set('key', 'value')
+      await cache.set('key2', 'value2')
+      await cache.set('key3', 'value3')
+
+      const values = await cache.getMany(['key', 'key2'])
+      expect(values).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: ['value', 'value2'],
+      })
+    })
+  })
+
   describe('clear', () => {
     it('clears values', async () => {
       const cache = new RedisCache(redis)

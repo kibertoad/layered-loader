@@ -1,5 +1,6 @@
 import type { Loader } from '../Loader'
 import type { GroupLoader } from '../GroupLoader'
+import type { GetManyResult } from './SyncDataSources'
 
 export interface CommonCacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number
@@ -22,6 +23,7 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
   readonly expirationTimeLoadingOperation: Loader<number>
   get: (key: string) => Promise<LoadedValue | undefined | null>
+  getMany: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
   getExpirationTime: (key: string) => Promise<number | undefined>
 }
 
@@ -37,6 +39,7 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
 
   getFromGroup: (key: string, group: string) => Promise<LoadedValue | undefined | null>
+  getManyFromGroup: (keys: string[], group: string) => Promise<GetManyResult<LoadedValue>>
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
 }
 

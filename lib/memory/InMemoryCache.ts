@@ -1,5 +1,5 @@
 import type { CacheConstructor, ToadCache, HitStatisticsRecord } from 'toad-cache'
-import type { SynchronousCache } from '../types/SyncDataSources'
+import type { SynchronousCache, GetManyResult } from '../types/SyncDataSources'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
 
@@ -48,6 +48,25 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
 
   get(key: string): T | null | undefined {
     return this.cache.get(key)
+  }
+
+  getMany(keys: string[]): GetManyResult<T> {
+    const resolvedValues: T[] = []
+    const unresolvedKeys: string[] = []
+
+    for (let i = 0; i < keys.length; i++) {
+      const resolvedValue = this.cache.get(keys[i])
+      if (resolvedValue) {
+        resolvedValues.push(resolvedValue)
+      } else {
+        unresolvedKeys.push(keys[i])
+      }
+    }
+
+    return {
+      resolvedValues,
+      unresolvedKeys,
+    }
   }
 
   getExpirationTime(key: string): number | undefined {

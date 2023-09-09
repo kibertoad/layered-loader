@@ -1,4 +1,4 @@
-import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
+import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
 
 export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupCache<T> {
   name = 'Noop cache'
@@ -26,6 +26,20 @@ export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupCache<
 
   getExpirationTime() {
     return undefined
+  }
+
+  getMany(keys: string[]): GetManyResult<T> {
+    return {
+      unresolvedKeys: keys,
+      resolvedValues: [],
+    }
+  }
+
+  getManyFromGroup(keys: string[], _group: string): GetManyResult<T> {
+    return {
+      unresolvedKeys: keys,
+      resolvedValues: [],
+    }
   }
 
   set(): void {}
