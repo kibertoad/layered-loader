@@ -2,6 +2,8 @@ import type { Loader } from '../Loader'
 import type { GroupLoader } from '../GroupLoader'
 import type { GetManyResult } from './SyncDataSources'
 
+export type IdResolver<T> = (entity: T) => string
+
 export interface CommonCacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number
   ttlCacheTtl?: number // for how long to store ttl locally - useful when refresh is enabled
@@ -45,6 +47,7 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
 
 export interface DataSource<LoadedValue, LoadParams = undefined> {
   get: (key: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
+  getMany: (keys: string[], loadParams?: LoadParams) => Promise<LoadedValue[]>
 
   name: string
 }

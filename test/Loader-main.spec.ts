@@ -14,10 +14,17 @@ import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
 import { HitStatisticsRecord } from 'toad-cache'
 import { getTimestamp } from './utils/dateUtils'
+import type { IdResolver } from '../lib/types/DataSources'
+import { expect } from 'vitest'
 
 const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
 } satisfies InMemoryCacheConfiguration
+
+const idResolver: IdResolver<string> = (value) => {
+  const number = value.match(/(\d+)/)?.[0] ?? ''
+  return `key${number}`
+}
 
 describe('Loader Main', () => {
   beforeEach(async () => {
@@ -298,6 +305,59 @@ describe('Loader Main', () => {
     })
   })
 
+  describe('getManyInMemoryOnly', () => {
+    it('returns empty result when no inmemory cache is configured', () => {
+      const operation = new Loader({})
+
+      const result = operation.getManyInMemoryOnly(['value', 'value2'])
+
+      expect(result).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['value', 'value2'],
+      })
+    })
+
+    it('returns empty result when no value is cached', () => {
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      })
+
+      const result = operation.getManyInMemoryOnly(['value', 'value2'])
+
+      expect(result).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['value', 'value2'],
+      })
+    })
+
+    it('returns cached value', async () => {
+      const operation = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+      })
+
+      const resultPre = operation.getManyInMemoryOnly(['key', 'key2'])
+      await operation.getAsyncOnly('key')
+      const resultPost = operation.getManyInMemoryOnly(['key', 'key2'])
+
+      const result = operation.getManyInMemoryOnly(['key', 'key2'])
+
+      expect(result).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: ['key2'],
+      })
+
+      expect(resultPre).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['key', 'key2'],
+      })
+      expect(resultPost).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: ['key2'],
+      })
+    })
+  })
+
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
       const operation = new Loader({})
@@ -485,6 +545,233 @@ describe('Loader Main', () => {
       expect(value).toBe('value')
       expect(value2).toBe('value')
       expect(loader.counter).toBe(1)
+    })
+  })
+
+  describe('getMany', () => {
+    it('returns empty list when fails to resolve value', async () => {
+      const operation = new Loader<string>({})
+
+      const result = await operation.getMany(['key', 'key2'], idResolver)
+
+      expect(result).toEqual([])
+    })
+
+    it('throws when fails to resolve value, no loaders and flag is set', async () => {
+      const operation = new Loader<string>({
+        throwIfUnresolved: true,
+      })
+
+      await expect(() => {
+        return operation.getMany(['key1', 'key2'], idResolver)
+      }).rejects.toThrow(/Failed to resolve value for some of the keys: key1, key2/)
+    })
+
+    it('throws when fails to resolve value, and flag is set', async () => {
+      const operation = new Loader<string>({
+        throwIfUnresolved: true,
+        dataSources: [new DummyLoader(undefined)],
+      })
+
+      await expect(() => {
+        return operation.getMany(['key1', 'key2'], idResolver)
+      }).rejects.toThrow(/Failed to resolve value for some of the keys: key1, key2/)
+    })
+
+    it('does not throw when flag is set, but loader can resolve the value', async () => {
+      const cache = new DummyCache(undefined)
+      const loader = new DummyLoader('value')
+
+      const operation = new Loader<string>({
+        asyncCache: cache,
+        dataSources: [loader],
+        throwIfUnresolved: true,
+      })
+
+      const value = await operation.getMany(['key', 'key2'], idResolver)
+      expect(value).toEqual(['value', 'value'])
+    })
+
+    it('logs error during load', async () => {
+      const consoleSpy = vitest.spyOn(console, 'error')
+      const operation = new Loader<string>({ dataSources: [new ThrowingLoader()], throwIfLoadError: true })
+
+      await expect(() => {
+        return operation.getMany(['value'], idResolver)
+      }).rejects.toThrow(/Error has occurred/)
+      expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('returns empty result if flag is not set and error is thrown', async () => {
+      const consoleSpy = vitest.spyOn(console, 'error')
+      const operation = new Loader<string>({ dataSources: [new ThrowingLoader()], throwIfLoadError: false })
+
+      const result = await operation.getMany(['value'], idResolver)
+
+      expect(result).toEqual([])
+      expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets loading operation after value was not found previously', async () => {
+      const loader = new DummyLoader(undefined)
+      const operation = new Loader<string>({ dataSources: [loader] })
+
+      const value = await operation.getMany(['value'], idResolver)
+      expect(value).toEqual([])
+
+      loader.value = null
+      const value2 = await operation.getMany(['value'], idResolver)
+      expect(value2).toEqual([])
+
+      loader.value = 'value'
+      const value3 = await operation.getMany(['dummy'], idResolver)
+      expect(value3).toEqual(['value'])
+    })
+
+    it('resets loading operation after error during load', async () => {
+      const loader = new TemporaryThrowingLoader('value')
+      const operation = new Loader<string>({ dataSources: [loader] })
+
+      await expect(() => {
+        return operation.getMany(['value'], idResolver)
+      }).rejects.toThrow(/Error has occurred/)
+
+      loader.isThrowing = false
+      const value = await operation.getMany(['dummy'], idResolver)
+      expect(value).toEqual(['value'])
+    })
+
+    it('handles error during cache update', async () => {
+      const consoleSpy = vitest.spyOn(console, 'error')
+      const operation = new Loader<string>({ asyncCache: new ThrowingCache(), dataSources: [new DummyLoader('value')] })
+      const value = await operation.getMany(['value'], idResolver)
+      expect(value).toEqual(['value'])
+      expect(consoleSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns value when resolved via single cache', async () => {
+      const operation = new Loader<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      // @ts-ignore
+      operation.inMemoryCache.set('key', 'value')
+
+      const result = await operation.getMany(['key'], idResolver)
+
+      expect(result).toEqual(['value'])
+    })
+
+    it('returns value when resolved via multiple caches', async () => {
+      const asyncCache = new DummyCache(undefined)
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: asyncCache,
+      })
+      asyncCache.value = 'value'
+
+      const result = await operation.getMany(['key', 'key2'], idResolver)
+
+      expect(result).toEqual(['value', 'value'])
+    })
+
+    it('updates upper level cache when resolving value downstream', async () => {
+      const asyncCache = new DummyCache(undefined)
+      const operation = new Loader<string>({
+        inMemoryCache: {
+          ...IN_MEMORY_CACHE_CONFIG,
+        },
+        asyncCache: asyncCache,
+        dataSources: [new DummyLoader(undefined), new DummyLoader('value')],
+      })
+      // @ts-ignore
+      const inMemoryCache = operation.inMemoryCache
+
+      const valuePre = inMemoryCache.getMany(['key'])
+      await operation.getMany(['key'], idResolver)
+      const valuePost = inMemoryCache.getMany(['key'])
+      const valuePost2 = await asyncCache.getMany(['key'])
+
+      expect(valuePre).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['key'],
+      })
+      expect(valuePost).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: [],
+      })
+      expect(valuePost2).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: [],
+      })
+    })
+
+    it('passes loadParams to the loader', async () => {
+      const cache2 = new DummyCache(undefined)
+      const operation = new Loader<string, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyLoaderWithParams('value')],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = cache1.getMany(['key'])
+      await operation.getMany(['key'], idResolver, { prefix: 'pre', suffix: 'post' })
+      const valuePost = cache1.getMany(['key'])
+      const valuePost2 = await cache2.getMany(['key'])
+
+      expect(valuePre).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['key'],
+      })
+      expect(valuePost).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: [],
+      })
+      expect(valuePost2).toEqual({
+        resolvedValues: ['value'],
+        unresolvedKeys: [],
+      })
+    })
+
+    it('correctly reuses value from cache', async () => {
+      const cache2 = new DummyCache(undefined)
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: {
+          ...IN_MEMORY_CACHE_CONFIG,
+          ttlInMsecs: 999999999,
+        },
+        asyncCache: cache2,
+        dataSources: [loader1, loader2],
+      })
+
+      const valuePre = await operation.getMany(['key', 'key2'], idResolver)
+      const valuePost = await operation.getMany(['key', 'key2'], idResolver)
+
+      expect(valuePre).toEqual(['value', 'value'])
+      expect(valuePost).toEqual(['value', 'value'])
+      expect(loader2.counter).toBe(1)
+    })
+
+    // Batching multiple very different queries is likely to be very complex and hit perf hard
+    it('does not batch identical retrievals together', async () => {
+      const loader = new CountingLoader('value')
+
+      const operation = new Loader<string>({ dataSources: [loader] })
+      const valuePromise = operation.getMany(['key', 'key2'], idResolver)
+      const valuePromise2 = operation.getMany(['key', 'key2'], idResolver)
+      const valuePromise3 = operation.get('key')
+
+      const value = await valuePromise
+      const value2 = await valuePromise2
+      const value3 = await valuePromise3
+
+      expect(value).toEqual(['value', 'value'])
+      expect(value2).toEqual(['value', 'value'])
+      expect(value3).toBe('value')
+      expect(loader.counter).toBe(3)
     })
   })
 

@@ -1,9 +1,9 @@
 import type { CommonCacheConfig } from './AbstractCache'
-import type { Cache, DataSource, GroupCache } from './types/DataSources'
+import type { Cache, DataSource, GroupCache, IdResolver } from './types/DataSources'
 import { AbstractFlatCache } from './AbstractFlatCache'
 import type { InMemoryCacheConfiguration } from './memory'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import type { SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
+import type { SynchronousCache, SynchronousGroupCache, GetManyResult } from './types/SyncDataSources'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
@@ -43,6 +43,7 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
 
   protected override resolveValue(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
     return super.resolveValue(key, loadParams).then((cachedValue) => {
+      // value resolved from cache
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
@@ -105,5 +106,62 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     }
 
     return undefined
+  }
+
+  protected async resolveManyValues(
+    keys: string[],
+    idResolver: IdResolver<LoadedValue>,
+    loadParams?: LoaderParams,
+  ): Promise<GetManyResult<LoadedValue>> {
+    // load what is available from async cache
+    const cachedValues = await super.resolveManyValues(keys, idResolver, loadParams)
+
+    // everything was cached, no need to load anything
+    if (cachedValues.unresolvedKeys.length === 0) {
+      return cachedValues
+    }
+
+    const loadValues = await this.loadManyFromLoaders(cachedValues.unresolvedKeys, loadParams)
+
+    if (this.asyncCache) {
+      for (let i = 0; i < loadValues.length; i++) {
+        const resolvedValue = loadValues[i]
+        const id = idResolver(resolvedValue)
+        await this.asyncCache.set(id, resolvedValue).catch((err) => {
+          this.cacheUpdateErrorHandler(err, id, this.asyncCache!, this.logger)
+        })
+      }
+    }
+
+    return {
+      resolvedValues: [...cachedValues.resolvedValues, ...loadValues],
+
+      // there actually may still be some unresolved keys, but we no longer know that
+      unresolvedKeys: [],
+    }
+  }
+
+  private async loadManyFromLoaders(keys: string[], loadParams?: LoaderParams) {
+    let lastResolvedValues
+    for (let index = 0; index < this.dataSources.length; index++) {
+      lastResolvedValues = await this.dataSources[index].getMany(keys, loadParams).catch((err) => {
+        this.loadErrorHandler(err, keys.toString(), this.dataSources[index], this.logger)
+        if (this.throwIfLoadError) {
+          throw err
+        }
+        return [] as LoadedValue[]
+      })
+
+      if (lastResolvedValues.length === keys.length) {
+        return lastResolvedValues
+      }
+    }
+
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for some of the keys: ${keys.join(', ')}`)
+    }
+
+    // ToDo do we want to return results of a query that returned the most amount of entities?
+    return lastResolvedValues ?? []
   }
 }

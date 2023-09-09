@@ -1,4 +1,5 @@
 import type { Cache } from '../../lib/types/DataSources'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class DummyCache implements Cache<string> {
   value: string | undefined | null
@@ -13,6 +14,15 @@ export class DummyCache implements Cache<string> {
 
   get(_key: string): Promise<string | undefined | null> {
     return Promise.resolve(this.value)
+  }
+
+  getMany(keys: string[]): Promise<GetManyResult<string>> {
+    const resolvedValues = keys.map(() => this.value as string).filter((entry) => entry != null)
+
+    return Promise.resolve({
+      resolvedValues,
+      unresolvedKeys: resolvedValues.length === 0 ? keys : [],
+    })
   }
 
   clear(): Promise<void> {

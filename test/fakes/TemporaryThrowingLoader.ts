@@ -18,4 +18,13 @@ export class TemporaryThrowingLoader implements DataSource<string> {
     }
     return this.returnedValue
   }
+
+  getMany(keys: string[], _loadParams: undefined): Promise<string[]> {
+    if (this.isThrowing) {
+      return Promise.resolve().then(() => {
+        throw new Error('Error has occurred')
+      })
+    }
+    return Promise.resolve(keys.map(() => this.returnedValue as string).filter((entry) => entry != null))
+  }
 }
