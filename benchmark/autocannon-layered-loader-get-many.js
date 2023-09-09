@@ -9,7 +9,7 @@ const app = createFastifyApp()
 const { cache, redis } = createLoadingOperation()
 
 app.get('/', async () => {
-  const value = await cache.get('1')
+  const value = await cache.getMany([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], (entry) => entry.id)
   return { value }
 })
 

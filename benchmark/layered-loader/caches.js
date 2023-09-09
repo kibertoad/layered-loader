@@ -1,18 +1,25 @@
 const { Loader } = require('../../dist/lib/Loader')
 const { RedisCache } = require('../../dist/lib/redis/')
 const { createRedisConnection } = require('../common/setup')
+const { dbConfig } = require('../common/db/dbConfig')
+const { knex } = require('knex')
+const { UserRepository } = require('../common/db/repository')
 
-class DummyLoader {
+class DbLoader {
   value
   name = 'Dummy loader'
   isCache = false
 
-  constructor(returnedValue) {
-    this.value = returnedValue
+  constructor(repository) {
+    this.repository = repository
   }
 
-  get() {
-    return Promise.resolve(this.value)
+  get(id) {
+    return this.repository.getById(id)
+  }
+
+  getMany(ids) {
+    return this.repository.knex('users').select().whereIn('id', ids)
   }
 }
 
@@ -25,14 +32,15 @@ function createLoadingOperation() {
         ttlInMsecs: 5000,
       },
       asyncCache: new RedisCache(redis, {
+        json: true,
         ttlInMsecs: 60000,
       }),
-      dataSources: [new DummyLoader('value')],
+      dataSources: [new DbLoader(new UserRepository(knex(dbConfig)))],
     }),
   }
 }
 
 module.exports = {
-  DummyLoader,
+  DummyLoader: DbLoader,
   createLoadingOperation,
 }
