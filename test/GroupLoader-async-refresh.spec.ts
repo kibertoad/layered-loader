@@ -146,11 +146,11 @@ describe('GroupLoader Async Refresh', () => {
     it('does not trigger refresh if another one is already running', async () => {
       const loader = new DelayedCountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {
-        ttlInMsecs: 9999,
+        ttlInMsecs: 50,
         ttlCacheTtl: 5000,
         ttlCacheSize: 400,
         json: true,
-        ttlLeftBeforeRefreshInMsecs: 9998,
+        ttlLeftBeforeRefreshInMsecs: 49,
       })
 
       const operation = new GroupLoader<User>({
@@ -169,15 +169,13 @@ describe('GroupLoader Async Refresh', () => {
       // @ts-ignore
       const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
+      await setTimeout(15)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
-      await setTimeout(90)
-      expect(loader.counter).toBe(2)
-      // kick off the refresh
-      expect(loader.counter).toBe(2)
+      expect(loader.counter).toBe(1)
       const promise2 = operation.get(user1.userId, user1.companyId)
-      expect(loader.counter).toBe(2)
+      expect(loader.counter).toBe(1)
       void operation.get(user1.userId, user1.companyId)
-      expect(loader.counter).toBe(2)
+      expect(loader.counter).toBe(1)
       void operation.get(user1.userId, user1.companyId)
       await setTimeout(10)
       expect(loader.counter).toBe(2)
