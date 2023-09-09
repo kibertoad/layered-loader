@@ -1,4 +1,4 @@
-import type { Cache, DataSource } from '../types/DataSources'
+import type { Cache } from '../types/DataSources'
 import type Redis from 'ioredis'
 import { Loader } from '../Loader'
 import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
@@ -6,7 +6,7 @@ import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache, DEFAULT_REDIS_CACHE_CONFIGURATION } from './AbstractRedisCache'
 import type { GetManyResult } from '../types/SyncDataSources'
 
-export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T> implements Cache<T>, DataSource<T> {
+export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T> implements Cache<T> {
   public readonly expirationTimeLoadingOperation: Loader<number>
   public readonly ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
@@ -41,7 +41,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     })
   }
 
-  getMany(keys: string[]): Promise<GetManyResult<T>> {
+  getManyCached(keys: string[]): Promise<GetManyResult<T>> {
     const transformedKeys = keys.map((entry) => this.resolveKey(entry))
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []

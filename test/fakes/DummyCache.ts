@@ -16,7 +16,7 @@ export class DummyCache implements Cache<string> {
     return Promise.resolve(this.value)
   }
 
-  getMany(keys: string[]): Promise<GetManyResult<string>> {
+  getManyCached(keys: string[]): Promise<GetManyResult<string>> {
     const resolvedValues = keys.map(() => this.value as string).filter((entry) => entry != null)
 
     return Promise.resolve({

@@ -25,7 +25,7 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
   readonly expirationTimeLoadingOperation: Loader<number>
   get: (key: string) => Promise<LoadedValue | undefined | null>
-  getMany: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
+  getManyCached: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
   getExpirationTime: (key: string) => Promise<number | undefined>
 }
 

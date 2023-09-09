@@ -112,7 +112,7 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
     _resolveParams?: ResolveParams,
   ): Promise<GetManyResult<LoadedValue>> {
     if (this.asyncCache) {
-      return this.asyncCache.getMany(keys).catch((err) => {
+      return this.asyncCache.getManyCached(keys).catch((err) => {
         this.loadErrorHandler(err, keys.toString(), this.asyncCache!, this.logger)
         return {
           unresolvedKeys: keys,
