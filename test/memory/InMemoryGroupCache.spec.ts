@@ -27,7 +27,7 @@ describe('InMemoryCache', () => {
     it('returns unresolved keys', () => {
       const cache = new InMemoryGroupCache({
         maxGroups: 1,
-        ttlInMsecs: 1,
+        ttlInMsecs: 10,
       })
       cache.setForGroup('key', 'value', 'group')
       cache.setForGroup('key2', 'value2', 'group2')
