@@ -32,7 +32,7 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
       config.ttlInMsecs ?? 0,
       config.cacheId,
       // @ts-ignore
-      config.globalStatisticsRecord
+      config.globalStatisticsRecord,
     )
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs

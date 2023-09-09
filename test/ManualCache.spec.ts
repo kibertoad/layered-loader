@@ -12,7 +12,7 @@ const IN_MEMORY_CACHE_CONFIG = {
 
 describe('ManualCache', () => {
   beforeEach(() => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
   })
 
   describe('set', () => {
@@ -35,11 +35,11 @@ describe('ManualCache', () => {
 
       const result = await operation.get('value')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('logs error during load', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new ManualCache({ asyncCache: new ThrowingCache() })
 
       await operation.get('value')
@@ -76,7 +76,7 @@ describe('ManualCache', () => {
     })
 
     it('correctly handles error during cache update', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new ManualCache({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: new ThrowingCache(),
@@ -131,7 +131,7 @@ describe('ManualCache', () => {
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
-      expect(valuePre).toBe(undefined)
+      expect(valuePre).toBeUndefined()
       expect(valuePost).toBe('value')
       expect(valuePost2).toBe('value')
     })
@@ -182,7 +182,7 @@ describe('ManualCache', () => {
       const valuePost = await operation.get('key')
 
       expect(valuePre).toBe('value')
-      expect(valuePost).toBe(undefined)
+      expect(valuePost).toBeUndefined()
       expect(loader2.counter).toBe(2)
     })
 
@@ -201,7 +201,7 @@ describe('ManualCache', () => {
       const valuePost = await operation.get('key')
 
       expect(valuePre).toBe('value')
-      expect(valuePost).toBe(undefined)
+      expect(valuePost).toBeUndefined()
     })
   })
 
@@ -219,7 +219,7 @@ describe('ManualCache', () => {
       const valuePost = await operation.get('key')
 
       expect(valuePre).toBe('value')
-      expect(valuePost).toBe(undefined)
+      expect(valuePost).toBeUndefined()
       expect(loader2.counter).toBe(2)
     })
 
@@ -238,7 +238,7 @@ describe('ManualCache', () => {
       const valuePost = await operation.get('key')
 
       expect(valuePre).toBe('value')
-      expect(valuePost).toBe(undefined)
+      expect(valuePost).toBeUndefined()
     })
   })
 })

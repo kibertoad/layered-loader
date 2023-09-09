@@ -50,7 +50,7 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
   public getAsyncOnly(
     key: string,
     group: string,
-    resolveParams?: ResolveParams
+    resolveParams?: ResolveParams,
   ): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
@@ -105,7 +105,7 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
   protected async resolveGroupValue(
     key: string,
     group: string,
-    _resolveParams?: ResolveParams
+    _resolveParams?: ResolveParams,
   ): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.getFromGroup(key, group).catch((err) => {

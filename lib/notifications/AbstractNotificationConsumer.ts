@@ -4,7 +4,7 @@ export abstract class AbstractNotificationConsumer<
   LoadedValue,
   InMemoryCacheType extends
     | SynchronousCache<LoadedValue>
-    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>
+    | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
 > {
   // @ts-ignore
   protected targetCache: InMemoryCacheType

@@ -30,7 +30,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
   protected override resolveGroupValue(
     key: string,
     group: string,
-    loadParams?: LoaderParams
+    loadParams?: LoaderParams,
   ): Promise<LoadedValue | undefined | null> {
     return super.resolveGroupValue(key, group).then((cachedValue) => {
       if (cachedValue !== undefined) {

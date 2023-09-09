@@ -56,7 +56,7 @@ describe('ManualGroupCache', () => {
   let redis: Redis
 
   beforeEach(async () => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
     redis = new Redis(redisOptions)
     await redis.flushall()
   })
@@ -85,7 +85,7 @@ describe('ManualGroupCache', () => {
 
       const result = operation.getInMemoryOnly('value', 'group')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('returns undefined when no value is cached', () => {
@@ -95,7 +95,7 @@ describe('ManualGroupCache', () => {
 
       const result = operation.getInMemoryOnly('value', 'group')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('returns cached value', async () => {
@@ -119,11 +119,11 @@ describe('ManualGroupCache', () => {
 
       const result = await operation.get('value', 'fakegroup')
 
-      expect(result).toBe(undefined)
+      expect(result).toBeUndefined()
     })
 
     it('logs error during load', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new ManualGroupCache({
         asyncCache: new ThrowingGroupedCache(),
       })
@@ -152,7 +152,7 @@ describe('ManualGroupCache', () => {
     })
 
     it('handles error during cache update', async () => {
-      const consoleSpy = jest.spyOn(console, 'error')
+      const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new ManualGroupCache({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: new ThrowingGroupedCache(),

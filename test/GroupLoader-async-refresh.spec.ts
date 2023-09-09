@@ -39,7 +39,7 @@ const userValuesUndefined = {
 
 describe('GroupLoader Async Refresh', () => {
   beforeEach(() => {
-    jest.resetAllMocks()
+    vitest.resetAllMocks()
   })
 
   describe('background async refresh', () => {
@@ -143,6 +143,60 @@ describe('GroupLoader Async Refresh', () => {
       expect(expirationTimePost! > expirationTimePre!).toBe(true)
     })
 
+    it('does not trigger refresh if another one is already running', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+      const asyncCache = new RedisGroupCache<User>(redis, {
+        ttlInMsecs: 9999,
+        ttlCacheTtl: 5000,
+        ttlCacheSize: 400,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 9998,
+      })
+
+      const operation = new GroupLoader<User>({
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      // @ts-ignore
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
+      expect(loader.counter).toBe(0)
+      const promise0 = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      await loader.finishLoading()
+      expect(await promise0).toEqual(user1)
+      expect(loader.counter).toBe(1)
+      // @ts-ignore
+      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      await setTimeout(90)
+      expect(loader.counter).toBe(2)
+      // kick off the refresh
+      expect(loader.counter).toBe(2)
+      const promise2 = operation.get(user1.userId, user1.companyId)
+      expect(loader.counter).toBe(2)
+      void operation.get(user1.userId, user1.companyId)
+      expect(loader.counter).toBe(2)
+      void operation.get(user1.userId, user1.companyId)
+      await setTimeout(10)
+      expect(loader.counter).toBe(2)
+      await loader.finishLoading()
+      expect(await promise2).toEqual(user1)
+      expect(loader.counter).toBe(2)
+      await setTimeout(5)
+      // @ts-ignore
+      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      await Promise.resolve()
+
+      expect(loader.counter).toBe(2)
+      expect(expirationTimePre).toBeDefined()
+      expect(expirationTimePost).toBeDefined()
+      expect(expirationTimePost! > expirationTimePre!).toBe(true)
+    })
+
     it('async background refresh errors do not crash app', async () => {
       const loader = new CountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {
@@ -171,7 +225,7 @@ describe('GroupLoader Async Refresh', () => {
 
       await setTimeout(100)
       await expect(() => operation.get(user1.userId, user1.companyId)).rejects.toThrow(
-        /Failed to resolve value for key "1", group "1"/
+        /Failed to resolve value for key "1", group "1"/,
       )
       await Promise.resolve()
       expect(loader.counter).toBe(3)

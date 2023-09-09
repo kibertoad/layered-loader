@@ -59,9 +59,9 @@ describe('RedisGroupNotificationPublisher', () => {
         channel: CHANNEL_ID,
         consumerRedis: redisConsumer,
         publisherRedis: redisConsumer,
-      })
+      }),
     ).toThrow(
-      /Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection/
+      /Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection/,
     )
   })
 
@@ -106,7 +106,7 @@ describe('RedisGroupNotificationPublisher', () => {
         return resultPost1 === undefined && resultPost2 === undefined
       },
       50,
-      100
+      100,
     )
 
     const resultPost1 = operation.getInMemoryOnly('key', 'group')
@@ -163,7 +163,7 @@ describe('RedisGroupNotificationPublisher', () => {
         return resultPost1 === undefined && resultPost2 === undefined
       },
       50,
-      100
+      100,
     )
 
     const resultPost1 = operation.getInMemoryOnly('key', 'group')
@@ -222,7 +222,7 @@ describe('RedisGroupNotificationPublisher', () => {
         return resultPost1 === undefined && resultPost2 === undefined
       },
       50,
-      100
+      100,
     )
 
     const resultPost1 = operation.getInMemoryOnly('key', 'group')
