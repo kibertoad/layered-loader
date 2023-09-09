@@ -21,4 +21,12 @@ export class DummyLoaderWithParams implements DataSource<string, DummyLoaderPara
 
     return Promise.resolve(`${params.prefix}${this.value}${params.suffix}`)
   }
+
+  getMany(keys: string[], loadParams: DummyLoaderParams | undefined): Promise<string[]> {
+    if (!loadParams) {
+      throw new Error('Params were not passed')
+    }
+
+    return Promise.resolve(keys.map(() => this.value as string).filter((entry) => entry != null))
+  }
 }

@@ -11,4 +11,9 @@ export class RedisExpirationTimeDataSource implements DataSource<number> {
   get(key: string): Promise<number | undefined> {
     return this.parentAsyncCache.getExpirationTime(key)
   }
+
+  /* c8 ignore next 3 */
+  getMany(): Promise<number[]> {
+    throw new Error('Not supported')
+  }
 }

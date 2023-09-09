@@ -1,4 +1,5 @@
 import type { Cache } from '../../lib/types/DataSources'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class ThrowingCache implements Cache<string> {
   name = 'Throwing cache'
@@ -7,6 +8,12 @@ export class ThrowingCache implements Cache<string> {
   readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   get(): Promise<string | undefined | null> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
+  getManyCached(): Promise<GetManyResult<string>> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
     })

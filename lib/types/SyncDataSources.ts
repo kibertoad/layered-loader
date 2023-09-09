@@ -9,10 +9,10 @@ export type GetManyResult<T> = {
   unresolvedKeys: string[]
 }
 
-export interface SynchronousCache<T> extends SynchronousWriteCache<T> {
+export interface SynchronousCache<LoadedValue> extends SynchronousWriteCache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
-  get: (key: string) => T | undefined | null
-  getMany: (keys: string[]) => GetManyResult<T>
+  get: (key: string) => LoadedValue | undefined | null
+  getMany: (keys: string[]) => GetManyResult<LoadedValue>
   getExpirationTime: (key: string) => number | undefined
 }
 

@@ -12,4 +12,8 @@ export class DummyLoader implements DataSource<string> {
   get(): Promise<string | undefined | null> {
     return Promise.resolve(this.value)
   }
+
+  getMany(keys: string[]) {
+    return Promise.resolve(keys.map(() => this.value as string).filter((entry) => entry != null))
+  }
 }
