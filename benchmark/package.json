@@ -5,28 +5,29 @@
   "scripts": {
     "build": "cd .. && npm run build",
     "benchmark:full": "npm run build && npm run docker:start && npm run db:migrate && npm run db:seed && npm run benchmark:run && npm run docker:stop",
-    "benchmark:run": "node autocannon-layered-loader.js",
+    "benchmark:get:run": "node autocannon-layered-loader-get.js",
+    "benchmark:get-many:run": "node autocannon-layered-loader-get-many.js",
     "docker:start": "docker-compose -f docker-compose.yml up --build -d",
     "docker:stop": "docker-compose -f docker-compose.yml down",
     "db:migrate": "node common/db/dbMigrate.js",
     "db:seed": "node common/db/dbSeed.js",
-    "format": "prettier --write **/*.js autocannon-layered-loader.js"
+    "format": "prettier --write **/*.js autocannon-layered-loader-get.js"
   },
   "dependencies": {
-    "async-cache-dedupe": "^1.10.0",
-    "autocannon": "^7.10.0",
-    "fastify": "^4.14.1",
-    "ioredis": "^5.3.1",
+    "async-cache-dedupe": "^1.12.0",
+    "autocannon": "^7.12.0",
+    "fastify": "^4.22.2",
+    "ioredis": "^5.3.2",
     "knex": "^2.4.2",
     "knex-repositories": "^4.0.0",
     "knex-utils": "^6.0.0",
-    "layered-loader": "^9.1.1",
-    "pg": "^8.10.0",
+    "layered-loader": "12.0.0-beta1",
+    "pg": "^8.11.3",
     "systeminformation": "^5.17.12"
   },
   "devDependencies": {
-    "@types/autocannon": "^7.9.0",
-    "prettier": "^2.8.4"
+    "@types/autocannon": "^7.9.1",
+    "prettier": "^3.0.3"
   },
   "engines": {
     "node": ">= 16 < 20"
