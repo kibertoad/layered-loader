@@ -95,6 +95,43 @@ describe('RedisGroupCache', () => {
     })
   })
 
+  describe('getManyFromGroup', () => {
+    it('returns unresolved keys', async () => {
+      const cache = new RedisGroupCache(redis)
+      await cache.setForGroup('key2', 'value2', 'group')
+      await cache.setForGroup('key3', 'value3', 'group2')
+
+      const values = await cache.getManyFromGroup(['key', 'key2'], 'group')
+      expect(values).toEqual({
+        unresolvedKeys: ['key'],
+        resolvedValues: ['value2'],
+      })
+    })
+
+    it('resolves multiple values', async () => {
+      const cache = new RedisGroupCache(redis)
+      await cache.setForGroup('key', 'value', 'group')
+      await cache.setForGroup('key2', 'value2', 'group')
+      await cache.setForGroup('key3', 'value3', 'group2')
+
+      const values = await cache.getManyFromGroup(['key', 'key2'], 'group')
+      expect(values).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: ['value', 'value2'],
+      })
+    })
+
+    it('resolves nothing when nothing is cached for the group', async () => {
+      const cache = new RedisGroupCache(redis)
+
+      const values = await cache.getManyFromGroup(['key', 'key2'], 'group')
+      expect(values).toEqual({
+        unresolvedKeys: ['key', 'key2'],
+        resolvedValues: [],
+      })
+    })
+  })
+
   describe('setForGroup', () => {
     it('sets value after group has already expired', async () => {
       const cache = new RedisGroupCache(redis, {

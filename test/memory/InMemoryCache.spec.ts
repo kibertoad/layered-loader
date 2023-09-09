@@ -110,6 +110,44 @@ describe('InMemoryCache', () => {
     })
   })
 
+  describe('getMany', () => {
+    it('returns unresolved keys', () => {
+      const cache = new InMemoryCache({
+        cacheId: 'dummy',
+        cacheType: 'lru-map',
+        maxItems: 2,
+        ttlInMsecs: 2,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+      cache.set('key3', 'value3')
+
+      const values = cache.getMany(['key', 'key2'])
+      expect(values).toEqual({
+        unresolvedKeys: ['key'],
+        resolvedValues: ['value2'],
+      })
+    })
+
+    it('resolves multiple values', () => {
+      const cache = new InMemoryCache({
+        cacheId: 'dummy',
+        cacheType: 'lru-map',
+        maxItems: 5,
+        ttlInMsecs: 2,
+      })
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+      cache.set('key3', 'value3')
+
+      const values = cache.getMany(['key', 'key2'])
+      expect(values).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: ['value', 'value2'],
+      })
+    })
+  })
+
   describe('getExpirationTime', () => {
     it('returns undefined for non-existent entry', () => {
       const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)

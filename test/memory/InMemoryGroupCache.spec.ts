@@ -23,6 +23,39 @@ describe('InMemoryCache', () => {
     })
   })
 
+  describe('getManyFromGroup', () => {
+    it('returns unresolved keys', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 1,
+        ttlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      cache.setForGroup('key2', 'value2', 'group2')
+
+      const values = cache.getManyFromGroup(['key', 'key2'], 'group2')
+      expect(values).toEqual({
+        unresolvedKeys: ['key'],
+        resolvedValues: ['value2'],
+      })
+    })
+
+    it('resolves multiple values', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 2,
+        ttlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      cache.setForGroup('key', 'value', 'group2')
+      cache.setForGroup('key2', 'value2', 'group2')
+
+      const values = cache.getManyFromGroup(['key', 'key2'], 'group2')
+      expect(values).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: ['value', 'value2'],
+      })
+    })
+  })
+
   describe('getExpirationTimeFromGroup', () => {
     it('returns undefined for non-existent entry', () => {
       const cache = new InMemoryGroupCache(IN_MEMORY_CACHE_CONFIG)

@@ -1,10 +1,11 @@
 import type { GroupCache, GroupCacheConfiguration, GroupDataSource } from '../types/DataSources'
-import type { Redis } from 'ioredis'
+import type Redis from 'ioredis'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 import { GroupLoader } from '../GroupLoader'
 import { RedisExpirationTimeGroupDataSource } from './RedisExpirationTimeGroupDataSource'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache } from './AbstractRedisCache'
+import type { GetManyResult } from '../types/SyncDataSources'
 
 const GROUP_INDEX_KEY = 'group-index'
 
@@ -76,6 +77,37 @@ export class RedisGroupCache<T>
 
     const redisResult = await this.redis.get(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     return this.postprocessResult(redisResult)
+  }
+
+  async getManyFromGroup(keys: string[], groupId: string): Promise<GetManyResult<T>> {
+    const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(groupId))
+    if (!currentGroupKey) {
+      return {
+        resolvedValues: [],
+        unresolvedKeys: keys,
+      }
+    }
+
+    const transformedKeys = keys.map((key) => this.resolveKeyWithGroup(key, groupId, currentGroupKey))
+    const resolvedValues: T[] = []
+    const unresolvedKeys: string[] = []
+
+    return this.redis.mget(transformedKeys).then((redisResult) => {
+      for (let i = 0; i < keys.length; i++) {
+        const currentResult = redisResult[i]
+
+        if (currentResult !== null) {
+          resolvedValues.push(this.postprocessResult(currentResult))
+        } else {
+          unresolvedKeys.push(keys[i])
+        }
+      }
+
+      return {
+        resolvedValues,
+        unresolvedKeys,
+      }
+    })
   }
 
   async getExpirationTimeFromGroup(key: string, groupId: string): Promise<number | undefined> {
