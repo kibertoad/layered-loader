@@ -13,8 +13,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build:rollup",
-    "build:rollup": "rollup --config",
+    "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build",
     "docker:start": "docker-compose -f docker-compose.yml up --build -d redis && docker-compose -f docker-compose.yml up --build -d wait_for_redis",
     "docker:stop": "docker-compose -f docker-compose.yml down",
     "test": "vitest",
@@ -52,8 +51,6 @@
     "toad-cache": "^3.2.0"
   },
   "devDependencies": {
-    "@rollup/plugin-terser": "^0.4.3",
-    "@rollup/plugin-typescript": "^11.1.3",
     "@types/node": "^20.6.0",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
@@ -67,7 +64,6 @@
     "ioredis": "^5.3.2",
     "prettier": "^3.0.3",
     "rfdc": "^1.3.0",
-    "rollup": "^3.29.0",
     "vitest": "0.34.1",
     "typescript": "5.2.2"
   },
