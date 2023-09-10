@@ -282,4 +282,20 @@ describe('RedisCache', () => {
       expect(value2).toEqual({ value: 'value2' })
     })
   })
+
+  describe('close', () => {
+    it('reset refresh ttl on close', async () => {
+      const cache = new RedisCache(redis, {
+        json: false,
+        timeoutInMsecs: 9999999,
+        prefix: 'cache',
+        ttlInMsecs: undefined,
+        ttlLeftBeforeRefreshInMsecs: 999,
+      })
+
+      await cache.close()
+
+      expect(cache.ttlLeftBeforeRefreshInMsecs).toBe(0)
+    })
+  })
 })
