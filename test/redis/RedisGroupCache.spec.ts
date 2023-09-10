@@ -335,4 +335,20 @@ describe('RedisGroupCache', () => {
       expect(value2Group2).toBeUndefined()
     })
   })
+
+  describe('close', () => {
+    it('reset refresh ttl on close', async () => {
+      const cache = new RedisGroupCache(redis, {
+        json: false,
+        timeoutInMsecs: 9999999,
+        prefix: 'cache',
+        ttlInMsecs: undefined,
+        ttlLeftBeforeRefreshInMsecs: 999,
+      })
+
+      await cache.close()
+
+      expect(cache.ttlLeftBeforeRefreshInMsecs).toBe(0)
+    })
+  })
 })

@@ -8,7 +8,7 @@ import type { GetManyResult } from '../types/SyncDataSources'
 
 export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T> implements Cache<T> {
   public readonly expirationTimeLoadingOperation: Loader<number>
-  public readonly ttlLeftBeforeRefreshInMsecs?: number
+  public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
 
   constructor(redis: Redis, config: Partial<RedisCacheConfiguration> = DEFAULT_REDIS_CACHE_CONFIGURATION) {
@@ -78,5 +78,10 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
         void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
       }
     })
+  }
+
+  async close() {
+    // prevent refreshes after everything is shutting down to prevent "Error: Connection is closed." errors
+    this.ttlLeftBeforeRefreshInMsecs = 0
   }
 }
