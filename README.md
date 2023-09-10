@@ -355,7 +355,7 @@ const loader = new Loader<string>({
 const cachedValue = 
     // this very quickly checks if we have value in-memory
     loader.getInMemoryOnly('key')
-    // if we don't, proceed with checking asynchronous caches and loaders
+    // if we don't, proceed with checking asynchronous cache and datasources
     || await loader.getAsyncOnly('key')
 ```
 
