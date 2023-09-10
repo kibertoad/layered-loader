@@ -1,6 +1,7 @@
 import type { GroupCache } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class DummyGroupedCache implements GroupCache<User> {
   private value: User | undefined
@@ -61,5 +62,13 @@ export class DummyGroupedCache implements GroupCache<User> {
 
   getExpirationTime(): Promise<number> {
     return Promise.resolve(99999)
+  }
+
+  close(): Promise<unknown> {
+    return Promise.resolve(undefined)
+  }
+
+  getManyFromGroup(): Promise<GetManyResult<User>> {
+    throw new Error('Not implemented')
   }
 }

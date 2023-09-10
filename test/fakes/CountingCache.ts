@@ -1,4 +1,6 @@
 import type { Cache } from '../../lib/types/DataSources'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
+import type { User } from '../types/testTypes'
 
 export class CountingCache implements Cache<string> {
   private value: string | undefined
@@ -33,5 +35,13 @@ export class CountingCache implements Cache<string> {
 
   getExpirationTime(): Promise<number> {
     return Promise.resolve(99999)
+  }
+
+  close(): Promise<unknown> {
+    return Promise.resolve(undefined)
+  }
+
+  getManyFromGroup(): Promise<GetManyResult<User>> {
+    throw new Error('Not implemented')
   }
 }
