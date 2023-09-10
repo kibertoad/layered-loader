@@ -203,6 +203,25 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('deleteMany', () => {
+    it('deletes values', async () => {
+      const cache = new RedisCache(redis)
+      await cache.set('key', 'value')
+      await cache.set('key2', 'value2')
+      await cache.set('key3', 'value3')
+
+      await cache.deleteMany(['key', 'key3'])
+
+      const value1 = await cache.get('key')
+      const value2 = await cache.get('key2')
+      const value3 = await cache.get('key3')
+
+      expect(value1).toBeUndefined()
+      expect(value2).toBe('value2')
+      expect(value3).toBeUndefined()
+    })
+  })
+
   describe('set', () => {
     it('defaults to infinite ttl', async () => {
       const cache = new RedisCache(redis, {

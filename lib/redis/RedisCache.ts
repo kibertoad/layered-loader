@@ -35,6 +35,13 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     return this.redis.del(this.resolveKey(key))
   }
 
+  deleteMany(keys: string[]): Promise<unknown> {
+    const processedKeys = keys.map((key) => {
+      return this.resolveKey(key)
+    })
+    return this.redis.del(processedKeys)
+  }
+
   get(key: string): Promise<T | undefined> {
     return this.redis.get(this.resolveKey(key)).then((redisResult) => {
       return this.postprocessResult(redisResult)

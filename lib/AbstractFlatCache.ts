@@ -143,4 +143,25 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
       })
     }
   }
+
+  public async invalidateCacheForMany(keys: string[]) {
+    if (this.asyncCache) {
+      await this.asyncCache.deleteMany(keys).catch((err) => {
+        /* c8 ignore next 1 */
+        this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
+      })
+    }
+
+    for (let i = 0; i < keys.length; i++) {
+      this.inMemoryCache.delete(keys[i])
+      this.runningLoads.delete(keys[i])
+    }
+
+    if (this.notificationPublisher) {
+      this.notificationPublisher.deleteMany(keys).catch((err) => {
+        /* c8 ignore next 1 */
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+      })
+    }
+  }
 }

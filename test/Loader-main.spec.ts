@@ -16,6 +16,7 @@ import { HitStatisticsRecord } from 'toad-cache'
 import { getTimestamp } from './utils/dateUtils'
 import type { IdResolver } from '../lib/types/DataSources'
 import { expect } from 'vitest'
+import { DummyRecordCache } from './fakes/DummyRecordCache'
 
 const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
@@ -794,6 +795,57 @@ describe('Loader Main', () => {
       expect(valuePre).toBe('value')
       expect(valuePost).toBe('value')
       expect(loader2.counter).toBe(2)
+    })
+
+    it('correctly handles errors during invalidation', async () => {
+      const cache2 = new ThrowingCache()
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [loader1, loader2],
+      })
+
+      const valuePre = await operation.get('key')
+
+      await operation.invalidateCacheFor('key')
+      const valuePost = await operation.get('key')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value')
+      expect(loader2.counter).toBe(2)
+    })
+  })
+
+  describe('invalidateCacheForMany', () => {
+    it('invalidates multiple entries', async () => {
+      const cache2 = new DummyRecordCache({})
+      const loader1 = new CountingLoader(undefined)
+      const loader2 = new CountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [loader1, loader2],
+      })
+
+      const value1Pre = await operation.get('key')
+      const value2Pre = await operation.get('key2')
+      const value3Pre = await operation.get('key3')
+      await operation.invalidateCacheForMany(['key', 'key3'])
+      const value1Post = await operation.get('key')
+      const value2Post = await operation.get('key2')
+      const value3Post = await operation.get('key3')
+
+      expect(value1Pre).toBe('value')
+      expect(value1Post).toBe('value')
+      expect(value2Pre).toBe('value')
+      expect(value2Post).toBe('value')
+      expect(value3Pre).toBe('value')
+      expect(value3Post).toBe('value')
+      expect(loader2.counter).toBe(5)
     })
 
     it('correctly handles errors during invalidation', async () => {

@@ -18,6 +18,7 @@ export interface GroupCacheConfiguration extends CommonCacheConfiguration {
 export interface WriteCache<LoadedValue> {
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
   delete: (key: string) => Promise<unknown>
+  deleteMany: (keys: string[]) => Promise<unknown>
   clear: () => Promise<unknown>
   close: () => Promise<unknown>
 }

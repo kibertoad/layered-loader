@@ -7,7 +7,8 @@ export const DEFAULT_NOTIFICATION_ERROR_HANDLER: PublisherErrorHandler = (err, c
   logger.error(`Error while publishing notification to channel ${channel}: ${err.message}`)
 }
 
-export interface NotificationPublisher<LoadedValue> extends Pick<WriteCache<LoadedValue>, 'delete' | 'clear'> {
+export interface NotificationPublisher<LoadedValue>
+  extends Pick<WriteCache<LoadedValue>, 'delete' | 'deleteMany' | 'clear'> {
   readonly errorHandler: PublisherErrorHandler
   readonly channel: string
 

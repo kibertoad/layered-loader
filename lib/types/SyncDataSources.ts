@@ -1,6 +1,7 @@
 export interface SynchronousWriteCache<T> {
   set: (key: string, value: T | null) => void
   delete: (key: string) => void
+  deleteMany: (keys: string[]) => void
   clear: () => void
 }
 

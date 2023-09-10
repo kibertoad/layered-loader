@@ -29,6 +29,10 @@ export class DummyNotificationPublisher implements NotificationPublisher<string>
     this.consumer.delete(key)
   }
 
+  async deleteMany(keys: string[]) {
+    this.consumer.deleteMany(keys)
+  }
+
   async clear() {
     this.consumer.clear()
   }

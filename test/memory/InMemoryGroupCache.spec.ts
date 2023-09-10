@@ -42,7 +42,7 @@ describe('InMemoryCache', () => {
     it('resolves multiple values', () => {
       const cache = new InMemoryGroupCache({
         maxGroups: 2,
-        ttlInMsecs: 1,
+        ttlInMsecs: 100,
       })
       cache.setForGroup('key', 'value', 'group')
       cache.setForGroup('key', 'value', 'group2')
