@@ -688,7 +688,7 @@ describe('Loader Main', () => {
       const valuePre = inMemoryCache.getMany(['key'])
       await operation.getMany(['key'], idResolver)
       const valuePost = inMemoryCache.getMany(['key'])
-      const valuePost2 = await asyncCache.getManyCached(['key'])
+      const valuePost2 = await asyncCache.getMany(['key'])
 
       expect(valuePre).toEqual({
         resolvedValues: [],
@@ -717,7 +717,7 @@ describe('Loader Main', () => {
       const valuePre = cache1.getMany(['key'])
       await operation.getMany(['key'], idResolver, { prefix: 'pre', suffix: 'post' })
       const valuePost = cache1.getMany(['key'])
-      const valuePost2 = await cache2.getManyCached(['key'])
+      const valuePost2 = await cache2.getMany(['key'])
 
       expect(valuePre).toEqual({
         resolvedValues: [],

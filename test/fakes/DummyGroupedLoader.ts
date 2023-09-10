@@ -15,4 +15,13 @@ export class DummyGroupedLoader implements GroupDataSource<User> {
   getFromGroup(key: string, group: string) {
     return Promise.resolve(this.groupValues?.[group]?.[key])
   }
+
+  getManyFromGroup(keys: string[], group: string): Promise<User[]> {
+    const groupValues = this.groupValues?.[group] ?? {}
+    const result = Object.values(groupValues).filter((entry) => {
+      return entry && keys.includes(entry.userId)
+    }) as User[]
+
+    return Promise.resolve(result)
+  }
 }

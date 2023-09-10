@@ -16,4 +16,15 @@ export class CountingGroupedLoader implements GroupDataSource<User> {
     this.counter++
     return Promise.resolve(this.groupValues?.[group]?.[key])
   }
+
+  getManyFromGroup(keys: string[], group: string, _loadParams: undefined): Promise<User[]> {
+    this.counter++
+
+    const groupValues = this.groupValues?.[group] ?? {}
+    const result = Object.values(groupValues).filter((entry) => {
+      return entry && keys.includes(entry.userId)
+    }) as User[]
+
+    return Promise.resolve(result)
+  }
 }

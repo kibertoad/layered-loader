@@ -1,6 +1,6 @@
 import { AbstractCache } from './AbstractCache'
-import type { GroupCache } from './types/DataSources'
-import type { SynchronousGroupCache } from './types/SyncDataSources'
+import type { GroupCache, IdResolver } from './types/DataSources'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
@@ -47,6 +47,11 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     return this.inMemoryCache.getFromGroup(key, group)
   }
 
+  public getManyInMemoryOnly(keys: string[], group: string) {
+    // Note that it doesn't support preemptive refresh
+    return this.inMemoryCache.getManyFromGroup(keys, group)
+  }
+
   public getAsyncOnly(
     key: string,
     group: string,
@@ -75,6 +80,23 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     return loadingPromise
   }
 
+  public getManyAsyncOnly(
+    keys: string[],
+    group: string,
+    idResolver: IdResolver<LoadedValue>,
+    resolveParams?: ResolveParams,
+  ): Promise<GetManyResult<LoadedValue>> {
+    // This doesn't support deduplication, and never might, as that would affect perf strongly. Maybe as an opt-in option in the future?
+    return this.resolveManyGroupValues(keys, group, idResolver, resolveParams).then((result) => {
+      for (let i = 0; i < result.resolvedValues.length; i++) {
+        const resolvedValue = result.resolvedValues[i]
+        const id = idResolver(resolvedValue)
+        this.inMemoryCache.setForGroup(id, resolvedValue, group)
+      }
+      return result
+    })
+  }
+
   public get(key: string, group: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.getInMemoryOnly(key, group, resolveParams)
     if (inMemoryValue !== undefined) {
@@ -82,6 +104,25 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     }
 
     return this.getAsyncOnly(key, group, resolveParams)
+  }
+
+  public getMany(
+    keys: string[],
+    group: string,
+    idResolver: IdResolver<LoadedValue>,
+    resolveParams?: ResolveParams,
+  ): Promise<LoadedValue[]> {
+    const inMemoryValues = this.getManyInMemoryOnly(keys, group)
+    // everything is in memory, hurray
+    if (inMemoryValues.unresolvedKeys.length === 0) {
+      return Promise.resolve(inMemoryValues.resolvedValues)
+    }
+
+    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, group, idResolver, resolveParams).then(
+      (asyncRetrievedValues) => {
+        return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
+      },
+    )
   }
 
   public async invalidateCacheFor(key: string, group: string) {
@@ -116,6 +157,27 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
       }
     }
     return undefined
+  }
+
+  protected async resolveManyGroupValues(
+    keys: string[],
+    group: string,
+    _idResolver: IdResolver<LoadedValue>,
+    _resolveParams?: ResolveParams,
+  ) {
+    if (this.asyncCache) {
+      return this.asyncCache.getManyFromGroup(keys, group).catch((err) => {
+        this.loadErrorHandler(err, keys.toString(), this.asyncCache!, this.logger)
+        return {
+          unresolvedKeys: keys,
+          resolvedValues: [],
+        }
+      })
+    }
+    return {
+      unresolvedKeys: keys,
+      resolvedValues: [],
+    }
   }
 
   protected resolveGroupLoads(group: string) {

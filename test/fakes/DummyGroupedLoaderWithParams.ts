@@ -23,4 +23,21 @@ export class DummyGroupedLoaderWithParams implements GroupDataSource<User, Dummy
     }
     return Promise.resolve({ ...user, parametrized: `${params.prefix}${params.suffix}` })
   }
+
+  getManyFromGroup(keys: string[], group: string, params: DummyLoaderParams | undefined): Promise<User[]> {
+    if (!params) {
+      throw new Error('Params were not passed')
+    }
+
+    const groupValues = this.groupValues?.[group] ?? {}
+    const result = Object.values(groupValues).filter((entry) => {
+      return entry && keys.includes(entry.userId)
+    }) as User[]
+
+    const processedResult = result.map((user) => {
+      return { ...user, parametrized: `${params.prefix}${params.suffix}` }
+    })
+
+    return Promise.resolve(processedResult)
+  }
 }

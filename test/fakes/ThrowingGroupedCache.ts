@@ -1,5 +1,6 @@
 import type { GroupCache } from '../../lib/types/DataSources'
 import type { User } from '../types/testTypes'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class ThrowingGroupedCache implements GroupCache<User> {
   name = 'Throwing grouped cache'
@@ -37,6 +38,16 @@ export class ThrowingGroupedCache implements GroupCache<User> {
   }
 
   getFromGroup(): Promise<User | undefined | null> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
+  close(): Promise<unknown> {
+    return Promise.resolve(undefined)
+  }
+
+  getManyFromGroup(): Promise<GetManyResult<User>> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
     })

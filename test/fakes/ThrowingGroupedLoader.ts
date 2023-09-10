@@ -1,9 +1,16 @@
 import type { GroupDataSource } from '../../lib/types/DataSources'
+import type { User } from '../types/testTypes'
 
-export class ThrowingGroupedLoader implements GroupDataSource<string> {
+export class ThrowingGroupedLoader<T = User> implements GroupDataSource<T> {
   name = 'Throwing loader'
 
-  async getFromGroup(): Promise<string | undefined | null> {
+  getFromGroup(): Promise<T | undefined | null> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
+  getManyFromGroup(): Promise<T[]> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
     })
