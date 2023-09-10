@@ -13,7 +13,7 @@ export class ThrowingCache implements Cache<string> {
     })
   }
 
-  getManyCached(): Promise<GetManyResult<string>> {
+  getMany(): Promise<GetManyResult<string>> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
     })

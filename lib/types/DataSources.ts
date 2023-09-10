@@ -26,7 +26,7 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
   readonly ttlLeftBeforeRefreshInMsecs?: number
   readonly expirationTimeLoadingOperation: Loader<number>
   get: (key: string) => Promise<LoadedValue | undefined | null>
-  getManyCached: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
+  getMany: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
   getExpirationTime: (key: string) => Promise<number | undefined>
 }
 
@@ -56,6 +56,7 @@ export interface DataSource<LoadedValue, LoadParams = undefined> {
 
 export interface GroupDataSource<LoadedValue, LoadParams = undefined> {
   getFromGroup: (key: string, group: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
+  getManyFromGroup: (keys: string[], group: string, loadParams?: LoadParams) => Promise<LoadedValue[]>
 
   name: string
 }

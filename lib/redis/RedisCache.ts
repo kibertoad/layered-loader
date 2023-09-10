@@ -41,7 +41,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     })
   }
 
-  getManyCached(keys: string[]): Promise<GetManyResult<T>> {
+  getMany(keys: string[]): Promise<GetManyResult<T>> {
     const transformedKeys = keys.map((entry) => this.resolveKey(entry))
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []

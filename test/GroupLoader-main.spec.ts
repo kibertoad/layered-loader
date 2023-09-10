@@ -13,6 +13,7 @@ import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGrou
 import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
 import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
+import type { IdResolver } from '../lib/types/DataSources'
 
 const IN_MEMORY_CACHE_CONFIG = {
   cacheId: 'dummy',
@@ -49,6 +50,10 @@ const newUser: User = { userId: 'dummy', companyId: 'dummy' }
 const userValuesUndefined = {
   [user1.companyId]: {},
   [user3.companyId]: {},
+}
+
+const idResolver: IdResolver<User> = (value) => {
+  return value.userId
 }
 
 describe('GroupLoader Main', () => {
@@ -516,6 +521,213 @@ describe('GroupLoader Main', () => {
       expect(value).toEqual(user1)
       expect(value2).toEqual(user1)
       expect(loader.counter).toBe(1)
+    })
+  })
+
+  describe('getMany', () => {
+    it('returns empty array when fails to resolve value', async () => {
+      const operation = new GroupLoader<User>({})
+
+      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(result).toEqual([])
+    })
+
+    it('throws when fails to resolve value, with flag and no loaders', async () => {
+      const operation = new GroupLoader<User>({
+        throwIfUnresolved: true,
+      })
+
+      await expect(() => {
+        return operation.getMany([user1.userId], user1.companyId, idResolver)
+      }).rejects.toThrow(`Failed to resolve value for some of the keys (group 1): 1`)
+    })
+
+    it('throws when fails to resolve value and flag is set', async () => {
+      const operation = new GroupLoader<User>({
+        throwIfUnresolved: true,
+        dataSources: [new DummyGroupedLoader(userValuesUndefined)],
+      })
+
+      await expect(() => {
+        return operation.getMany([user1.userId], user1.companyId, idResolver)
+      }).rejects.toThrow(`Failed to resolve value for some of the keys (group 1): 1`)
+    })
+
+    it('does not throw when fails with an error and flag is set to false', async () => {
+      const operation = new GroupLoader<User>({
+        throwIfLoadError: false,
+        dataSources: [new ThrowingGroupedLoader()],
+      })
+
+      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(result).toEqual([])
+    })
+
+    it('does not throw when flag is set, but loader can resolve the value', async () => {
+      const cache = new DummyGroupedCache(userValuesUndefined)
+      const loader = new DummyGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        asyncCache: cache,
+        dataSources: [loader],
+        throwIfUnresolved: true,
+      })
+
+      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      expect(value).toEqual([user1])
+    })
+
+    it('logs error during load', async () => {
+      const consoleSpy = vitest.spyOn(console, 'error')
+      const operation = new GroupLoader<User>({ dataSources: [new ThrowingGroupedLoader()], throwIfLoadError: true })
+
+      await expect(() => {
+        return operation.getMany([user1.userId], user1.companyId, idResolver)
+      }).rejects.toThrow(/Error has occurred/)
+
+      expect(consoleSpy).toHaveBeenCalledTimes(1)
+    })
+
+    it('resets loading operation after value was not found previously', async () => {
+      const loader = new DummyGroupedLoader(userValuesUndefined)
+      const operation = new GroupLoader<User>({ dataSources: [loader] })
+
+      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      expect(value).toEqual([])
+
+      loader.groupValues = null
+      const value2 = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      expect(value2).toEqual([])
+
+      loader.groupValues = userValues
+      const value3 = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      expect(value3).toEqual([user1])
+    })
+
+    it('resets loading operation after error during load', async () => {
+      const loader = new TemporaryThrowingGroupedLoader(userValues)
+      const operation = new GroupLoader({ dataSources: [loader] })
+
+      await expect(() => {
+        return operation.getMany([user1.userId], user1.companyId, idResolver)
+      }).rejects.toThrow(/Error has occurred/)
+
+      loader.isThrowing = false
+      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      expect(value).toEqual([user1])
+    })
+
+    it('correctly handles error during cache update', async () => {
+      const consoleSpy = vitest.spyOn(console, 'error')
+      const operation = new GroupLoader<User>({
+        asyncCache: new ThrowingGroupedCache(),
+        dataSources: [new DummyGroupedLoader(userValues)],
+      })
+
+      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(value).toEqual([user1])
+      expect(consoleSpy).toHaveBeenCalledTimes(2)
+    })
+
+    it('returns value when resolved via single loader', async () => {
+      const operation = new GroupLoader<User>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      // @ts-ignore
+      operation.inMemoryCache.setForGroup(user1.userId, user1, user1.companyId)
+
+      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(result).toEqual([user1])
+    })
+
+    it('returns value when resolved via multiple loaders', async () => {
+      const asyncCache = new DummyGroupedCache(userValuesUndefined)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: asyncCache,
+      })
+      await asyncCache.setForGroup(user1.userId, user1, user1.companyId)
+
+      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(result).toEqual([user1])
+    })
+
+    it('updates upper level cache when resolving value downstream', async () => {
+      const cache2 = new DummyGroupedCache(userValuesUndefined)
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = cache1.getFromGroup(user1.userId, user1.companyId)
+      await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const valuePost = cache1.getFromGroup(user1.userId, user1.companyId)
+      const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
+
+      expect(valuePre).toBeUndefined()
+      expect(valuePost).toEqual(user1)
+      expect(valuePost2).toEqual(user1)
+    })
+
+    it('passes loadParams to the loader', async () => {
+      const cache2 = new DummyGroupedCache(userValuesUndefined)
+      const operation = new GroupLoader<User, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyGroupedLoaderWithParams(userValues)],
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
+      await operation.getMany([user1.userId], user1.companyId, idResolver, { prefix: 'pre', suffix: 'post' })
+      const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
+      const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
+
+      expect(valuePre).toBeUndefined()
+      expect(valuePost).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
+      expect(valuePost2).toEqual({ companyId: '1', parametrized: 'prepost', userId: '1' })
+    })
+
+    it('correctly reuses value from cache', async () => {
+      const cache2 = new DummyGroupedCache(userValuesUndefined)
+      const loader1 = new CountingGroupedLoader(userValuesUndefined)
+      const loader2 = new CountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [loader1, loader2],
+      })
+
+      const valuePre = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const valuePost = await operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      expect(valuePre).toEqual([user1])
+      expect(valuePost).toEqual([user1])
+      expect(loader2.counter).toBe(1)
+    })
+
+    it('does not batch identical retrievals', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({ dataSources: [loader] })
+      const valuePromise = operation.getMany([user1.userId], user1.companyId, idResolver)
+      const valuePromise2 = operation.getMany([user1.userId], user1.companyId, idResolver)
+
+      const value = await valuePromise
+      const value2 = await valuePromise2
+
+      expect(value).toEqual([user1])
+      expect(value2).toEqual([user1])
+      expect(loader.counter).toBe(2)
     })
   })
 

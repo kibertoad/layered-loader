@@ -108,7 +108,7 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     return undefined
   }
 
-  protected async resolveManyValues(
+  protected override async resolveManyValues(
     keys: string[],
     idResolver: IdResolver<LoadedValue>,
     loadParams?: LoaderParams,

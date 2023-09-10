@@ -68,7 +68,20 @@ export class DummyGroupedCache implements GroupCache<User> {
     return Promise.resolve(undefined)
   }
 
-  getManyFromGroup(): Promise<GetManyResult<User>> {
-    throw new Error('Not implemented')
+  getManyFromGroup(keys: string[], group: string): Promise<GetManyResult<User>> {
+    const groupValues = this.groupValues?.[group] ?? {}
+    const foundValues: User[] = Object.values(groupValues).filter((entry) => {
+      return entry && keys.includes(entry.userId)
+    }) as User[]
+    const unresolvedKeys = keys.filter((entry) => {
+      return !foundValues.find((foundValue) => {
+        return entry === foundValue.userId
+      })
+    })
+
+    return Promise.resolve({
+      resolvedValues: foundValues,
+      unresolvedKeys,
+    })
   }
 }

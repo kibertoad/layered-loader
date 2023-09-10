@@ -99,7 +99,7 @@ describe('RedisCache', () => {
       await cache.set('key2', 'value2')
       await cache.set('key3', 'value3')
 
-      const values = await cache.getManyCached(['key', 'key2'])
+      const values = await cache.getMany(['key', 'key2'])
       expect(values).toEqual({
         unresolvedKeys: ['key'],
         resolvedValues: ['value2'],
@@ -112,7 +112,7 @@ describe('RedisCache', () => {
       await cache.set('key2', 'value2')
       await cache.set('key3', 'value3')
 
-      const values = await cache.getManyCached(['key', 'key2'])
+      const values = await cache.getMany(['key', 'key2'])
       expect(values).toEqual({
         unresolvedKeys: [],
         resolvedValues: ['value', 'value2'],
