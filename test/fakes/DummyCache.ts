@@ -36,6 +36,11 @@ export class DummyCache implements Cache<string> {
     return Promise.resolve(undefined)
   }
 
+  deleteMany(_keys: string[]): Promise<unknown> {
+    this.value = undefined
+    return Promise.resolve(undefined)
+  }
+
   set(_key: string, value: string | null): Promise<void> {
     this.value = value ?? undefined
     return Promise.resolve(undefined)

@@ -20,6 +20,10 @@ export class DummyNotificationConsumer extends AbstractNotificationConsumer<stri
     this.targetCache.delete(key)
   }
 
+  deleteMany(keys: string[]) {
+    this.targetCache.deleteMany(keys)
+  }
+
   clear() {
     this.targetCache.clear()
   }

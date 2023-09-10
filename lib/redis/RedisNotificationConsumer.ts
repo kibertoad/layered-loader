@@ -1,7 +1,11 @@
 import type { SynchronousCache } from '../types/SyncDataSources'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type { Redis } from 'ioredis'
-import type { DeleteNotificationCommand, NotificationCommand } from './RedisNotificationPublisher'
+import type {
+  DeleteManyNotificationCommand,
+  DeleteNotificationCommand,
+  NotificationCommand,
+} from './RedisNotificationPublisher'
 
 export type RedisConsumerConfig = {
   channel: string
@@ -36,6 +40,10 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 
         if (parsedMessage.actionId === 'DELETE') {
           return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
+        }
+
+        if (parsedMessage.actionId === 'DELETE_MANY') {
+          return this.targetCache.deleteMany((parsedMessage as DeleteManyNotificationCommand).keys)
         }
 
         if (parsedMessage.actionId === 'CLEAR') {

@@ -46,6 +46,12 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
     this.cache.delete(key)
   }
 
+  deleteMany(keys: string[]): void {
+    for (let i = 0; i < keys.length; i++) {
+      this.delete(keys[i])
+    }
+  }
+
   get(key: string): T | null | undefined {
     return this.cache.get(key)
   }

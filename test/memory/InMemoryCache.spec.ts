@@ -240,4 +240,23 @@ describe('InMemoryCache', () => {
       expect(value2).toBe('value2')
     })
   })
+
+  describe('deleteMany', () => {
+    it('deletes multiple values', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+      cache.set('key', 'value')
+      cache.set('key2', 'value2')
+      cache.set('key3', 'value3')
+
+      cache.deleteMany(['key', 'key3'])
+
+      const value1 = cache.get('key')
+      const value2 = cache.get('key2')
+      const value3 = cache.get('key3')
+
+      expect(value1).toBeUndefined()
+      expect(value2).toBe('value2')
+      expect(value3).toBeUndefined()
+    })
+  })
 })
