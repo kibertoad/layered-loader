@@ -18,6 +18,54 @@ This library has three main goals:
 2. Enable fallback mechanism for retrieving data when alternate sources exist;
 3. Prevent redundant data retrieval in high-load systems.
 
+
+## Feature Comparison
+
+Since there are a few cache solutions, here is a table comparing them:
+
+| Feature                                  | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [dataloader](https://github.com/graphql/dataloader) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) |
+|:-----------------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:---------------------------------------------------:|:-------------------------------------------------------------------------:|
+| Single Entity Fetch                      |                               ✓                               |                                  ✓                                   |                          ✓                          |                                     ✓                                     |
+| Bulk Entity Fetch                        |                               ✓                               |                                  ✓                                   |                          ✓                          |                                     ✓                                     |
+| Single Entity Fetch Deduplication        |                               ✓                               |                                  ✓                                   |                          ✓                          |                                                                           |
+| Bulk Entity Fetch Deduplication          |                                                               |                                                                      |                          ✓                          |                                                                           |
+| Ahead-Of-Time Cache Refresh              |                               ✓                               |                                                                      |                                                     |                                                                           |
+| Group Support                            |                               ✓                               |                partially, references for invalidation                |                                                     |                                                                           |
+| Redis Support                            |                               ✓                               |                                  ✓                                   |                                                     |                                     ✓                                     |
+| Redis Key Prefixing                      |                               ✓                               |                                  ✓                                   |                          ✓                          |                                     ✓                                     |
+| Synchronous In-Memory Cache Access       |                               ✓                               |                                                                      |                                                     |                                                                           |
+| Distributed In-Memory Cache Invalidation |                               ✓                               |                                                                      |                                                     |                                                                           |
+| Hit/Miss/Expiration Tracking             |                               ✓                               |                      partially, hooks available                      |                                                     |                                                                           |
+| Support For Custom Cache Stores          |                               ✓                               |                                  ✓                                   |                          ✓                          |                                     ✓                                     |
+| Optimized for                            |                        Broad-Scope Use                        |                  Single Entity Fetch Deduplication                   |           Bulk Entity Fetch Deduplication           |                              Manual Caching                               |
+
+## Performance Comparison
+
+You can find all the benchmarks used for the comparison in [NodeJS benchmark repo](https://github.com/kibertoad/nodejs-benchmark-tournament). Please let us know if they can be made more accurate!
+
+### In-Memory Store
+
+Higher is better:
+
+| Feature - Ops/sec              | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [dataloader](https://github.com/graphql/dataloader) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) | [toad-cache](https://github.com/kibertoad/toad-cache) | [tiny-lru](https://github.com/avoidwork/tiny-lru) |
+|:-------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:---------------------------------------------------:|:-------------------------------------------------------------------------:|:-----------------------------------------------------:|:-------------------------------------------------:|
+| Single Entity Fetch            |                           3836.436                            |                               446.146                                |                       717.420                       |                                   ToDo                                    |                       4191.279                        |                     3818.146                      |
+| Bulk Entity Fetch              |                                                               |                                                                      |                                                     |                                                                           |                                                       |                                                   |
+| Concurrent Single Entity Fetch |                                                               |                                                                      |                                                     |                                                                           |                                                       |                                                   |
+| Concurrent Bulk Entity Fetch   |                                                               |                                                                      |                                                     |                                                                           |                                                       |                                                   |
+
+### Redis Store
+
+Higher is better:
+
+| Feature - Ops/sec              | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) | [ioredis](https://github.com/redis/ioredis) |
+|:-------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:-------------------------------------------------------------------------:|:-------------------------------------------:|
+| Single Entity Fetch            |                                                               |                                                                      |                                                                           |                                             |
+| Bulk Entity Fetch              |                                                               |                                                                      |                                                                           |                                             |
+| Concurrent Single Entity Fetch |                            167.745                            |                               124.854                                |                                  40.234                                   |                   47.775                    |
+| Concurrent Bulk Entity Fetch   |                                                               |                                                                      |                                                                           |                                             |
+
+
 ## Basic concepts
 
 ### 
