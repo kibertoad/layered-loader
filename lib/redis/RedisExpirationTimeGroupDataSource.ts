@@ -11,4 +11,8 @@ export class RedisExpirationTimeGroupDataSource implements GroupDataSource<numbe
   getFromGroup(key: string, group: string): Promise<number | undefined> {
     return this.parentAsyncCache.getExpirationTimeFromGroup(key, group)
   }
+
+  getManyFromGroup(): Promise<number[]> {
+    throw new Error('Not supported')
+  }
 }

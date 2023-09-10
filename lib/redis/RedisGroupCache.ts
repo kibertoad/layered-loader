@@ -1,4 +1,4 @@
-import type { GroupCache, GroupCacheConfiguration, GroupDataSource } from '../types/DataSources'
+import type { GroupCache, GroupCacheConfiguration } from '../types/DataSources'
 import type Redis from 'ioredis'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 import { GroupLoader } from '../GroupLoader'
@@ -13,10 +13,7 @@ export interface RedisGroupCacheConfiguration extends RedisCacheConfiguration, G
   groupTtlInMsecs?: number
 }
 
-export class RedisGroupCache<T>
-  extends AbstractRedisCache<RedisGroupCacheConfiguration, T>
-  implements GroupCache<T>, GroupDataSource<T>
-{
+export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfiguration, T> implements GroupCache<T> {
   public readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
   public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis group cache'

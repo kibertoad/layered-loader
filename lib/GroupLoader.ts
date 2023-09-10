@@ -87,7 +87,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     loadParams?: LoaderParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // load what is available from async cache
-    const cachedValues = await super.resolveManyGroupValues(keys, group, loadParams)
+    const cachedValues = await super.resolveManyGroupValues(keys, group, idResolver, loadParams)
 
     // everything was cached, no need to load anything
     if (cachedValues.unresolvedKeys.length === 0) {
