@@ -18,7 +18,7 @@ export class RedisGroupCache<T>
   implements GroupCache<T>, GroupDataSource<T>
 {
   public readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
-  public readonly ttlLeftBeforeRefreshInMsecs?: number
+  public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis group cache'
 
   constructor(redis: Redis, config: Partial<RedisGroupCacheConfiguration> = {}) {
@@ -146,5 +146,10 @@ export class RedisGroupCache<T>
 
   resolveGroupIndexPrefix(groupId: string) {
     return `${this.config.prefix}${this.config.separator}${GROUP_INDEX_KEY}${this.config.separator}${groupId}`
+  }
+
+  async close() {
+    // prevent refreshes after everything is shutting down to prevent "Error: Connection is closed." errors
+    this.ttlLeftBeforeRefreshInMsecs = 0
   }
 }

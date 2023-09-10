@@ -19,6 +19,7 @@ export interface WriteCache<LoadedValue> {
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
   delete: (key: string) => Promise<unknown>
   clear: () => Promise<unknown>
+  close: () => Promise<unknown>
 }
 
 export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
@@ -34,6 +35,7 @@ export interface GroupWriteCache<LoadedValue> {
   deleteGroup: (group: string) => Promise<unknown>
   deleteFromGroup: (key: string, group: string) => Promise<unknown>
   clear: () => Promise<unknown>
+  close: () => Promise<unknown>
 }
 
 export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {

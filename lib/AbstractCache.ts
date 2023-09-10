@@ -145,6 +145,10 @@ export abstract class AbstractCache<
   }
 
   public async close() {
+    if (this.asyncCache) {
+      await this.asyncCache.close()
+    }
+
     if (this.notificationConsumer) {
       await this.notificationConsumer.close()
     }
