@@ -233,7 +233,7 @@ describe('RedisCache', () => {
       const value = await cache.get('key')
 
       expect(ttl).toBeUndefined()
-      expect(value).toBe(value)
+      expect(value).toBe('value')
     })
 
     it('sets json values correctly', async () => {
@@ -285,7 +285,7 @@ describe('RedisCache', () => {
       expect(value3).toBeUndefined()
     })
 
-    it('sets expiration correctly', async () => {
+    it('sets expiration', async () => {
       const cache = new RedisCache(redis, {
         json: true,
         ttlInMsecs: 10000,
@@ -298,6 +298,122 @@ describe('RedisCache', () => {
       const value2 = await cache.get('key2')
 
       expect(value1).toEqual({ value: 'value' })
+      expect(value2).toEqual({ value: 'value2' })
+    })
+  })
+
+  describe('setMany', () => {
+    it('stores several items without ttl', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: undefined,
+      })
+      await cache.setMany([
+        {
+          key: 'key',
+          value: 'value',
+        },
+        {
+          key: 'key2',
+          value: 'value2',
+        },
+      ])
+
+      const ttl = await cache.getExpirationTime('key')
+      const value = await cache.get('key')
+      const ttl2 = await cache.getExpirationTime('key2')
+      const value2 = await cache.get('key2')
+
+      expect(ttl).toBeUndefined()
+      expect(value).toBe('value')
+      expect(ttl2).toBeUndefined()
+      expect(value2).toBe('value2')
+    })
+
+    it('stores several items with ttl', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: 9999,
+      })
+      await cache.setMany([
+        {
+          key: 'key',
+          value: 'value',
+        },
+        {
+          key: 'key2',
+          value: 'value2',
+        },
+      ])
+
+      const ttl = await cache.getExpirationTime('key')
+      const value = await cache.get('key')
+      const ttl2 = await cache.getExpirationTime('key2')
+      const value2 = await cache.get('key2')
+
+      expect(ttl).toEqual(expect.any(Number))
+      expect(value).toBe('value')
+      expect(ttl2).toEqual(expect.any(Number))
+      expect(value2).toBe('value2')
+    })
+
+    it('stores several JSON items without ttl', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: undefined,
+        json: true,
+      })
+      await cache.setMany([
+        {
+          key: 'key',
+          value: {
+            value: 'value',
+          },
+        },
+        {
+          key: 'key2',
+          value: {
+            value: 'value2',
+          },
+        },
+      ])
+
+      const ttl = await cache.getExpirationTime('key')
+      const value = await cache.get('key')
+      const ttl2 = await cache.getExpirationTime('key2')
+      const value2 = await cache.get('key2')
+
+      expect(ttl).toBeUndefined()
+      expect(value).toEqual({ value: 'value' })
+      expect(ttl2).toBeUndefined()
+      expect(value2).toEqual({ value: 'value2' })
+    })
+
+    it('stores several JSON items with ttl', async () => {
+      const cache = new RedisCache(redis, {
+        ttlInMsecs: 9999,
+        json: true,
+      })
+      await cache.setMany([
+        {
+          key: 'key',
+          value: {
+            value: 'value',
+          },
+        },
+        {
+          key: 'key2',
+          value: {
+            value: 'value2',
+          },
+        },
+      ])
+
+      const ttl = await cache.getExpirationTime('key')
+      const value = await cache.get('key')
+      const ttl2 = await cache.getExpirationTime('key2')
+      const value2 = await cache.get('key2')
+
+      expect(ttl).toEqual(expect.any(Number))
+      expect(value).toEqual({ value: 'value' })
+      expect(ttl2).toEqual(expect.any(Number))
       expect(value2).toEqual({ value: 'value2' })
     })
   })

@@ -37,6 +37,12 @@ export class ThrowingCache implements Cache<string> {
     })
   }
 
+  setMany(): Promise<unknown> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
   getExpirationTime(): Promise<number> {
     return Promise.resolve(99999)
   }

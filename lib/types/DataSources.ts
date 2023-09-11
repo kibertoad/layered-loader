@@ -15,8 +15,14 @@ export interface GroupCacheConfiguration extends CommonCacheConfiguration {
   ttlCacheGroupSize?: number
 }
 
+export type CacheEntry<LoadedValue> = {
+  key: string
+  value: LoadedValue
+}
+
 export interface WriteCache<LoadedValue> {
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
+  setMany: (entries: readonly CacheEntry<LoadedValue>[]) => Promise<unknown>
   delete: (key: string) => Promise<unknown>
   deleteMany: (keys: string[]) => Promise<unknown>
   clear: () => Promise<unknown>

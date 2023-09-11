@@ -1,5 +1,5 @@
 import type { CommonCacheConfig } from './AbstractCache'
-import type { Cache, DataSource, GroupCache, IdResolver } from './types/DataSources'
+import type { Cache, CacheEntry, DataSource, GroupCache, IdResolver } from './types/DataSources'
 import { AbstractFlatCache } from './AbstractFlatCache'
 import type { InMemoryCacheConfiguration } from './memory'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
@@ -124,13 +124,20 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     const loadValues = await this.loadManyFromLoaders(cachedValues.unresolvedKeys, loadParams)
 
     if (this.asyncCache) {
-      for (let i = 0; i < loadValues.length; i++) {
-        const resolvedValue = loadValues[i]
-        const id = idResolver(resolvedValue)
-        await this.asyncCache.set(id, resolvedValue).catch((err) => {
-          this.cacheUpdateErrorHandler(err, id, this.asyncCache!, this.logger)
-        })
-      }
+      const cacheEntries: CacheEntry<LoadedValue>[] = loadValues.map((loadValue) => {
+        return {
+          key: idResolver(loadValue),
+          value: loadValue,
+        }
+      })
+      await this.asyncCache.setMany(cacheEntries).catch((err) => {
+        this.cacheUpdateErrorHandler(
+          err,
+          cacheEntries.map((entry) => entry.key).join(', '),
+          this.asyncCache!,
+          this.logger,
+        )
+      })
     }
 
     return {

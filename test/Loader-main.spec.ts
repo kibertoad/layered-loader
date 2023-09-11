@@ -17,6 +17,7 @@ import { getTimestamp } from './utils/dateUtils'
 import type { IdResolver } from '../lib/types/DataSources'
 import { expect } from 'vitest'
 import { DummyRecordCache } from './fakes/DummyRecordCache'
+import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 
 const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
@@ -580,8 +581,11 @@ describe('Loader Main', () => {
     })
 
     it('does not throw when flag is set, but loader can resolve the value', async () => {
-      const cache = new DummyCache(undefined)
-      const loader = new DummyLoader('value')
+      const cache = new DummyRecordCache({})
+      const loader = new CountingRecordLoader({
+        key: 'value',
+        key2: 'value2',
+      })
 
       const operation = new Loader<string>({
         asyncCache: cache,
@@ -590,7 +594,7 @@ describe('Loader Main', () => {
       })
 
       const value = await operation.getMany(['key', 'key2'], idResolver)
-      expect(value).toEqual(['value', 'value'])
+      expect(value).toEqual(['value', 'value2'])
     })
 
     it('logs error during load', async () => {
@@ -675,13 +679,19 @@ describe('Loader Main', () => {
     })
 
     it('updates upper level cache when resolving value downstream', async () => {
-      const asyncCache = new DummyCache(undefined)
+      const asyncCache = new DummyRecordCache({})
       const operation = new Loader<string>({
         inMemoryCache: {
           ...IN_MEMORY_CACHE_CONFIG,
         },
         asyncCache: asyncCache,
-        dataSources: [new DummyLoader(undefined), new DummyLoader('value')],
+        dataSources: [
+          new CountingRecordLoader({}),
+          new CountingRecordLoader({
+            key: 'value',
+            key2: 'value2',
+          }),
+        ],
       })
       // @ts-ignore
       const inMemoryCache = operation.inMemoryCache
@@ -706,7 +716,7 @@ describe('Loader Main', () => {
     })
 
     it('passes loadParams to the loader', async () => {
-      const cache2 = new DummyCache(undefined)
+      const cache2 = new DummyRecordCache({})
       const operation = new Loader<string, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
@@ -735,9 +745,12 @@ describe('Loader Main', () => {
     })
 
     it('correctly reuses value from cache', async () => {
-      const cache2 = new DummyCache(undefined)
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const cache2 = new DummyRecordCache({})
+      const loader1 = new CountingRecordLoader({})
+      const loader2 = new CountingRecordLoader({
+        key: 'value',
+        key2: 'value2',
+      })
 
       const operation = new Loader<string>({
         inMemoryCache: {
@@ -751,14 +764,17 @@ describe('Loader Main', () => {
       const valuePre = await operation.getMany(['key', 'key2'], idResolver)
       const valuePost = await operation.getMany(['key', 'key2'], idResolver)
 
-      expect(valuePre).toEqual(['value', 'value'])
-      expect(valuePost).toEqual(['value', 'value'])
+      expect(valuePre).toEqual(['value', 'value2'])
+      expect(valuePost).toEqual(['value', 'value2'])
       expect(loader2.counter).toBe(1)
     })
 
     // Batching multiple very different queries is likely to be very complex and hit perf hard
     it('does not batch identical retrievals together', async () => {
-      const loader = new CountingLoader('value')
+      const loader = new CountingRecordLoader({
+        key: 'value',
+        key2: 'value2',
+      })
 
       const operation = new Loader<string>({ dataSources: [loader] })
       const valuePromise = operation.getMany(['key', 'key2'], idResolver)
@@ -769,8 +785,8 @@ describe('Loader Main', () => {
       const value2 = await valuePromise2
       const value3 = await valuePromise3
 
-      expect(value).toEqual(['value', 'value'])
-      expect(value2).toEqual(['value', 'value'])
+      expect(value).toEqual(['value', 'value2'])
+      expect(value2).toEqual(['value', 'value2'])
       expect(value3).toBe('value')
       expect(loader.counter).toBe(3)
     })

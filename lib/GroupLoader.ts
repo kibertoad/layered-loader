@@ -100,6 +100,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
       for (let i = 0; i < loadValues.length; i++) {
         const resolvedValue = loadValues[i]
         const id = idResolver(resolvedValue)
+        // ToDo replace with a bulk operation
         await this.asyncCache.setForGroup(id, resolvedValue, group).catch((err) => {
           this.cacheUpdateErrorHandler(err, id, this.asyncCache!, this.logger)
         })
