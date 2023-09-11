@@ -31,6 +31,12 @@ export class ThrowingGroupedCache implements GroupCache<User> {
     })
   }
 
+  setManyForGroup(): Promise<unknown> {
+    return Promise.resolve().then(() => {
+      throw new Error('Error has occurred')
+    })
+  }
+
   deleteGroup(): Promise<void> {
     return Promise.resolve().then(() => {
       throw new Error('Error has occurred')
