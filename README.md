@@ -4,7 +4,7 @@
 ![](https://github.com/kibertoad/layered-loader/workflows/ci/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/kibertoad/layered-loader/badge.svg?branch=main)](https://coveralls.io/r/kibertoad/layered-loader?branch=main)
 
-Data source agnostic data loader with support for in-memory and async caching and fallback data sources.
+Data source agnostic data loader with support for in-memory and async caching, fetch deduplication and fallback data sources.
 
 ## Prerequisites
 
@@ -15,8 +15,9 @@ Node: 16+
 This library has three main goals:
 
 1. Provide transparent, high performance, flexible caching mechanism for data retrieval operations;
-2. Enable fallback mechanism for retrieving data when alternate sources exist;
-3. Prevent redundant data retrieval in high-load systems.
+2. Prevent redundant data retrieval in high-load systems;
+3. Support distributed in-memory cache invalidation to prevent stale data in cache;
+4. Enable fallback mechanism for retrieving data when alternate sources exist;
 
 
 ## Feature Comparison
@@ -78,8 +79,8 @@ There are two main entity types defined by `layered-loader`:
 
 Loaders and caches are composed out of the following building blocks.
 
-1. **InMemoryCache** - synchronous in-memory cache. Offers highest possible performance, but is generally very short-lived, as it cannot be explicitly invalidated within a distributed system
-2. **AsyncCache** - asynchronous remote cache. Slower than in-memory cache, but can be invalidated easily, as it is shared across all nodes of a distributed system.
+1. **InMemoryCache** - synchronous in-memory cache. Offers highest possible performance. If used with a longer TTL, you should consider using a notification Publisher/Consumer pair for distributed cache invalidation, to prevent your cached data from becoming stale;
+2. **AsyncCache** - asynchronous remote cache. Slower than in-memory cache, but can be invalidated more easily, as it is shared across all nodes of a distributed system.
 3. **Data Source** - primary source of truth of data, that can be used for populating caches. Used in a strictly read-only mode.
 
 - `layered-loader` will try loading the data from the data source defined for the Loader, in the following order: InMemory, AsyncCache, DataSources. In case `undefined` value is the result of retrieval, next source in sequence will be used, until there is either a value, or there are no more sources available;
@@ -121,6 +122,12 @@ class ClassifiersDataSource implements DataSource<Record<string, any>> {
       })
     return results[0]
   }
+
+    async getMany(keys: string[]): Promise<Record<string, any>[]> {
+        return this.db('classifiers')
+            .select('*')
+            .whereIn('id', keys.map(parseInt))
+    }
 }
 
 const loader = new Loader<string>({
@@ -157,8 +164,10 @@ Loader has the following config parameters:
 Loader provides following methods:
 
 - `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this Loader;
+- `invalidateCacheForMany(keys: string[]): Promise<void>` - expunge all entries for given keys from all caches of this Loader;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
-- `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which they were passed to the Loader constructor.
+- `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which those data sources passed to the Loader constructor.
+- `getMany(keys: string[], idResolver: (entity: T) => string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor.
 
 ## Parametrized loading
 
