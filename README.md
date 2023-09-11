@@ -12,13 +12,12 @@ Node: 16+
 
 ## Use-cases
 
-This library has three main goals:
+This library has four main goals:
 
 1. Provide transparent, high performance, flexible caching mechanism for data retrieval operations;
 2. Prevent redundant data retrieval in high-load systems;
 3. Support distributed in-memory cache invalidation to prevent stale data in cache;
 4. Enable fallback mechanism for retrieving data when alternate sources exist;
-
 
 ## Feature Comparison
 
