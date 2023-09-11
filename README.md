@@ -167,7 +167,7 @@ Loader provides following methods:
 - `invalidateCacheForMany(keys: string[]): Promise<void>` - expunge all entries for given keys from all caches of this Loader;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
 - `get(key: string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which those data sources passed to the Loader constructor.
-- `getMany(keys: string[], idResolver: (entity: T) => string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor.
+- `getMany(keys: string[], idResolver: (entity: T) => string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Note that this retrieval mode doesn't support neither fetch deduplication nor the preemptive background refresh.
 
 ## Parametrized loading
 
@@ -368,9 +368,11 @@ const cachedValue =
     || await loader.getAsyncOnly('key')
 ```
 
-### Background refresh
+### Preemptive background refresh
 
 ToDo
+
+Note that bulk operations (`getMany()` do not support preemptive background refresh)
 
 ## Group operations
 
