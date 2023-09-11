@@ -150,6 +150,164 @@ describe('RedisGroupCache', () => {
     })
   })
 
+  describe('setManyForGroup', () => {
+    it('stores several items without ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        ttlInMsecs: undefined,
+      })
+      await cache.setManyForGroup(
+        [
+          {
+            key: 'key',
+            value: 'value',
+          },
+          {
+            key: 'key2',
+            value: 'value2',
+          },
+        ],
+        'group',
+      )
+
+      const ttl = await cache.getExpirationTimeFromGroup('key', 'group')
+      const value = await cache.getFromGroup('key', 'group')
+      const ttl2 = await cache.getExpirationTimeFromGroup('key2', 'group')
+      const value2 = await cache.getFromGroup('key2', 'group')
+
+      expect(ttl).toBeUndefined()
+      expect(value).toBe('value')
+      expect(ttl2).toBeUndefined()
+      expect(value2).toBe('value2')
+    })
+
+    it('stores several items with ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        ttlInMsecs: 9999,
+      })
+      await cache.setManyForGroup(
+        [
+          {
+            key: 'key',
+            value: 'value',
+          },
+          {
+            key: 'key2',
+            value: 'value2',
+          },
+        ],
+        'group',
+      )
+
+      const ttl = await cache.getExpirationTimeFromGroup('key', 'group')
+      const value = await cache.getFromGroup('key', 'group')
+      const ttl2 = await cache.getExpirationTimeFromGroup('key2', 'group')
+      const value2 = await cache.getFromGroup('key2', 'group')
+
+      expect(ttl).toEqual(expect.any(Number))
+      expect(value).toBe('value')
+      expect(ttl2).toEqual(expect.any(Number))
+      expect(value2).toBe('value2')
+    })
+
+    it('stores several items with ttl and group ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        ttlInMsecs: 9999,
+        groupTtlInMsecs: 999999,
+      })
+      await cache.setManyForGroup(
+        [
+          {
+            key: 'key',
+            value: 'value',
+          },
+          {
+            key: 'key2',
+            value: 'value2',
+          },
+        ],
+        'group',
+      )
+
+      const ttl = await cache.getExpirationTimeFromGroup('key', 'group')
+      const value = await cache.getFromGroup('key', 'group')
+      const ttl2 = await cache.getExpirationTimeFromGroup('key2', 'group')
+      const value2 = await cache.getFromGroup('key2', 'group')
+
+      expect(ttl).toEqual(expect.any(Number))
+      expect(value).toBe('value')
+      expect(ttl2).toEqual(expect.any(Number))
+      expect(value2).toBe('value2')
+    })
+
+    it('stores several JSON items without ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        json: true,
+        ttlInMsecs: undefined,
+      })
+      await cache.setManyForGroup(
+        [
+          {
+            key: 'key',
+            value: {
+              value: 'value',
+            },
+          },
+          {
+            key: 'key2',
+            value: {
+              value: 'value2',
+            },
+          },
+        ],
+        'group',
+      )
+
+      const ttl = await cache.getExpirationTimeFromGroup('key', 'group')
+      const value = await cache.getFromGroup('key', 'group')
+      const ttl2 = await cache.getExpirationTimeFromGroup('key2', 'group')
+      const value2 = await cache.getFromGroup('key2', 'group')
+
+      expect(ttl).toBeUndefined()
+      expect(value).toEqual({ value: 'value' })
+      expect(ttl2).toBeUndefined()
+      expect(value2).toEqual({ value: 'value2' })
+    })
+
+    it('stores several JSON items with ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        json: true,
+        ttlInMsecs: 99999,
+      })
+      await cache.setManyForGroup(
+        [
+          {
+            key: 'key',
+            value: {
+              value: 'value',
+            },
+          },
+          {
+            key: 'key2',
+            value: {
+              value: 'value2',
+            },
+          },
+        ],
+        'group',
+      )
+
+      const ttl = await cache.getExpirationTimeFromGroup('key', 'group')
+      const value = await cache.getFromGroup('key', 'group')
+      const ttl2 = await cache.getExpirationTimeFromGroup('key2', 'group')
+      const value2 = await cache.getFromGroup('key2', 'group')
+
+      expect(ttl).toEqual(expect.any(Number))
+      expect(value).toEqual({ value: 'value' })
+      expect(ttl2).toEqual(expect.any(Number))
+      expect(value2).toEqual({ value: 'value2' })
+    })
+  })
+
   describe('clear', () => {
     it('clears values', async () => {
       const cache = new RedisGroupCache(redis)

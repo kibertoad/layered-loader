@@ -1,4 +1,4 @@
-import type { GroupCache, GroupCacheConfiguration } from '../types/DataSources'
+import type { GroupCache, GroupCacheConfiguration, CacheEntry } from '../types/DataSources'
 import type Redis from 'ioredis'
 import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 import { GroupLoader } from '../GroupLoader'
@@ -135,6 +135,43 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     if (this.ttlLeftBeforeRefreshInMsecs) {
       void this.expirationTimeLoadingGroupedOperation.invalidateCacheFor(key, groupId)
     }
+  }
+
+  async setManyForGroup(entries: readonly CacheEntry<T>[], groupId: string): Promise<unknown> {
+    const getGroupKeyPromise = this.config.groupTtlInMsecs
+      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
+      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+
+    const currentGroupKey = await getGroupKeyPromise
+
+    if (this.config.ttlInMsecs) {
+      const setCommands = []
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]
+        setCommands.push([
+          'set',
+          this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey),
+          entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
+          'PX',
+          this.config.ttlInMsecs,
+        ])
+      }
+
+      return this.redis.multi(setCommands).exec()
+    }
+
+    // No TTL set
+    const commandParam = []
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      commandParam.push(this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey))
+      commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
+    }
+    return this.redis.mset(commandParam)
   }
 
   resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {

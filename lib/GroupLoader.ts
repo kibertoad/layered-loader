@@ -1,4 +1,4 @@
-import type { GroupCache, GroupDataSource, IdResolver } from './types/DataSources'
+import type { GroupCache, GroupDataSource, IdResolver, CacheEntry } from './types/DataSources'
 import type { LoaderConfig } from './Loader'
 import { AbstractGroupCache } from './AbstractGroupCache'
 import type { InMemoryGroupCacheConfiguration, InMemoryGroupCache } from './memory/InMemoryGroupCache'
@@ -97,14 +97,21 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     const loadValues = await this.loadManyFromLoaders(cachedValues.unresolvedKeys, group, loadParams)
 
     if (this.asyncCache) {
-      for (let i = 0; i < loadValues.length; i++) {
-        const resolvedValue = loadValues[i]
-        const id = idResolver(resolvedValue)
-        // ToDo replace with a bulk operation
-        await this.asyncCache.setForGroup(id, resolvedValue, group).catch((err) => {
-          this.cacheUpdateErrorHandler(err, id, this.asyncCache!, this.logger)
-        })
-      }
+      const cacheEntries: CacheEntry<LoadedValue>[] = loadValues.map((loadValue) => {
+        return {
+          key: idResolver(loadValue),
+          value: loadValue,
+        }
+      })
+
+      await this.asyncCache.setManyForGroup(cacheEntries, group).catch((err) => {
+        this.cacheUpdateErrorHandler(
+          err,
+          cacheEntries.map((entry) => entry.key).join(', '),
+          this.asyncCache!,
+          this.logger,
+        )
+      })
     }
 
     return {

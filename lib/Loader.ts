@@ -130,6 +130,7 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
           value: loadValue,
         }
       })
+
       await this.asyncCache.setMany(cacheEntries).catch((err) => {
         this.cacheUpdateErrorHandler(
           err,

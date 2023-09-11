@@ -39,6 +39,7 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
 
 export interface GroupWriteCache<LoadedValue> {
   setForGroup: (key: string, value: LoadedValue | null, group: string) => Promise<void>
+  setManyForGroup: (entries: readonly CacheEntry<LoadedValue>[], group: string) => Promise<unknown>
   deleteGroup: (group: string) => Promise<unknown>
   deleteFromGroup: (key: string, group: string) => Promise<unknown>
   clear: () => Promise<unknown>
