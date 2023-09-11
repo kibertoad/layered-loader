@@ -1,4 +1,4 @@
-import type { Cache } from '../types/DataSources'
+import type { Cache, CacheEntry } from '../types/DataSources'
 import type Redis from 'ioredis'
 import { Loader } from '../Loader'
 import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
@@ -85,6 +85,33 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
         void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
       }
     })
+  }
+
+  setMany(entries: readonly CacheEntry<T>[]): Promise<unknown> {
+    if (this.config.ttlInMsecs) {
+      const setCommands = []
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]
+        setCommands.push([
+          'set',
+          this.resolveKey(entry.key),
+          entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
+          'PX',
+          this.config.ttlInMsecs,
+        ])
+      }
+
+      return this.redis.multi(setCommands).exec()
+    }
+
+    // No TTL set
+    const commandParam = []
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      commandParam.push(this.resolveKey(entry.key))
+      commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
+    }
+    return this.redis.mset(commandParam)
   }
 
   async close() {

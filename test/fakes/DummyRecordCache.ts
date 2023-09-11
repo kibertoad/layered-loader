@@ -1,4 +1,4 @@
-import type { Cache } from '../../lib/types/DataSources'
+import type { Cache, CacheEntry } from '../../lib/types/DataSources'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
 import type { User } from '../types/testTypes'
 
@@ -10,7 +10,7 @@ export class DummyRecordCache implements Cache<string> {
   readonly ttlLeftBeforeRefreshInMsecs: 999999
 
   constructor(returnedValues: Record<string, string>) {
-    this.values = returnedValues
+    this.values = returnedValues ?? {}
   }
 
   get(key: string): Promise<string | undefined | null> {
@@ -18,19 +18,27 @@ export class DummyRecordCache implements Cache<string> {
   }
 
   getMany(keys: string[]): Promise<GetManyResult<string>> {
-    const foundValues: string[] = Object.values(this.values).filter((entry) => {
-      return entry && keys.includes(entry)
-    }) as string[]
-    const unresolvedKeys = keys.filter((entry) => {
-      return !foundValues.find((foundValue) => {
-        return entry === foundValue
+    const foundValues: string[] = Object.entries(this.values)
+      .filter(([key, value]) => {
+        return value && keys.includes(key)
       })
+      .map((entry) => entry[1])
+
+    const unresolvedKeys = keys.filter((key) => {
+      return !Object.prototype.hasOwnProperty.call(this.values, key)
     })
 
     return Promise.resolve({
       resolvedValues: foundValues,
       unresolvedKeys,
     })
+  }
+
+  setMany(entries: readonly CacheEntry<string>[]): Promise<unknown> {
+    for (let entry of entries) {
+      this.values[entry.key] = entry.value
+    }
+    return Promise.resolve()
   }
 
   clear(): Promise<void> {
