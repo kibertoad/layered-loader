@@ -149,11 +149,23 @@ export abstract class AbstractCache<
       await this.asyncCache.close()
     }
 
+    /* c8 ignore start */
     if (this.notificationConsumer) {
-      await this.notificationConsumer.close()
+      try {
+        await this.notificationConsumer.close()
+      } catch (err) {
+        // @ts-ignore
+        this.logger.error(`Failed to close notification consumer: ${err.message}`)
+      }
     }
     if (this.notificationPublisher) {
-      await this.notificationPublisher.close()
+      try {
+        await this.notificationPublisher.close()
+      } catch (err) {
+        // @ts-ignore
+        this.logger.error(`Failed to close notification publisher: ${err.message}`)
+      }
     }
+    /* c8 ignore stop */
   }
 }

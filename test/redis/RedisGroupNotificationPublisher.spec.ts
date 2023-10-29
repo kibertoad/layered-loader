@@ -7,6 +7,7 @@ import { createGroupNotificationPair } from '../../lib/redis/RedisGroupNotificat
 import { GroupLoader } from '../../lib/GroupLoader'
 import { DummyGroupedCache } from '../fakes/DummyGroupedCache'
 import type { User } from '../types/testTypes'
+import { setTimeout } from 'timers/promises'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
@@ -319,5 +320,32 @@ describe('RedisGroupNotificationPublisher', () => {
     })
 
     await operation.invalidateCacheFor('key', 'group')
+  })
+
+  it('Handles connection error on delete', async () => {
+    expect.assertions(1)
+    const { publisher: notificationPublisher, consumer: notificationConsumer } = createGroupNotificationPair({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
+    await redisPublisher.quit()
+
+    const operation = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumer,
+      notificationPublisher: notificationPublisher,
+      logger: {
+        error: (err) => {
+          expect(err).toBe('Error while publishing notification to channel test_channel: Connection is closed.')
+        },
+      },
+    })
+
+    await operation.invalidateCacheFor('key', 'group')
+
+    await setTimeout(1)
+    await setTimeout(1)
   })
 })
