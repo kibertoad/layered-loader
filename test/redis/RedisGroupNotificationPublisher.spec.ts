@@ -346,5 +346,6 @@ describe('RedisGroupNotificationPublisher', () => {
     await operation.invalidateCacheFor('key', 'group')
 
     await setTimeout(1)
+    await setTimeout(1)
   })
 })

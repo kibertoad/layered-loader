@@ -272,6 +272,7 @@ describe('RedisNotificationPublisher', () => {
     await operation.invalidateCacheFor('key')
 
     await setTimeout(1)
+    await setTimeout(1)
   })
 
   it('Handles error by default', async () => {
