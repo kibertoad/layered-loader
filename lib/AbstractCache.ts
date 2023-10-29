@@ -111,12 +111,22 @@ export abstract class AbstractCache<
       }
       this.notificationConsumer = config.notificationConsumer
       this.notificationConsumer.setTargetCache(this.inMemoryCache)
-      this.initPromises.push(this.notificationConsumer.subscribe())
+      this.initPromises.push(
+        this.notificationConsumer.subscribe().catch((err) => {
+          /* c8 ignore next 1 */
+          this.notificationConsumer!.errorHandler(err, this.notificationConsumer!.serverUuid, this.logger)
+        }),
+      )
     }
 
     if (config.notificationPublisher) {
       this.notificationPublisher = config.notificationPublisher
-      this.initPromises.push(this.notificationPublisher.subscribe())
+      this.initPromises.push(
+        this.notificationPublisher.subscribe().catch((err) => {
+          /* c8 ignore next 1 */
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+      )
     }
 
     this.runningLoads = new Map()
