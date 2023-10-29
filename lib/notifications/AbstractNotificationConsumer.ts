@@ -1,4 +1,12 @@
 import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
+import type { Logger } from '../util/Logger'
+
+export type ConsumerErrorHandler = (err: Error, channel: string, logger: Logger) => void
+
+/* c8 ignore next 3 */
+export const DEFAULT_NOTIFICATION_ERROR_HANDLER: ConsumerErrorHandler = (err, serverUuid, logger) => {
+  logger.error(`Notification consumer error for server UUID ${serverUuid}: ${err.message}`)
+}
 
 export abstract class AbstractNotificationConsumer<
   LoadedValue,
@@ -8,10 +16,12 @@ export abstract class AbstractNotificationConsumer<
 > {
   // @ts-ignore
   protected targetCache: InMemoryCacheType
-  protected serverUuid: string
+  public readonly errorHandler: ConsumerErrorHandler
+  public serverUuid: string
 
-  constructor(serverUuid: string) {
+  constructor(serverUuid: string, errorHandler?: ConsumerErrorHandler) {
     this.serverUuid = serverUuid
+    this.errorHandler = errorHandler ?? DEFAULT_NOTIFICATION_ERROR_HANDLER
   }
 
   setTargetCache(targetCache: InMemoryCacheType) {
