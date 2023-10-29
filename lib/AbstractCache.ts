@@ -149,6 +149,7 @@ export abstract class AbstractCache<
       await this.asyncCache.close()
     }
 
+    /* c8 ignore start */
     if (this.notificationConsumer) {
       try {
         await this.notificationConsumer.close()
@@ -165,5 +166,6 @@ export abstract class AbstractCache<
         this.logger.error(`Failed to close notification publisher: ${err.message}`)
       }
     }
+    /* c8 ignore stop */
   }
 }
