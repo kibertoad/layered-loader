@@ -1,15 +1,14 @@
 <div align="center"> <a href="https://fastify.dev/">
     <img
       src="https://raw.githubusercontent.com/kibertoad/layered-loader/main/graphics/raw/layered-loader_full-color_transparent.svg"
-      width="650"
+      width="450"
       height="auto"
     />
   </a>
 </div>
 
-# layered-loader
-
 [![npm version](http://img.shields.io/npm/v/layered-loader.svg)](https://npmjs.org/package/layered-loader)
+[![](https://img.shields.io/npm/dm/layered-loader.svg)](https://npmjs.org/package/layered-loader)
 ![](https://github.com/kibertoad/layered-loader/workflows/ci/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/kibertoad/layered-loader/badge.svg?branch=main)](https://coveralls.io/r/kibertoad/layered-loader?branch=main)
 
