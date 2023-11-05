@@ -14,6 +14,8 @@
 
 Data source agnostic data loader with support for in-memory and async caching, fetch deduplication and fallback data sources.
 
+Special thanks to Diana Baužytė for creating the project logo!
+
 ## Prerequisites
 
 Node: 16+
