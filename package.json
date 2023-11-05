@@ -44,7 +44,9 @@
     "redis",
     "memory",
     "fifo",
-    "lru"
+    "lru",
+    "read-through",
+    "refresh-ahead"
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
