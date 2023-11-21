@@ -9,7 +9,7 @@
     "declarationMap": false,
     "types": ["node", "vitest/globals"],
     "strict": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
