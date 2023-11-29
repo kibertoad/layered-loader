@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "12.4.0",
+  "version": "12.4.1",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
@@ -50,25 +50,25 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "toad-cache": "^3.3.1-RC7"
+    "toad-cache": "^3.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.6.0",
-    "@typescript-eslint/eslint-plugin": "^6.6.0",
-    "@typescript-eslint/parser": "^6.6.0",
+    "@types/node": "^20.10.1",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
     "@vitest/coverage-v8": "0.34.6",
     "del-cli": "^5.1.0",
-    "eslint": "^8.49.0",
+    "eslint": "^8.54.0",
     "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-import": "^2.28.1",
-    "eslint-plugin-prettier": "^5.0.0",
-    "eslint-plugin-vitest": "^0.3.1",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "eslint-plugin-vitest": "^0.3.10",
     "ioredis": "^5.3.2",
-    "prettier": "^3.0.3",
+    "prettier": "^3.1.0",
     "rfdc": "^1.3.0",
     "vitest": "0.34.6",
     "vite": "4.5.0",
-    "typescript": "5.2.2"
+    "typescript": "5.3.2"
   },
   "files": [
     "README.md",
