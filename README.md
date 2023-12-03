@@ -161,6 +161,45 @@ const loader = new Loader<string>({
 const classifier = await loader.get('1')
 ```
 
+### Simplified loader syntax
+
+It is also possible to inline datasource definition:
+
+```ts
+const loader = new Loader<string>({
+    // this cache will be checked first
+    inMemoryCache: {
+        cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+        ttlInMsecs: 1000 * 60,
+        maxItems: 100,
+    },
+
+    // this cache will be checked if in-memory one returns undefined
+    asyncCache: new RedisCache(ioRedis, {
+        json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+        ttlInMsecs: 1000 * 60 * 10,
+    }),
+    
+    // data source will be generated from one or both provided data loading functions
+    dataSourceGetOneFn: async (key: string) => {
+    const results = await this.db('classifiers')
+        .select('*')
+        .where({
+            id: parseInt(key),
+        })
+    return results[0]
+    },
+    dataSourceGetManyFn: (keys: string[]) => {
+    return this.db('classifiers')
+        .select('*')
+        .whereIn('id', keys.map(parseInt))
+    }
+})
+
+// If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
+const classifier = await loader.get('1')
+```
+
 ## Loader API
 
 Loader has the following config parameters:

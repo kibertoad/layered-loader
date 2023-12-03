@@ -360,6 +360,19 @@ describe('Loader Main', () => {
     })
   })
 
+  describe('constructor', () => {
+    it('throws an error if both datasource and datasource fns are provided', () => {
+      expect(() => {
+        new Loader({
+          dataSources: [],
+          dataSourceGetOneFn: () => {
+            return Promise.resolve('x')
+          },
+        })
+      }).toThrow(/Cannot set both/)
+    })
+  })
+
   describe('get', () => {
     it('returns undefined when fails to resolve value', async () => {
       const operation = new Loader({})
@@ -459,6 +472,36 @@ describe('Loader Main', () => {
       const result = await operation.get('key')
 
       expect(result).toBe('value')
+    })
+
+    it('returns value when resolved via generated loader', async () => {
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSourceGetOneFn: (key) => {
+          if (key === 'key') {
+            return Promise.resolve('value')
+          }
+          throw new Error('Not found')
+        },
+      })
+
+      const result = await operation.get('key')
+
+      expect(result).toBe('value')
+    })
+
+    it('throws an error if requested generated loader is not set', async () => {
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSourceGetManyFn: (keys) => {
+          if (keys[0] === 'key') {
+            return Promise.resolve(['value'])
+          }
+          throw new Error('Not found')
+        },
+      })
+
+      await expect(operation.get('key')).rejects.toThrow(/Retrieval of a single entity is not/)
     })
 
     it('returns value when resolved via multiple loaders', async () => {
@@ -662,6 +705,37 @@ describe('Loader Main', () => {
       const result = await operation.getMany(['key'], idResolver)
 
       expect(result).toEqual(['value'])
+    })
+
+    it('returns value when resolved via generated loader', async () => {
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSourceGetManyFn: (keys: string[]) => {
+          if (keys.includes('key')) {
+            return Promise.resolve(['value'])
+          }
+
+          throw new Error('Not found')
+        },
+      })
+
+      const result = await operation.getMany(['key'], idResolver)
+
+      expect(result).toEqual(['value'])
+    })
+
+    it('throws an error if requested generated loader is not set', async () => {
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSourceGetOneFn: (key) => {
+          if (key === 'key') {
+            return Promise.resolve('value')
+          }
+          throw new Error('Not found')
+        },
+      })
+
+      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(/Retrieval of multiple entities/)
     })
 
     it('returns value when resolved via multiple caches', async () => {

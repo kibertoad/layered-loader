@@ -6,6 +6,7 @@ import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCach
 import type { SynchronousCache, SynchronousGroupCache, GetManyResult } from './types/SyncDataSources'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import { GeneratedDataSource } from './GeneratedDataSource'
 
 export type LoaderConfig<
   LoadedValue,
@@ -23,6 +24,9 @@ export type LoaderConfig<
     | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
 > = {
   dataSources?: readonly DataSourceType[]
+  dataSourceGetOneFn?: (key: string, loadParams?: LoaderParams) => Promise<LoadedValue | undefined | null>
+  dataSourceGetManyFn?: (keys: string[], loadParams?: LoaderParams) => Promise<LoadedValue[]>
+  dataSourceName?: string
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
 } & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType>
@@ -35,7 +39,30 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
 
   constructor(config: LoaderConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
     super(config)
-    this.dataSources = config.dataSources ?? []
+
+    // generated datasource
+    if (config.dataSourceGetManyFn || config.dataSourceGetOneFn) {
+      if (config.dataSources) {
+        throw new Error('Cannot set both "dataSources" and "dataSourceGetManyFn"/"dataSourceGetOneFn" parameters.')
+      }
+
+      this.dataSources = [
+        new GeneratedDataSource({
+          dataSourceGetOneFn: config.dataSourceGetOneFn,
+          dataSourceGetManyFn: config.dataSourceGetManyFn,
+          name: config.dataSourceName,
+        }),
+      ]
+    }
+    // defined datasource
+    else if (config.dataSources) {
+      this.dataSources = config.dataSources
+    }
+    // no datasource
+    else {
+      this.dataSources = []
+    }
+
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.isKeyRefreshing = new Set()
