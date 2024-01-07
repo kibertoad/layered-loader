@@ -10,6 +10,7 @@ export interface InMemoryGroupCacheConfiguration extends CommonCacheConfiguratio
   globalStatisticsRecord?: HitStatisticsRecord
   cacheType?: CacheTypeId
   groupCacheType?: CacheTypeId
+  groupTtlInMsecs?: number
   maxGroups?: number
   maxItemsPerGroup?: number
 }
@@ -19,6 +20,7 @@ const DEFAULT_GROUP_CONFIGURATION = {
   groupCacheType: 'lru-object',
   maxGroups: 1000,
   maxItemsPerGroup: 500,
+  groupTtlInMsecs: 0, // does not expire
 } satisfies Omit<InMemoryGroupCacheConfiguration, 'ttlInMsecs'>
 
 export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
@@ -40,7 +42,13 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
       config.groupCacheType ?? DEFAULT_GROUP_CONFIGURATION.groupCacheType,
     )
 
-    this.groups = new this.groupCacheConstructor(config.maxGroups ?? DEFAULT_GROUP_CONFIGURATION.maxGroups)
+    this.groups = new this.groupCacheConstructor(
+      config.maxGroups ?? DEFAULT_GROUP_CONFIGURATION.maxGroups,
+      config.groupTtlInMsecs ?? DEFAULT_GROUP_CONFIGURATION.groupTtlInMsecs,
+      config.cacheId ? `${config.cacheId} (groups)` : config.cacheId,
+      // @ts-ignore
+      config.globalStatisticsRecord,
+    )
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_GROUP_CONFIGURATION.maxItemsPerGroup
     this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
@@ -57,7 +65,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
     const newGroupCache = new this.cacheConstructor(
       this.maxItemsPerGroup,
       this.ttlInMsecs,
-      this.cacheId,
+      this.cacheId ? `${this.cacheId} (group ${groupId})` : this.cacheId,
       // @ts-ignore
       this.globalStatisticsRecord,
     )
