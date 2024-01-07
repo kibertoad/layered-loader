@@ -1,6 +1,8 @@
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
 import { setTimeout } from 'timers/promises'
 import { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
+import { describe } from 'vitest'
+import { HitStatisticsRecord } from 'toad-cache'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 
@@ -20,6 +22,59 @@ describe('InMemoryCache', () => {
       cache.setForGroup('key', 'value', 'group')
       const postValue = cache.getFromGroup('key', 'group')
       expect(postValue).toBe('value')
+    })
+  })
+
+  describe('getFromGroup', () => {
+    beforeEach(() => {
+      vitest.useFakeTimers()
+      vitest.setSystemTime(new Date('2024-01-02'))
+    })
+
+    afterEach(() => {
+      vitest.useRealTimers()
+    })
+
+    it('Updates statistics if set', () => {
+      const statistics = new HitStatisticsRecord()
+      const cache = new InMemoryGroupCache({
+        cacheId: 'MyCache',
+        globalStatisticsRecord: statistics,
+        cacheType: 'lru-object-statistics',
+        groupCacheType: 'lru-object-statistics',
+        maxGroups: 2,
+        ttlInMsecs: 1,
+      })
+      cache.setForGroup('key', 'value', 'group')
+      cache.setForGroup('key', 'value', 'group2')
+
+      cache.getFromGroup('key', 'group')
+      cache.setForGroup('key', 'value2', 'group')
+      cache.getFromGroup('key', 'group')
+
+      expect(statistics.records).toEqual({
+        'MyCache (group group)': {
+          '2024-01-02': {
+            expirations: 0,
+            hits: 2,
+            misses: 0,
+          },
+        },
+        'MyCache (group group2)': {
+          '2024-01-02': {
+            expirations: 0,
+            hits: 0,
+            misses: 0,
+          },
+        },
+        'MyCache (groups)': {
+          '2024-01-02': {
+            expirations: 0,
+            hits: 3,
+            misses: 2,
+          },
+        },
+      })
     })
   })
 

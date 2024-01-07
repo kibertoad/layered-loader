@@ -50,7 +50,7 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "toad-cache": "^3.3.1"
+    "toad-cache": "^3.4.1"
   },
   "devDependencies": {
     "@types/node": "^20.10.2",
