@@ -22,7 +22,8 @@
     "lint": "eslint . --ext .ts && prettier --check --log-level warn \"**/*.{json,md,ts}\"",
     "lint:fix": "eslint .  --ext .ts --fix && prettier --write --log-level silent \"**/*.{json,md,ts}\"",
     "prettier": "prettier --write \"{lib,test}/**/*.{js,ts}\" index.ts",
-    "prepublishOnly": "npm run build:release"
+    "prepublishOnly": "npm run build:release",
+    "update:dependencies": "npx npm-check-updates -u"
   },
   "engines": {
     "node": ">=16"
