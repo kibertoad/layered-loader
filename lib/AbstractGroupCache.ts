@@ -4,7 +4,7 @@ import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSourc
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 
-export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
+export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupCache<LoadedValue>,
@@ -33,13 +33,13 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     }
   }
 
-  public getInMemoryOnly(key: string, group: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
+  public getInMemoryOnly(key: string, group: string, loadParams?: LoadParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
       const groupLoads = this.resolveGroupLoads(group)
       if (!groupLoads.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
         if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-          void this.getAsyncOnly(key, group, resolveParams)
+          void this.getAsyncOnly(key, group, loadParams)
         }
       }
     }
@@ -52,18 +52,14 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     return this.inMemoryCache.getManyFromGroup(keys, group)
   }
 
-  public getAsyncOnly(
-    key: string,
-    group: string,
-    resolveParams?: ResolveParams,
-  ): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(key: string, group: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
       return existingLoad
     }
 
-    const loadingPromise = this.resolveGroupValue(key, group, resolveParams)
+    const loadingPromise = this.resolveGroupValue(key, group, loadParams)
     groupLoads.set(key, loadingPromise)
 
     loadingPromise
@@ -84,10 +80,10 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     keys: string[],
     group: string,
     idResolver: IdResolver<LoadedValue>,
-    resolveParams?: ResolveParams,
+    loadParams?: LoadParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // This doesn't support deduplication, and never might, as that would affect perf strongly. Maybe as an opt-in option in the future?
-    return this.resolveManyGroupValues(keys, group, idResolver, resolveParams).then((result) => {
+    return this.resolveManyGroupValues(keys, group, idResolver, loadParams).then((result) => {
       for (let i = 0; i < result.resolvedValues.length; i++) {
         const resolvedValue = result.resolvedValues[i]
         const id = idResolver(resolvedValue)
@@ -97,20 +93,20 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     })
   }
 
-  public get(key: string, group: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.getInMemoryOnly(key, group, resolveParams)
+  public get(key: string, group: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
+    const inMemoryValue = this.getInMemoryOnly(key, group, loadParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(key, group, resolveParams)
+    return this.getAsyncOnly(key, group, loadParams)
   }
 
   public getMany(
     keys: string[],
     group: string,
     idResolver: IdResolver<LoadedValue>,
-    resolveParams?: ResolveParams,
+    loadParams?: LoadParams,
   ): Promise<LoadedValue[]> {
     const inMemoryValues = this.getManyInMemoryOnly(keys, group)
     // everything is in memory, hurray
@@ -118,7 +114,7 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
       return Promise.resolve(inMemoryValues.resolvedValues)
     }
 
-    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, group, idResolver, resolveParams).then(
+    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, group, idResolver, loadParams).then(
       (asyncRetrievedValues) => {
         return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
       },
@@ -146,7 +142,7 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
   protected async resolveGroupValue(
     key: string,
     group: string,
-    _resolveParams?: ResolveParams,
+    _loadParams?: LoadParams,
   ): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.getFromGroup(key, group).catch((err) => {
@@ -163,7 +159,7 @@ export abstract class AbstractGroupCache<LoadedValue, ResolveParams = undefined>
     keys: string[],
     group: string,
     _idResolver: IdResolver<LoadedValue>,
-    _resolveParams?: ResolveParams,
+    _loadParams?: LoadParams,
   ) {
     if (this.asyncCache) {
       return this.asyncCache.getManyFromGroup(keys, group).catch((err) => {

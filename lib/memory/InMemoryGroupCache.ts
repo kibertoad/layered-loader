@@ -46,7 +46,6 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
       config.maxGroups ?? DEFAULT_GROUP_CONFIGURATION.maxGroups,
       config.groupTtlInMsecs ?? DEFAULT_GROUP_CONFIGURATION.groupTtlInMsecs,
       config.cacheId ? `${config.cacheId} (groups)` : config.cacheId,
-      // @ts-ignore
       config.globalStatisticsRecord,
     )
     this.maxItemsPerGroup = config.maxItemsPerGroup ?? DEFAULT_GROUP_CONFIGURATION.maxItemsPerGroup

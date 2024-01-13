@@ -1,17 +1,17 @@
 import type { CommonCacheConfig } from './AbstractCache'
 import type { Cache, CacheEntry, DataSource, GroupCache, IdResolver } from './types/DataSources'
 import { AbstractFlatCache } from './AbstractFlatCache'
-import type { InMemoryCacheConfiguration } from './memory'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { SynchronousCache, SynchronousGroupCache, GetManyResult } from './types/SyncDataSources'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import { GeneratedDataSource } from './GeneratedDataSource'
+import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
 
 export type LoaderConfig<
   LoadedValue,
-  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   LoaderParams = undefined,
+  CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   DataSourceType = DataSource<LoadedValue, LoaderParams>,
   InMemoryCacheConfigType extends
     | InMemoryCacheConfiguration
@@ -37,7 +37,7 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: LoaderConfig<LoadedValue, Cache<LoadedValue>, LoaderParams>) {
+  constructor(config: LoaderConfig<LoadedValue, LoaderParams, Cache<LoadedValue>>) {
     super(config)
 
     // generated datasource

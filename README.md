@@ -220,13 +220,18 @@ You can use optional parameter `loadParams` for that:
 ```ts
 import type { DataSource } from 'layered-loader'
 
+export type MyLoaderParams = {
+  jwtToken: string
+  entityId: string
+}
+
 class MyParametrizedDataSource implements DataSource<string, MyLoaderParams> {
-  async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
+  async get(_key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
     if (!params) {
       throw new Error('Params were not passed')
     }
 
-    const resolvedValue = await someResolutionLogic(params.jwtToken)
+    const resolvedValue = await someResolutionLogic(params.entityId, params.jwtToken)
     return resolvedValue
   }
 }
@@ -235,7 +240,7 @@ const loader = new Loader<string, MyLoaderParams>({
   inMemoryCache: IN_MEMORY_CACHE_CONFIG,
   dataSources: [new MyParametrizedDataSource()],
 })
-await operation.get('key', { jwtToken: 'someTokenValue' })
+await operation.get('key', { jwtToken: 'someTokenValue', entityId: 'key' })
 ```
 
 ## Update notifications

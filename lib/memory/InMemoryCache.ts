@@ -1,4 +1,4 @@
-import type { CacheConstructor, ToadCache, HitStatisticsRecord } from 'toad-cache'
+import type { ToadCache, HitStatisticsRecord } from 'toad-cache'
 import type { SynchronousCache, GetManyResult } from '../types/SyncDataSources'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
@@ -20,21 +20,19 @@ const DEFAULT_CONFIGURATION = {
 export class InMemoryCache<T> implements SynchronousCache<T> {
   private readonly cache: ToadCache<T | null>
   name = 'In-memory cache'
-  private readonly ttlInMsecs: number | undefined
   public readonly ttlLeftBeforeRefreshInMsecs?: number
-  private readonly cacheConstructor: CacheConstructor<ToadCache<T>>
 
   constructor(config: InMemoryCacheConfiguration) {
-    this.cacheConstructor = resolveCacheConstructor<CacheTypeId, T>(config.cacheType ?? DEFAULT_CONFIGURATION.cacheType)
+    const resolvedConstructor = resolveCacheConstructor<CacheTypeId, T>(
+      config.cacheType ?? DEFAULT_CONFIGURATION.cacheType,
+    )
 
-    this.cache = new this.cacheConstructor(
+    this.cache = new resolvedConstructor(
       config.maxItems ?? DEFAULT_CONFIGURATION.maxItems,
       config.ttlInMsecs ?? 0,
       config.cacheId,
-      // @ts-ignore
       config.globalStatisticsRecord,
     )
-    this.ttlInMsecs = config.ttlInMsecs
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
   }
 
