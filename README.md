@@ -14,7 +14,9 @@
 
 Data source agnostic data loader with support for tiered in-memory and async caching, fetch deduplication and fallback data sources. Implements Cache-Aside, Read-Through and Refresh-Ahead patterns.
 
-Special thanks to Diana Baužytė for creating the project logo!
+Special thanks to Diana Baužytė for creating the project logo.
+
+You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxYg) presenting key innovations introduced in the library!
 
 ## Prerequisites
 
