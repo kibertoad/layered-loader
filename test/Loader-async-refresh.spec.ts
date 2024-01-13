@@ -1,6 +1,6 @@
 import { setTimeout } from 'timers/promises'
 import { Loader } from '../lib/Loader'
-import { CountingLoader } from './fakes/CountingLoader'
+import { CountingDataSource } from './fakes/CountingDataSource'
 import { RedisCache } from '../lib/redis'
 import Redis from 'ioredis'
 import { redisOptions } from './fakes/TestRedisConfig'
@@ -21,7 +21,7 @@ describe('Loader Async', () => {
 
   describe('get', () => {
     it('triggers async background refresh when threshold is set and reached', async () => {
-      const loader = new CountingLoader('value')
+      const loader = new CountingDataSource('value')
       const asyncCache = new RedisCache<string>(redis, {
         ttlInMsecs: 150,
         ttlLeftBeforeRefreshInMsecs: 75,
@@ -108,7 +108,7 @@ describe('Loader Async', () => {
     })
 
     it('async background refresh errors do not crash app', async () => {
-      const loader = new CountingLoader('value')
+      const loader = new CountingDataSource('value')
       const asyncCache = new RedisCache<string>(redis, {
         ttlInMsecs: 150,
         ttlLeftBeforeRefreshInMsecs: 75,

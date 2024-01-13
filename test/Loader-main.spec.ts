@@ -1,8 +1,9 @@
 import { setTimeout } from 'timers/promises'
+import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { DummyLoader } from './fakes/DummyLoader'
-import { CountingLoader } from './fakes/CountingLoader'
+import { DummyDataSource } from './fakes/DummyDataSource'
+import { CountingDataSource } from './fakes/CountingDataSource'
 import { ThrowingLoader } from './fakes/ThrowingLoader'
 import { ThrowingCache } from './fakes/ThrowingCache'
 import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
@@ -15,9 +16,10 @@ import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationC
 import { HitStatisticsRecord } from 'toad-cache'
 import { getTimestamp } from './utils/dateUtils'
 import type { IdResolver } from '../lib/types/DataSources'
-import { expect } from 'vitest'
+import { afterEach, beforeEach, expect, vitest } from 'vitest'
 import { DummyRecordCache } from './fakes/DummyRecordCache'
 import { CountingRecordLoader } from './fakes/CountingRecordLoader'
+import { CountingTimedCache } from './fakes/CountingTimedCache'
 
 const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
@@ -272,7 +274,7 @@ describe('Loader Main', () => {
     })
 
     it('triggers background refresh when threshold is set and reached', async () => {
-      const loader = new CountingLoader('value')
+      const loader = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: {
@@ -402,7 +404,7 @@ describe('Loader Main', () => {
     it('throws when fails to resolve value, and flag is set', async () => {
       const operation = new Loader({
         throwIfUnresolved: true,
-        dataSources: [new DummyLoader(undefined)],
+        dataSources: [new DummyDataSource(undefined)],
       })
 
       await expect(() => {
@@ -412,7 +414,7 @@ describe('Loader Main', () => {
 
     it('does not throw when flag is set, but loader can resolve the value', async () => {
       const cache = new DummyCache(undefined)
-      const loader = new DummyLoader('value')
+      const loader = new DummyDataSource('value')
 
       const operation = new Loader({
         asyncCache: cache,
@@ -435,7 +437,7 @@ describe('Loader Main', () => {
     })
 
     it('resets loading operation after value was not found previously', async () => {
-      const loader = new DummyLoader(undefined)
+      const loader = new DummyDataSource(undefined)
       const operation = new Loader({ dataSources: [loader] })
 
       const value = await operation.get('value')
@@ -465,7 +467,7 @@ describe('Loader Main', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new Loader({ asyncCache: new ThrowingCache(), dataSources: [new DummyLoader('value')] })
+      const operation = new Loader({ asyncCache: new ThrowingCache(), dataSources: [new DummyDataSource('value')] })
       const value = await operation.get('value')
       expect(value).toBe('value')
       expect(consoleSpy).toHaveBeenCalledTimes(2)
@@ -530,7 +532,7 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyLoader(undefined), new DummyLoader('value')],
+        dataSources: [new DummyDataSource(undefined), new DummyDataSource('value')],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -567,8 +569,8 @@ describe('Loader Main', () => {
 
     it('correctly reuses value from cache', async () => {
       const cache2 = new DummyCache(undefined)
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -585,7 +587,7 @@ describe('Loader Main', () => {
     })
 
     it('batches identical retrievals together', async () => {
-      const loader = new CountingLoader('value')
+      const loader = new CountingDataSource('value')
 
       const operation = new Loader<string>({ dataSources: [loader] })
       const valuePromise = operation.get('key')
@@ -622,7 +624,7 @@ describe('Loader Main', () => {
     it('throws when fails to resolve value, and flag is set', async () => {
       const operation = new Loader<string>({
         throwIfUnresolved: true,
-        dataSources: [new DummyLoader(undefined)],
+        dataSources: [new DummyDataSource(undefined)],
       })
 
       await expect(() => {
@@ -668,7 +670,7 @@ describe('Loader Main', () => {
     })
 
     it('resets loading operation after value was not found previously', async () => {
-      const loader = new DummyLoader(undefined)
+      const loader = new DummyDataSource(undefined)
       const operation = new Loader<string>({ dataSources: [loader] })
 
       const value = await operation.getMany(['value'], idResolver)
@@ -698,7 +700,10 @@ describe('Loader Main', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new Loader<string>({ asyncCache: new ThrowingCache(), dataSources: [new DummyLoader('value')] })
+      const operation = new Loader<string>({
+        asyncCache: new ThrowingCache(),
+        dataSources: [new DummyDataSource('value')],
+      })
       const value = await operation.getMany(['value'], idResolver)
       expect(value).toEqual(['value'])
       expect(consoleSpy).toHaveBeenCalledTimes(2)
@@ -876,8 +881,8 @@ describe('Loader Main', () => {
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -896,8 +901,8 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -919,8 +924,8 @@ describe('Loader Main', () => {
   describe('invalidateCacheForMany', () => {
     it('invalidates multiple entries', async () => {
       const cache2 = new DummyRecordCache({})
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -947,8 +952,8 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -970,8 +975,8 @@ describe('Loader Main', () => {
   describe('invalidateCache', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -991,8 +996,8 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
-      const loader1 = new CountingLoader(undefined)
-      const loader2 = new CountingLoader('value')
+      const loader1 = new CountingDataSource(undefined)
+      const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -1008,6 +1013,211 @@ describe('Loader Main', () => {
       expect(valuePre).toBe('value')
       expect(valuePost).toBe('value')
       expect(loader2.counter).toBe(2)
+    })
+  })
+
+  describe('end-to-end', () => {
+    beforeEach(() => {
+      vitest.useFakeTimers({
+        toFake: ['Date'],
+      })
+      vitest.setSystemTime('2024-01-05')
+    })
+
+    afterEach(() => {
+      vitest.useRealTimers()
+    })
+
+    it('Uses long in-memory cache with async cache', async () => {
+      const ONE_HOUR_IN_MSECS = 1000 * 60 * 60
+      const IN_MEMORY_CACHE_TTL = ONE_HOUR_IN_MSECS * 6
+      const IN_MEMORY_CONFIGURATION_BASE: InMemoryCacheConfiguration = {
+        ttlInMsecs: IN_MEMORY_CACHE_TTL,
+        cacheType: 'fifo-map',
+      }
+
+      const asyncCache = new CountingTimedCache(1000, ONE_HOUR_IN_MSECS * 8)
+      const dataSource = new CountingDataSource('value')
+
+      const config: LoaderConfig<string> = {
+        inMemoryCache: {
+          ...IN_MEMORY_CONFIGURATION_BASE,
+          cacheId: 'cache',
+          maxItems: 10000,
+        },
+        asyncCache: asyncCache,
+        dataSources: [dataSource],
+      }
+
+      const key = 'key'
+      const loader = new Loader(config)
+
+      const value1 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value1).toBe('value')
+      expect(asyncCache.counter).toBe(1)
+      expect(dataSource.counter).toBe(1)
+
+      const value2 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value2).toBe('value')
+      expect(asyncCache.counter).toBe(1)
+      expect(dataSource.counter).toBe(1)
+
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS * 5)
+
+      const value3 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value3).toBe('value')
+      expect(asyncCache.counter).toBe(1)
+      expect(dataSource.counter).toBe(1)
+
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS + 1)
+
+      const value4 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value4).toBe('value')
+      expect(asyncCache.counter).toBe(2)
+      expect(dataSource.counter).toBe(1)
+
+      vitest.advanceTimersByTime(IN_MEMORY_CACHE_TTL + 1)
+
+      const value5 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value5).toBe('value')
+      expect(asyncCache.counter).toBe(3)
+      expect(dataSource.counter).toBe(2)
+    })
+
+    it('Uses long in-memory cache', async () => {
+      const ONE_HOUR_IN_MSECS = 1000 * 60 * 60
+      const IN_MEMORY_CACHE_TTL = ONE_HOUR_IN_MSECS * 6
+      const IN_MEMORY_CONFIGURATION_BASE: InMemoryCacheConfiguration = {
+        ttlInMsecs: IN_MEMORY_CACHE_TTL,
+        cacheType: 'fifo-map',
+      }
+
+      const dataSource = new CountingDataSource('value')
+
+      const config: LoaderConfig<string> = {
+        inMemoryCache: {
+          ...IN_MEMORY_CONFIGURATION_BASE,
+          cacheId: 'cache',
+          maxItems: 10000,
+        },
+        dataSources: [dataSource],
+      }
+
+      const key = 'key'
+      const loader = new Loader(config)
+
+      const value1 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value1).toBe('value')
+      expect(dataSource.counter).toBe(1)
+
+      const value2 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value2).toBe('value')
+      expect(dataSource.counter).toBe(1)
+
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS * 5)
+
+      const value3 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value3).toBe('value')
+      expect(dataSource.counter).toBe(1)
+
+      // expire in-memory cache
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS + 1)
+
+      const value4 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value4).toBe('value')
+      expect(dataSource.counter).toBe(2)
+
+      vitest.advanceTimersByTime(IN_MEMORY_CACHE_TTL - 1)
+
+      const value5 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value5).toBe('value')
+      expect(dataSource.counter).toBe(2)
+
+      vitest.advanceTimersByTime(1)
+
+      const value6 = loader.getInMemoryOnly(key) || (await loader.getAsyncOnly(key))
+      expect(value6).toBe('value')
+      expect(dataSource.counter).toBe(3)
+    })
+
+    it('Uses long in-memory cache with nullish caching', async () => {
+      const ONE_HOUR_IN_MSECS = 1000 * 60 * 60
+      const IN_MEMORY_CACHE_TTL = ONE_HOUR_IN_MSECS * 6
+      const IN_MEMORY_CONFIGURATION_BASE: InMemoryCacheConfiguration = {
+        ttlInMsecs: IN_MEMORY_CACHE_TTL,
+        cacheType: 'fifo-map',
+      }
+
+      const dataSource = new CountingDataSource(null)
+
+      const config: LoaderConfig<string> = {
+        inMemoryCache: {
+          ...IN_MEMORY_CONFIGURATION_BASE,
+          cacheId: 'cache',
+          maxItems: 10000,
+        },
+        dataSources: [dataSource],
+      }
+
+      const key = 'key'
+      const loader = new Loader(config)
+
+      let value1: string | undefined | null
+      value1 = loader.getInMemoryOnly(key)
+      if (value1 === undefined) {
+        value1 = await loader.getAsyncOnly(key)
+      }
+      expect(value1).toBeNull()
+      expect(dataSource.counter).toBe(1)
+
+      let value2: string | undefined | null
+      value2 = loader.getInMemoryOnly(key)
+      if (value2 === undefined) {
+        value2 = await loader.getAsyncOnly(key)
+      }
+      expect(value2).toBeNull()
+      expect(dataSource.counter).toBe(1)
+
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS * 5)
+
+      let value3: string | undefined | null
+      value3 = loader.getInMemoryOnly(key)
+      if (value3 === undefined) {
+        value3 = await loader.getAsyncOnly(key)
+      }
+      expect(value3).toBeNull()
+      expect(dataSource.counter).toBe(1)
+
+      // expire in-memory cache
+      vitest.advanceTimersByTime(ONE_HOUR_IN_MSECS + 1)
+
+      let value4: string | undefined | null
+      value4 = loader.getInMemoryOnly(key)
+      if (value4 === undefined) {
+        value4 = await loader.getAsyncOnly(key)
+      }
+      expect(value4).toBeNull()
+      expect(dataSource.counter).toBe(2)
+
+      vitest.advanceTimersByTime(IN_MEMORY_CACHE_TTL - 1)
+
+      let value5: string | undefined | null
+      value5 = loader.getInMemoryOnly(key)
+      if (value5 === undefined) {
+        value5 = await loader.getAsyncOnly(key)
+      }
+      expect(value5).toBeNull()
+      expect(dataSource.counter).toBe(2)
+
+      vitest.advanceTimersByTime(1)
+
+      let value6: string | undefined | null
+      value6 = loader.getInMemoryOnly(key)
+      if (value6 === undefined) {
+        value6 = await loader.getAsyncOnly(key)
+      }
+      expect(value6).toBeNull()
+      expect(dataSource.counter).toBe(3)
     })
   })
 })
