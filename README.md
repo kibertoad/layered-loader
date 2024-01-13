@@ -334,7 +334,7 @@ await userLoader.invalidateCacheFor('key', 'group') // this will transparently i
 
 ## Cache statistics
 
-You can keep track of your cache usage is by using special cache type - `lru-object-statistics`:
+You can keep track of your in-memory cache usage is by using special cache type - `lru-object-statistics`:
 
 ```ts
 import { HitStatisticsRecord, Loader } from 'layered-loader'
