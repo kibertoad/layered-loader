@@ -228,9 +228,16 @@ describe('Loader Main', () => {
       expect(record.records).toEqual({
         'some cache': {
           [timestamp]: {
+            cacheSize: 0,
+            emptyHits: 0,
+            evictions: 0,
             expirations: 0,
+            falsyHits: 0,
             hits: 0,
+            invalidateAll: 0,
+            invalidateOne: 0,
             misses: 1,
+            sets: 0,
           },
         },
       })

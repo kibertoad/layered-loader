@@ -55,23 +55,44 @@ describe('InMemoryCache', () => {
       expect(statistics.records).toEqual({
         'MyCache (group group)': {
           '2024-01-02': {
+            cacheSize: 1,
+            emptyHits: 0,
+            evictions: 0,
             expirations: 0,
+            falsyHits: 0,
             hits: 2,
+            invalidateAll: 0,
+            invalidateOne: 0,
             misses: 0,
+            sets: 2,
           },
         },
         'MyCache (group group2)': {
           '2024-01-02': {
+            cacheSize: 1,
+            emptyHits: 0,
+            evictions: 0,
             expirations: 0,
+            falsyHits: 0,
             hits: 0,
+            invalidateAll: 0,
+            invalidateOne: 0,
             misses: 0,
+            sets: 1,
           },
         },
         'MyCache (groups)': {
           '2024-01-02': {
+            cacheSize: 2,
+            emptyHits: 0,
+            evictions: 0,
             expirations: 0,
+            falsyHits: 0,
             hits: 3,
+            invalidateAll: 0,
+            invalidateOne: 0,
             misses: 2,
+            sets: 2,
           },
         },
       })
