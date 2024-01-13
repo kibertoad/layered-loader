@@ -16,7 +16,7 @@ Data source agnostic data loader with support for tiered in-memory and async cac
 
 Special thanks to Diana Baužytė for creating the project logo.
 
-You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxYg) presenting key innovations introduced in the library!
+You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxYg) for a brief and visual overview of what new features `layered-loader` brings to the table of the Node.js caching.
 
 ## Prerequisites
 
