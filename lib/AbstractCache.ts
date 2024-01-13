@@ -1,5 +1,3 @@
-import type { InMemoryCacheConfiguration } from './memory'
-import { InMemoryCache, NoopCache } from './memory'
 import type { SynchronousGroupCache, SynchronousCache } from './types/SyncDataSources'
 import type { Cache, GroupCache } from './types/DataSources'
 import type { Logger } from './util/Logger'
@@ -9,6 +7,9 @@ import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
+import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
+import { InMemoryCache } from './memory/InMemoryCache'
+import { NoopCache } from './memory/NoopCache'
 
 export type LoaderErrorHandler = (
   err: Error,

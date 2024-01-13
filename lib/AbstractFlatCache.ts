@@ -2,7 +2,7 @@ import { AbstractCache } from './AbstractCache'
 import type { Cache, IdResolver } from './types/DataSources'
 import type { GetManyResult, SynchronousCache } from './types/SyncDataSources'
 
-export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> extends AbstractCache<
+export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> extends AbstractCache<
   LoadedValue,
   Promise<LoadedValue | undefined | null> | undefined,
   Cache<LoadedValue>,
@@ -12,11 +12,11 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
     return false
   }
 
-  public getInMemoryOnly(key: string, resolveParams?: ResolveParams): LoadedValue | undefined | null {
+  public getInMemoryOnly(key: string, loadParams?: LoadParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
       if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-        void this.getAsyncOnly(key, resolveParams)
+        void this.getAsyncOnly(key, loadParams)
       }
     }
 
@@ -28,13 +28,13 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
     return this.inMemoryCache.getMany(keys)
   }
 
-  public getAsyncOnly(key: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(key: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
     }
 
-    const loadingPromise = this.resolveValue(key, resolveParams)
+    const loadingPromise = this.resolveValue(key, loadParams)
     this.runningLoads.set(key, loadingPromise)
 
     loadingPromise
@@ -54,10 +54,10 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
   public getManyAsyncOnly(
     keys: string[],
     idResolver: IdResolver<LoadedValue>,
-    resolveParams?: ResolveParams,
+    loadParams?: LoadParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // This doesn't support deduplication, and never might, as that would affect perf strongly. Maybe as an opt-in option in the future?
-    const loadingPromise = this.resolveManyValues(keys, idResolver, resolveParams)
+    const loadingPromise = this.resolveManyValues(keys, idResolver, loadParams)
 
     return loadingPromise.then((result) => {
       for (let i = 0; i < result.resolvedValues.length; i++) {
@@ -69,34 +69,28 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
     })
   }
 
-  public get(key: string, resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.getInMemoryOnly(key, resolveParams)
+  public get(key: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
+    const inMemoryValue = this.getInMemoryOnly(key, loadParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(key, resolveParams)
+    return this.getAsyncOnly(key, loadParams)
   }
 
-  public getMany(
-    keys: string[],
-    idResolver: IdResolver<LoadedValue>,
-    resolveParams?: ResolveParams,
-  ): Promise<LoadedValue[]> {
+  public getMany(keys: string[], idResolver: IdResolver<LoadedValue>, loadParams?: LoadParams): Promise<LoadedValue[]> {
     const inMemoryValues = this.getManyInMemoryOnly(keys)
     // everything is in memory, hurray
     if (inMemoryValues.unresolvedKeys.length === 0) {
       return Promise.resolve(inMemoryValues.resolvedValues)
     }
 
-    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, idResolver, resolveParams).then(
-      (asyncRetrievedValues) => {
-        return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
-      },
-    )
+    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, idResolver, loadParams).then((asyncRetrievedValues) => {
+      return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
+    })
   }
 
-  protected async resolveValue(key: string, _resolveParams?: ResolveParams): Promise<LoadedValue | undefined | null> {
+  protected async resolveValue(key: string, _loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.get(key).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
@@ -111,7 +105,7 @@ export abstract class AbstractFlatCache<LoadedValue, ResolveParams = undefined> 
   protected async resolveManyValues(
     keys: string[],
     _idResolver: IdResolver<LoadedValue>,
-    _resolveParams?: ResolveParams,
+    _loadParams?: LoadParams,
   ): Promise<GetManyResult<LoadedValue>> {
     if (this.asyncCache) {
       return this.asyncCache.getMany(keys).catch((err) => {

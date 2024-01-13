@@ -7,8 +7,8 @@ import type { GetManyResult } from './types/SyncDataSources'
 
 export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<
   LoadedValue,
-  GroupCache<LoadedValue>,
   LoaderParams,
+  GroupCache<LoadedValue>,
   GroupDataSource<LoadedValue, LoaderParams>,
   InMemoryGroupCacheConfiguration,
   InMemoryGroupCache<LoadedValue>,
