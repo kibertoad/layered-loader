@@ -408,13 +408,13 @@ Note that Loaders are generally recommended over ManualCaches, as they offer bet
 In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval (and unnecessary Promise overhead) altogether in case there is a value already available in in-memory cache. Here is the example:
 
 ```ts
-const loader = new Loader<string>({
+const loader = new Loader<MyValueType>({
   inMemoryCache: {
     // configuration here
   },
 
   // this cache will be checked if in-memory one returns undefined
-  asyncCache: new RedisCache(ioRedis, {
+  asyncCache: new RedisCache<MyValueType>(ioRedis, {
     // configuration here
   }),
   dataSources: [new MyDataSource()],
@@ -431,10 +431,10 @@ Note that this will only work with truthy values. If you expect to get significa
 
 ```ts
 let cachedValue: MyValueType | undefined | null
-cachedValue = loader.getInMemoryOnly('someCacheKey')
+cachedValue = loader.getInMemoryOnly('key')
 
 if (cachedValue === undefined) {
-  cachedValue = await loader.getAsyncOnly('someCacheKey')
+  cachedValue = await loader.getAsyncOnly('key')
 }
 ```
 
@@ -442,9 +442,29 @@ If you are unsure, whether you are caching significant amount of falsy or empty 
 
 ### Preemptive background refresh
 
-ToDo
+In case some of your datasource calls are very expensive, and you want to reduce response latency, you can start preemptively refreshing your cache in background while still serving not-yet-stale current data. In order to do so, you need to set parameter `ttlLeftBeforeRefreshInMsecs`.
+For in-memory cache:
+```ts
+const operation = new Loader<string>({
+  inMemoryCache: {
+    cacheId: 'some-cache',
+    ttlInMsecs: 1000 * 60,
+    ttlLeftBeforeRefreshInMsecs: 1000 * 20, // this means that when there is a GET operation for the cache entry, and it has less than 20 seconds of TTL left, background refresh for this entry will start
+  },
+  // the rest of loader configuration
+})
+```
 
-Note that bulk operations (`getMany()` do not support preemptive background refresh)
+For Redis cache:
+```ts
+const asyncCache = new RedisCache<string>(redis, {
+  ttlInMsecs: 1000 * 60,
+  ttlLeftBeforeRefreshInMsecs: 1000 * 20,
+})// this means that when there is a GET operation for the cache entry, and it has less than 20 seconds of TTL left, background refresh for this entry will start
+```
+
+Note that there is overhead involved in performing refresh checks (especially for Redis). Always measure performance before and after enabling preemptive refresh in order to determine, whether it improves or worsens the performance of your system.
+Bulk operations (`getMany()`) do not support preemptive background refresh.
 
 ## Group operations
 
