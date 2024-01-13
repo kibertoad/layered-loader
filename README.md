@@ -332,9 +332,9 @@ await userLoader.init() // this will ensure that consumers have definitely finis
 await userLoader.invalidateCacheFor('key', 'group') // this will transparently invalidate cache across all instances of your application
 ```
 
-## Hit/miss/expiration statistics
+## Cache statistics
 
-You can keep track of how effective cache is by using special cache type - `lru-object-statistics`:
+You can keep track of your in-memory cache usage is by using special cache type - `lru-object-statistics`:
 
 ```ts
 import { HitStatisticsRecord, Loader } from 'layered-loader'
@@ -354,9 +354,16 @@ operation.getInMemoryOnly('value')
 expect(record.records).toEqual({
   'some cache': {
     '2023-05-20': {
-      expirations: 0,
-      hits: 0,
-      misses: 1,
+      cacheSize: 100, // how many elements does cache currently have
+      evictions: 5, // how many elements were evicted due to cache being at max capacity
+      expirations: 0, // how many elements were removed during get due to their ttl being exceeded
+      hits: 0, // how many times element was successfully retrieved from cache during get
+      emptyHits: 0, // out of all hits, how many were null, undefined or ''?
+      falsyHits: 0, // out of all hits, how many were falsy?
+      misses: 1, // how many times element was not in cache or expired during get
+      invalidateOne: 1, // how many times element was invalidated individually
+      invalidateAll: 2, // how many times entire cache was invalidated
+      sets: 0, // how many times new element was added
     },
   },
 })
@@ -419,6 +426,19 @@ const cachedValue =
   // if we don't, proceed with checking asynchronous cache and datasources
   (await loader.getAsyncOnly('key'))
 ```
+
+Note that this will only work with truthy values. If you expect to get significant amount of falsy values (null for non-existing entries or 0/false), you should use an extended short-circuit syntax:
+
+```ts
+let cachedValue: MyValueType | undefined | null
+cachedValue = loader.getInMemoryOnly('someCacheKey')
+
+if (cachedValue === undefined) {
+  cachedValue = await loader.getAsyncOnly('someCacheKey')
+}
+```
+
+If you are unsure, whether you are caching significant amount of falsy or empty (null/empty string) values, you can enable cache statistics for discovering this data. See section "Cache statistics" for how to set that up.
 
 ### Preemptive background refresh
 

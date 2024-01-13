@@ -1,12 +1,12 @@
 import type { DataSource } from '../../lib/types/DataSources'
 
-export class CountingLoader implements DataSource<string> {
-  public value: string | undefined
+export class CountingDataSource implements DataSource<string> {
+  public value: string | undefined | null
   public counter = 0
   name = 'Counting loader'
   isCache = false
 
-  constructor(returnedValue: string | undefined) {
+  constructor(returnedValue: string | null) {
     this.value = returnedValue
   }
 

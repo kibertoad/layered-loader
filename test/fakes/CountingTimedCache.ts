@@ -1,37 +1,35 @@
 import type { Cache } from '../../lib/types/DataSources'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
 import type { User } from '../types/testTypes'
+import { FifoMap } from 'toad-cache'
 
-export class CountingCache implements Cache<string> {
-  private value: string | undefined
+export class CountingTimedCache implements Cache<string> {
   public counter = 0
   name = 'Counting cache'
-  readonly ttlLeftBeforeRefreshInMsecs = 999999
+  readonly ttlLeftBeforeRefreshInMsecs = 0
   // @ts-ignore
   readonly expirationTimeLoadingOperation = null
+  public readonly cache: FifoMap<string | null>
 
-  constructor(returnedValue: string | undefined) {
-    this.value = returnedValue
+  constructor(maxItems: number, tllInMsecs: number) {
+    this.cache = new FifoMap<string>(maxItems, tllInMsecs)
   }
 
-  get(): Promise<string | undefined | null> {
+  async get(key: string): Promise<string | undefined | null> {
     this.counter++
-    return Promise.resolve(this.value)
+    return this.cache.get(key)
   }
 
-  clear(): Promise<void> {
-    this.value = undefined
-    return Promise.resolve(undefined)
+  async clear(): Promise<void> {
+    this.cache.clear()
   }
 
-  delete(_key: string): Promise<void> {
-    this.value = undefined
-    return Promise.resolve(undefined)
+  async delete(key: string): Promise<void> {
+    this.cache.delete(key)
   }
 
-  set(_key: string, value: string | null): Promise<void> {
-    this.value = value ?? undefined
-    return Promise.resolve(undefined)
+  async set(key: string, value: string | null): Promise<void> {
+    this.cache.set(key, value)
   }
 
   getExpirationTime(): Promise<number> {
