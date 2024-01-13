@@ -34,7 +34,7 @@ This library has four main goals:
 Since there are a few cache solutions, here is a table comparing them:
 
 | Feature                                          | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [dataloader](https://github.com/graphql/dataloader) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) |
-|:-------------------------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:---------------------------------------------------:|:-------------------------------------------------------------------------:|
+| :----------------------------------------------- | :-----------------------------------------------------------: | :------------------------------------------------------------------: | :-------------------------------------------------: | :-----------------------------------------------------------------------: |
 | Single Entity Fetch                              |                               ✓                               |                                  ✓                                   |                          ✓                          |                                     ✓                                     |
 | Bulk Entity Fetch                                |                               ✓                               |                                                                      |                          ✓                          |                                     ✓                                     |
 | Single Entity Fetch Deduplication (Read-Through) |                               ✓                               |                                  ✓                                   |                          ✓                          |                                                                           |
@@ -59,7 +59,7 @@ You can find all the benchmarks used for the comparison in [NodeJS benchmark rep
 Higher is better:
 
 | Feature - Ops/sec              | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [dataloader](https://github.com/graphql/dataloader) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) | [toad-cache](https://github.com/kibertoad/toad-cache) | [tiny-lru](https://github.com/avoidwork/tiny-lru) |
-|:-------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:---------------------------------------------------:|:-------------------------------------------------------------------------:|:-----------------------------------------------------:|:-------------------------------------------------:|
+| :----------------------------- | :-----------------------------------------------------------: | :------------------------------------------------------------------: | :-------------------------------------------------: | :-----------------------------------------------------------------------: | :---------------------------------------------------: | :-----------------------------------------------: |
 | Single Entity Fetch            |                           3836.436                            |                               446.146                                |                       717.420                       |                                   ToDo                                    |                       4191.279                        |                     3818.146                      |
 | Bulk Entity Fetch              |                                                               |                                                                      |                                                     |                                                                           |                                                       |                                                   |
 | Concurrent Single Entity Fetch |                                                               |                                                                      |                                                     |                                                                           |                                                       |                                                   |
@@ -70,16 +70,15 @@ Higher is better:
 Higher is better:
 
 | Feature - Ops/sec              | [layered-loader](https://github.com/kibertoad/layered-loader) | [async-cache-dedupe](https://github.com/mcollina/async-cache-dedupe) | [cache-manager](https://github.com/node-cache-manager/node-cache-manager) | [ioredis](https://github.com/redis/ioredis) |
-|:-------------------------------|:-------------------------------------------------------------:|:--------------------------------------------------------------------:|:-------------------------------------------------------------------------:|:-------------------------------------------:|
+| :----------------------------- | :-----------------------------------------------------------: | :------------------------------------------------------------------: | :-----------------------------------------------------------------------: | :-----------------------------------------: |
 | Single Entity Fetch            |                                                               |                                                                      |                                                                           |                                             |
 | Bulk Entity Fetch              |                                                               |                                                                      |                                                                           |                                             |
 | Concurrent Single Entity Fetch |                            167.745                            |                               124.854                                |                                  40.234                                   |                   47.775                    |
 | Concurrent Bulk Entity Fetch   |                                                               |                                                                      |                                                                           |                                             |
 
-
 ## Basic concepts
 
-### 
+###
 
 There are two main entity types defined by `layered-loader`:
 
@@ -132,29 +131,27 @@ class ClassifiersDataSource implements DataSource<Record<string, any>> {
     return results[0]
   }
 
-    async getMany(keys: string[]): Promise<Record<string, any>[]> {
-        return this.db('classifiers')
-            .select('*')
-            .whereIn('id', keys.map(parseInt))
-    }
+  async getMany(keys: string[]): Promise<Record<string, any>[]> {
+    return this.db('classifiers').select('*').whereIn('id', keys.map(parseInt))
+  }
 }
 
 const loader = new Loader<string>({
-    // this cache will be checked first
-    inMemoryCache: {
-        cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
-        ttlInMsecs: 1000 * 60,
-        maxItems: 100,
-    },
+  // this cache will be checked first
+  inMemoryCache: {
+    cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+    ttlInMsecs: 1000 * 60,
+    maxItems: 100,
+  },
 
-    // this cache will be checked if in-memory one returns undefined
-    asyncCache: new RedisCache(ioRedis, {
-        json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
-        ttlInMsecs: 1000 * 60 * 10,
-    }),
-    
-    // this will be used if neither cache has the requested data
-    dataSources: [new ClassifiersDataSource(db)] 
+  // this cache will be checked if in-memory one returns undefined
+  asyncCache: new RedisCache(ioRedis, {
+    json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+    ttlInMsecs: 1000 * 60 * 10,
+  }),
+
+  // this will be used if neither cache has the requested data
+  dataSources: [new ClassifiersDataSource(db)],
 })
 
 // If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
@@ -167,33 +164,31 @@ It is also possible to inline datasource definition:
 
 ```ts
 const loader = new Loader<string>({
-    // this cache will be checked first
-    inMemoryCache: {
-        cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
-        ttlInMsecs: 1000 * 60,
-        maxItems: 100,
-    },
+  // this cache will be checked first
+  inMemoryCache: {
+    cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+    ttlInMsecs: 1000 * 60,
+    maxItems: 100,
+  },
 
-    // this cache will be checked if in-memory one returns undefined
-    asyncCache: new RedisCache(ioRedis, {
-        json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
-        ttlInMsecs: 1000 * 60 * 10,
-    }),
-    
-    // data source will be generated from one or both provided data loading functions
-    dataSourceGetOneFn: async (key: string) => {
+  // this cache will be checked if in-memory one returns undefined
+  asyncCache: new RedisCache(ioRedis, {
+    json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+    ttlInMsecs: 1000 * 60 * 10,
+  }),
+
+  // data source will be generated from one or both provided data loading functions
+  dataSourceGetOneFn: async (key: string) => {
     const results = await this.db('classifiers')
-        .select('*')
-        .where({
-            id: parseInt(key),
-        })
+      .select('*')
+      .where({
+        id: parseInt(key),
+      })
     return results[0]
-    },
-    dataSourceGetManyFn: (keys: string[]) => {
-    return this.db('classifiers')
-        .select('*')
-        .whereIn('id', keys.map(parseInt))
-    }
+  },
+  dataSourceGetManyFn: (keys: string[]) => {
+    return this.db('classifiers').select('*').whereIn('id', keys.map(parseInt))
+  },
 })
 
 // If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
@@ -223,24 +218,24 @@ Sometimes you need to pass additional parameters for loader in case it will need
 You can use optional parameter `loadParams` for that:
 
 ```ts
-import type { DataSource } from "layered-loader";
+import type { DataSource } from 'layered-loader'
 
 class MyParametrizedDataSource implements DataSource<string, MyLoaderParams> {
-    async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
-        if (!params) {
-            throw new Error('Params were not passed')
-        }
-
-        const resolvedValue = await someResolutionLogic(params.jwtToken)
-        return resolvedValue
+  async get(key: string, params?: MyLoaderParams): Promise<string | undefined | null> {
+    if (!params) {
+      throw new Error('Params were not passed')
     }
+
+    const resolvedValue = await someResolutionLogic(params.jwtToken)
+    return resolvedValue
+  }
 }
 
 const loader = new Loader<string, MyLoaderParams>({
-    inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-    dataSources: [new MyParametrizedDataSource()],
+  inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+  dataSources: [new MyParametrizedDataSource()],
 })
-await operation.get('key', {jwtToken: 'someTokenValue'}) 
+await operation.get('key', { jwtToken: 'someTokenValue' })
 ```
 
 ## Update notifications
@@ -256,13 +251,13 @@ import type { RedisOptions } from 'ioredis'
 import { createNotificationPair, Loader } from 'layered-loader'
 
 const redisOptions: RedisOptions = {
-    host: 'localhost',
-    port: 6379,
-    password: 'sOmE_sEcUrE_pAsS',
+  host: 'localhost',
+  port: 6379,
+  password: 'sOmE_sEcUrE_pAsS',
 }
 
 export type User = {
-    // some type
+  // some type
 }
 
 const redisPublisher = new Redis(redisOptions)
@@ -270,18 +265,18 @@ const redisConsumer = new Redis(redisOptions)
 const redisCache = new Redis(redisOptions)
 
 const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<User>({
-    channel: 'user-cache-notifications',
-    consumerRedis: redisConsumer,
-    publisherRedis: redisPublisher,
+  channel: 'user-cache-notifications',
+  consumerRedis: redisConsumer,
+  publisherRedis: redisPublisher,
 })
 
 const userLoader = new Loader({
-    inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
-    asyncCache: new RedisCache<User>(redisCache, {
-        ttlInMsecs: 1000 * 60 * 60,
-    }),
-    notificationConsumer,
-    notificationPublisher,
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: new RedisCache<User>(redisCache, {
+    ttlInMsecs: 1000 * 60 * 60,
+  }),
+  notificationConsumer,
+  notificationPublisher,
 })
 
 await userLoader.init() // this will ensure that consumers have definitely finished registering on startup, but is not required
@@ -290,19 +285,20 @@ await userLoader.invalidateCacheFor('key') // this will transparently invalidate
 ```
 
 There is an equivalent for group loaders as well:
+
 ```ts
 import Redis from 'ioredis'
 import type { RedisOptions } from 'ioredis'
 import { createGroupNotificationPair, GroupLoader } from 'layered-loader'
 
 const redisOptions: RedisOptions = {
-    host: 'localhost',
-    port: 6379,
-    password: 'sOmE_sEcUrE_pAsS',
+  host: 'localhost',
+  port: 6379,
+  password: 'sOmE_sEcUrE_pAsS',
 }
 
 export type User = {
-    // some type
+  // some type
 }
 
 const redisPublisher = new Redis(redisOptions)
@@ -310,18 +306,18 @@ const redisConsumer = new Redis(redisOptions)
 const redisCache = new Redis(redisOptions)
 
 const { publisher: notificationPublisher, consumer: notificationConsumer } = createGroupNotificationPair<User>({
-    channel: 'user-cache-notifications',
-    consumerRedis: redisConsumer,
-    publisherRedis: redisPublisher,
+  channel: 'user-cache-notifications',
+  consumerRedis: redisConsumer,
+  publisherRedis: redisPublisher,
 })
 
 const userLoader = new GroupLoader({
-    inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
-    asyncCache: new RedisCache<User>(redisCache, {
-        ttlInMsecs: 1000 * 60 * 60,
-    }),
-    notificationConsumer,
-    notificationPublisher,
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: new RedisCache<User>(redisCache, {
+    ttlInMsecs: 1000 * 60 * 60,
+  }),
+  notificationConsumer,
+  notificationPublisher,
 })
 
 await userLoader.init() // this will ensure that consumers have definitely finished registering on startup, but is not required
@@ -338,24 +334,24 @@ import { HitStatisticsRecord, Loader } from 'layered-loader'
 
 const record = new HitStatisticsRecord()
 const operation = new Loader({
-    inMemoryCache: {
-        ttlInMsecs: 99999,
-        cacheId: 'some cache',
-        globalStatisticsRecord: record,
-        cacheType: 'lru-object-statistics',
-    },
+  inMemoryCache: {
+    ttlInMsecs: 99999,
+    cacheId: 'some cache',
+    globalStatisticsRecord: record,
+    cacheType: 'lru-object-statistics',
+  },
 })
 
 operation.getInMemoryOnly('value')
 
 expect(record.records).toEqual({
-    'some cache': {
-        '2023-05-20': {
-            expirations: 0,
-            hits: 0,
-            misses: 1,
-        },
+  'some cache': {
+    '2023-05-20': {
+      expirations: 0,
+      hits: 0,
+      misses: 1,
     },
+  },
 })
 ```
 
@@ -369,23 +365,23 @@ while still having a sequence of caches. In that case you can define a caching o
 
 ```ts
 const cache = new ManualCache<string>({
-    // this cache will be checked first
-    inMemoryCache: {
-        ttlInMsecs: 1000 * 60,
-        maxItems: 100,
-    },
+  // this cache will be checked first
+  inMemoryCache: {
+    ttlInMsecs: 1000 * 60,
+    maxItems: 100,
+  },
 
-    // this cache will be checked if in-memory one returns undefined
-    asyncCache: new RedisCache(ioRedis, {
-        json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
-        ttlInMsecs: 1000 * 60 * 10,
-    }),
+  // this cache will be checked if in-memory one returns undefined
+  asyncCache: new RedisCache(ioRedis, {
+    json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+    ttlInMsecs: 1000 * 60 * 10,
+  }),
 })
 
 // this will populate all caches
 await cache.set('1', 'someValue')
 
-// If any of the caches are still populated at the moment of this operation, 'someValue' will propagate across all caches 
+// If any of the caches are still populated at the moment of this operation, 'someValue' will propagate across all caches
 const classifier = await cache.get('1')
 ```
 
@@ -396,24 +392,25 @@ Note that Loaders are generally recommended over ManualCaches, as they offer bet
 ### Synchronous short-circuit
 
 In case you are handling very heavy load and want to achieve highest possible performance, you can avoid asynchronous retrieval (and unnecessary Promise overhead) altogether in case there is a value already available in in-memory cache. Here is the example:
+
 ```ts
 const loader = new Loader<string>({
-    inMemoryCache: {
-        // configuration here
-    },
+  inMemoryCache: {
+    // configuration here
+  },
 
-    // this cache will be checked if in-memory one returns undefined
-    asyncCache: new RedisCache(ioRedis, {
-        // configuration here
-    }),
-    dataSources: [new MyDataSource()],
+  // this cache will be checked if in-memory one returns undefined
+  asyncCache: new RedisCache(ioRedis, {
+    // configuration here
+  }),
+  dataSources: [new MyDataSource()],
 })
 
-const cachedValue = 
-    // this very quickly checks if we have value in-memory
-    loader.getInMemoryOnly('key')
-    // if we don't, proceed with checking asynchronous cache and datasources
-    || await loader.getAsyncOnly('key')
+const cachedValue =
+  // this very quickly checks if we have value in-memory
+  loader.getInMemoryOnly('key') ||
+  // if we don't, proceed with checking asynchronous cache and datasources
+  (await loader.getAsyncOnly('key'))
 ```
 
 ### Preemptive background refresh
