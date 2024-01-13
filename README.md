@@ -444,6 +444,7 @@ If you are unsure, whether you are caching significant amount of falsy or empty 
 
 In case some of your datasource calls are very expensive, and you want to reduce response latency, you can start preemptively refreshing your cache in background while still serving not-yet-stale current data. In order to do so, you need to set parameter `ttlLeftBeforeRefreshInMsecs`.
 For in-memory cache:
+
 ```ts
 const operation = new Loader<string>({
   inMemoryCache: {
@@ -456,11 +457,12 @@ const operation = new Loader<string>({
 ```
 
 For Redis cache:
+
 ```ts
 const asyncCache = new RedisCache<string>(redis, {
   ttlInMsecs: 1000 * 60,
   ttlLeftBeforeRefreshInMsecs: 1000 * 20,
-})// this means that when there is a GET operation for the cache entry, and it has less than 20 seconds of TTL left, background refresh for this entry will start
+}) // this means that when there is a GET operation for the cache entry, and it has less than 20 seconds of TTL left, background refresh for this entry will start
 ```
 
 Note that there is overhead involved in performing refresh checks (especially for Redis). Always measure performance before and after enabling preemptive refresh in order to determine, whether it improves or worsens the performance of your system.
