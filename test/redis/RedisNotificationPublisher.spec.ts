@@ -1,13 +1,13 @@
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { redisOptions } from '../fakes/TestRedisConfig'
-import { setTimeout } from 'timers/promises'
 import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
+import { redisOptions } from '../fakes/TestRedisConfig'
 
-import { DummyCache } from '../fakes/DummyCache'
-import { waitAndRetry } from '../utils/waitUtils'
 import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
+import { DummyCache } from '../fakes/DummyCache'
 import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
+import { waitAndRetry } from '../utils/waitUtils'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'

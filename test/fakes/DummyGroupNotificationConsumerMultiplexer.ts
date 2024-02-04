@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto'
+import type { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
 import { AbstractNotificationConsumer } from '../../lib/notifications/AbstractNotificationConsumer'
 import type { User } from '../types/testTypes'
-import type { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
 import type { DummyGroupNotificationConsumer } from './DummyGroupNotificationConsumer'
-import { randomUUID } from 'node:crypto'
 
 export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificationConsumer<
   User,
@@ -17,7 +17,7 @@ export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificat
   }
 
   setTargetCache(targetCache: InMemoryGroupCache<User>) {
-    for (let consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       // @ts-ignore
       if (!consumer.targetCache) {
         consumer.setTargetCache(targetCache)
@@ -35,25 +35,25 @@ export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificat
   }
 
   setForGroup(key: string, value: User, group: string) {
-    for (let consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.setForGroup(key, value, group)
     }
   }
 
   deleteFromGroup(key: string, group: string) {
-    for (let consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.deleteFromGroup(key, group)
     }
   }
 
   deleteGroup(group: string) {
-    for (let consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.deleteGroup(group)
     }
   }
 
   clear() {
-    for (let consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.clear()
     }
   }

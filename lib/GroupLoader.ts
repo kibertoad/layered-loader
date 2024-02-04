@@ -1,8 +1,8 @@
-import type { GroupCache, GroupDataSource, IdResolver, CacheEntry } from './types/DataSources'
-import type { LoaderConfig } from './Loader'
 import { AbstractGroupCache } from './AbstractGroupCache'
-import type { InMemoryGroupCacheConfiguration, InMemoryGroupCache } from './memory/InMemoryGroupCache'
+import type { LoaderConfig } from './Loader'
+import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { CacheEntry, GroupCache, GroupDataSource, IdResolver } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
 export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<

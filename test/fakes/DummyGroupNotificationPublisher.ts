@@ -1,7 +1,7 @@
 import type { GroupNotificationPublisher } from '../../lib/notifications/GroupNotificationPublisher'
+import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../../lib/notifications/NotificationPublisher'
 import type { User } from '../types/testTypes'
 import type { DummyGroupNotificationConsumer } from './DummyGroupNotificationConsumer'
-import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../../lib/notifications/NotificationPublisher'
 
 export class DummyGroupNotificationPublisher implements GroupNotificationPublisher<User> {
   public closed = false

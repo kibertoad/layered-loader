@@ -1,7 +1,7 @@
+import { FifoMap } from 'toad-cache'
 import type { Cache } from '../../lib/types/DataSources'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
 import type { User } from '../types/testTypes'
-import { FifoMap } from 'toad-cache'
 
 export class CountingTimedCache implements Cache<string> {
   public counter = 0

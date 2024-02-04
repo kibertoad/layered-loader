@@ -1,13 +1,13 @@
+import Redis from 'ioredis'
 import { ManualGroupCache } from '../lib/ManualGroupCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory'
+import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
+import { CountingGroupedCache } from './fakes/CountingGroupedCache'
+import { DummyGroupedCache } from './fakes/DummyGroupedCache'
+import { TemporaryThrowingGroupedCache } from './fakes/TemporaryThrowingGroupedCache'
+import { redisOptions } from './fakes/TestRedisConfig'
 import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import type { User } from './types/testTypes'
-import Redis from 'ioredis'
-import { redisOptions } from './fakes/TestRedisConfig'
-import { DummyGroupedCache } from './fakes/DummyGroupedCache'
-import { CountingGroupedCache } from './fakes/CountingGroupedCache'
-import type { InMemoryCacheConfiguration } from '../lib/memory'
-import { TemporaryThrowingGroupedCache } from './fakes/TemporaryThrowingGroupedCache'
-import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
 
 const redisCacheConfig = { json: true, ttlInMsecs: 99999, prefix: 'users' }
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration

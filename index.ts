@@ -24,7 +24,12 @@ export type { LoaderConfig } from './lib/Loader'
 export type { CommonCacheConfig } from './lib/AbstractCache'
 export type { GroupLoaderConfig } from './lib/GroupLoader'
 export type { ManualGroupCacheConfig } from './lib/ManualGroupCache'
-export type { DataSource, Cache, CommonCacheConfiguration, IdResolver } from './lib/types/DataSources'
+export type {
+  DataSource,
+  Cache,
+  CommonCacheConfiguration,
+  IdResolver,
+} from './lib/types/DataSources'
 export type { Logger, LogFn } from './lib/util/Logger'
 
 export { HitStatisticsRecord } from 'toad-cache'

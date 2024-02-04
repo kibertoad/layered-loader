@@ -1,19 +1,19 @@
-import type { User } from './types/testTypes'
+import { setTimeout } from 'node:timers/promises'
 import { GroupLoader } from '../lib/GroupLoader'
+import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
+import type { IdResolver } from '../lib/types/DataSources'
+import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
+import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
+import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
-import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
 import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
+import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
+import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
 import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
-import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
-import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
-import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
-import { setTimeout } from 'timers/promises'
-import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
-import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
-import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
-import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
-import type { IdResolver } from '../lib/types/DataSources'
+import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
+import type { User } from './types/testTypes'
 
 const IN_MEMORY_CACHE_CONFIG = {
   cacheId: 'dummy',
@@ -375,7 +375,10 @@ describe('GroupLoader Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new GroupLoader({ dataSources: [new ThrowingGroupedLoader()], throwIfLoadError: true })
+      const operation = new GroupLoader({
+        dataSources: [new ThrowingGroupedLoader()],
+        throwIfLoadError: true,
+      })
 
       await expect(() => {
         return operation.get(user1.userId, user1.companyId)
@@ -540,7 +543,7 @@ describe('GroupLoader Main', () => {
 
       await expect(() => {
         return operation.getMany([user1.userId], user1.companyId, idResolver)
-      }).rejects.toThrow(`Failed to resolve value for some of the keys (group 1): 1`)
+      }).rejects.toThrow('Failed to resolve value for some of the keys (group 1): 1')
     })
 
     it('throws when fails to resolve value and flag is set', async () => {
@@ -551,7 +554,7 @@ describe('GroupLoader Main', () => {
 
       await expect(() => {
         return operation.getMany([user1.userId], user1.companyId, idResolver)
-      }).rejects.toThrow(`Failed to resolve value for some of the keys (group 1): 1`)
+      }).rejects.toThrow('Failed to resolve value for some of the keys (group 1): 1')
     })
 
     it('does not throw when fails with an error and flag is set to false', async () => {
@@ -581,7 +584,10 @@ describe('GroupLoader Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new GroupLoader<User>({ dataSources: [new ThrowingGroupedLoader()], throwIfLoadError: true })
+      const operation = new GroupLoader<User>({
+        dataSources: [new ThrowingGroupedLoader()],
+        throwIfLoadError: true,
+      })
 
       await expect(() => {
         return operation.getMany([user1.userId], user1.companyId, idResolver)
@@ -687,7 +693,10 @@ describe('GroupLoader Main', () => {
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
-      await operation.getMany([user1.userId], user1.companyId, idResolver, { prefix: 'pre', suffix: 'post' })
+      await operation.getMany([user1.userId], user1.companyId, idResolver, {
+        prefix: 'pre',
+        suffix: 'post',
+      })
       const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
       const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
 

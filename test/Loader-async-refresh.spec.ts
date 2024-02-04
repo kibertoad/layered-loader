@@ -1,10 +1,10 @@
-import { setTimeout } from 'timers/promises'
-import { Loader } from '../lib/Loader'
-import { CountingDataSource } from './fakes/CountingDataSource'
-import { RedisCache } from '../lib/redis'
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { redisOptions } from './fakes/TestRedisConfig'
+import { Loader } from '../lib/Loader'
+import { RedisCache } from '../lib/redis'
+import { CountingDataSource } from './fakes/CountingDataSource'
 import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
+import { redisOptions } from './fakes/TestRedisConfig'
 
 describe('Loader Async', () => {
   let redis: Redis

@@ -1,6 +1,6 @@
 import type { GroupCache } from '../../lib/types/DataSources'
-import type { User } from '../types/testTypes'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
+import type { User } from '../types/testTypes'
 
 export class ThrowingGroupedCache implements GroupCache<User> {
   name = 'Throwing grouped cache'

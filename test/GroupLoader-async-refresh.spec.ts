@@ -1,11 +1,11 @@
-import type { User } from './types/testTypes'
-import { GroupLoader } from '../lib/GroupLoader'
-import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
-import { setTimeout } from 'timers/promises'
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { redisOptions } from './fakes/TestRedisConfig'
-import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
+import { GroupLoader } from '../lib/GroupLoader'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
+import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
+import { redisOptions } from './fakes/TestRedisConfig'
+import type { User } from './types/testTypes'
 
 const user1: User = {
   companyId: '1',

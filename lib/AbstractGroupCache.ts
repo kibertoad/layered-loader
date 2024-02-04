@@ -1,8 +1,8 @@
 import { AbstractCache } from './AbstractCache'
-import type { GroupCache, IdResolver } from './types/DataSources'
-import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { GroupCache, IdResolver } from './types/DataSources'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 
 export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> extends AbstractCache<
   LoadedValue,

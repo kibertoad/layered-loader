@@ -1,11 +1,11 @@
-import type { GroupCache, GroupCacheConfiguration, CacheEntry } from '../types/DataSources'
 import type Redis from 'ioredis'
-import { GET_OR_SET_ZERO_WITH_TTL, GET_OR_SET_ZERO_WITHOUT_TTL } from './lua'
 import { GroupLoader } from '../GroupLoader'
-import { RedisExpirationTimeGroupDataSource } from './RedisExpirationTimeGroupDataSource'
+import type { CacheEntry, GroupCache, GroupCacheConfiguration } from '../types/DataSources'
+import type { GetManyResult } from '../types/SyncDataSources'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache } from './AbstractRedisCache'
-import type { GetManyResult } from '../types/SyncDataSources'
+import { RedisExpirationTimeGroupDataSource } from './RedisExpirationTimeGroupDataSource'
+import { GET_OR_SET_ZERO_WITHOUT_TTL, GET_OR_SET_ZERO_WITH_TTL } from './lua'
 
 const GROUP_INDEX_KEY = 'group-index'
 

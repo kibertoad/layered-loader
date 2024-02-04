@@ -1,5 +1,5 @@
-import type { Loader } from '../Loader'
 import type { GroupLoader } from '../GroupLoader'
+import type { Loader } from '../Loader'
 import type { GetManyResult } from './SyncDataSources'
 
 export type IdResolver<T> = (entity: T) => string

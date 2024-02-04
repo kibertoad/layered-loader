@@ -1,7 +1,7 @@
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
 import { RedisGroupCache } from '../../lib/redis/RedisGroupCache'
 import { redisOptions } from '../fakes/TestRedisConfig'
-import { setTimeout } from 'timers/promises'
 
 const TTL_IN_MSECS = 999
 

@@ -1,8 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import type { Redis } from 'ioredis'
+import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import { RedisNotificationConsumer } from './RedisNotificationConsumer'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher'
-import { randomUUID } from 'node:crypto'
-import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
 
 export type RedisNotificationConfig = {
   channel: string

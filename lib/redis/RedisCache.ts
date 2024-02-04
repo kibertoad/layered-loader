@@ -1,10 +1,10 @@
-import type { Cache, CacheEntry } from '../types/DataSources'
 import type Redis from 'ioredis'
 import { Loader } from '../Loader'
-import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
+import type { Cache, CacheEntry } from '../types/DataSources'
+import type { GetManyResult } from '../types/SyncDataSources'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache, DEFAULT_REDIS_CACHE_CONFIGURATION } from './AbstractRedisCache'
-import type { GetManyResult } from '../types/SyncDataSources'
+import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
 
 export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T> implements Cache<T> {
   public readonly expirationTimeLoadingOperation: Loader<number>

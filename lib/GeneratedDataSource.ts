@@ -14,15 +14,15 @@ export class GeneratedDataSource<LoadedValue, LoadParams = undefined> implements
     this.name = params.name ?? 'Generated loader'
     this.getOneFn =
       params.dataSourceGetOneFn ??
-      function () {
+      (() => {
         throw new Error('Retrieval of a single entity is not implemented')
-      }
+      })
 
     this.getManyFn =
       params.dataSourceGetManyFn ??
-      function () {
+      (() => {
         throw new Error('Retrieval of multiple entities is not implemented')
-      }
+      })
   }
 
   get(key: string, loadParams: LoadParams | undefined): Promise<LoadedValue | undefined | null> {

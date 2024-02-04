@@ -1,8 +1,8 @@
-import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
-import { setTimeout } from 'timers/promises'
-import { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
-import { describe } from 'vitest'
+import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
+import { describe } from 'vitest'
+import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
+import { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 999 } satisfies InMemoryCacheConfiguration
 

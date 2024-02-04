@@ -1,12 +1,12 @@
 import type { CommonCacheConfig } from './AbstractCache'
-import type { Cache, CacheEntry, DataSource, GroupCache, IdResolver } from './types/DataSources'
 import { AbstractFlatCache } from './AbstractFlatCache'
-import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import type { SynchronousCache, SynchronousGroupCache, GetManyResult } from './types/SyncDataSources'
-import type { NotificationPublisher } from './notifications/NotificationPublisher'
-import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import { GeneratedDataSource } from './GeneratedDataSource'
 import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { NotificationPublisher } from './notifications/NotificationPublisher'
+import type { Cache, CacheEntry, DataSource, GroupCache, IdResolver } from './types/DataSources'
+import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
 
 export type LoaderConfig<
   LoadedValue,
