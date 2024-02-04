@@ -15,10 +15,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> ext
   public getInMemoryOnly(key: string, loadParams?: LoadParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
-      if (
-        expirationTime &&
-        expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs
-      ) {
+      if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
         void this.getAsyncOnly(key, loadParams)
       }
     }
@@ -31,10 +28,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> ext
     return this.inMemoryCache.getMany(keys)
   }
 
-  public getAsyncOnly(
-    key: string,
-    loadParams?: LoadParams,
-  ): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(key: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
@@ -84,28 +78,19 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> ext
     return this.getAsyncOnly(key, loadParams)
   }
 
-  public getMany(
-    keys: string[],
-    idResolver: IdResolver<LoadedValue>,
-    loadParams?: LoadParams,
-  ): Promise<LoadedValue[]> {
+  public getMany(keys: string[], idResolver: IdResolver<LoadedValue>, loadParams?: LoadParams): Promise<LoadedValue[]> {
     const inMemoryValues = this.getManyInMemoryOnly(keys)
     // everything is in memory, hurray
     if (inMemoryValues.unresolvedKeys.length === 0) {
       return Promise.resolve(inMemoryValues.resolvedValues)
     }
 
-    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, idResolver, loadParams).then(
-      (asyncRetrievedValues) => {
-        return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
-      },
-    )
+    return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, idResolver, loadParams).then((asyncRetrievedValues) => {
+      return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
+    })
   }
 
-  protected async resolveValue(
-    key: string,
-    _loadParams?: LoadParams,
-  ): Promise<LoadedValue | undefined | null> {
+  protected async resolveValue(key: string, _loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
     if (this.asyncCache) {
       const cachedValue = await this.asyncCache.get(key).catch((err) => {
         this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
@@ -148,11 +133,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> ext
     this.runningLoads.delete(key)
     if (this.notificationPublisher) {
       this.notificationPublisher.delete(key).catch((err) => {
-        this.notificationPublisher!.errorHandler(
-          err,
-          this.notificationPublisher!.channel,
-          this.logger,
-        )
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
       })
     }
   }
@@ -173,11 +154,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = undefined> ext
     if (this.notificationPublisher) {
       this.notificationPublisher.deleteMany(keys).catch((err) => {
         /* c8 ignore next 1 */
-        this.notificationPublisher!.errorHandler(
-          err,
-          this.notificationPublisher!.channel,
-          this.logger,
-        )
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
       })
     }
   }

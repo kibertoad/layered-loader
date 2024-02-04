@@ -1,9 +1,7 @@
 import type { CacheConstructor, ToadCache } from 'toad-cache'
 import { FifoMap, FifoObject, LruMap, LruObject, LruObjectHitStatistics } from 'toad-cache'
 
-export function resolveCacheConstructor<CacheTypeId, T>(
-  cacheTypeId: CacheTypeId,
-): CacheConstructor<ToadCache<T>> {
+export function resolveCacheConstructor<CacheTypeId, T>(cacheTypeId: CacheTypeId): CacheConstructor<ToadCache<T>> {
   if (cacheTypeId === 'fifo-map') {
     return FifoMap
   }

@@ -63,16 +63,8 @@ export interface DataSource<LoadedValue, LoadParams = undefined> {
 }
 
 export interface GroupDataSource<LoadedValue, LoadParams = undefined> {
-  getFromGroup: (
-    key: string,
-    group: string,
-    loadParams?: LoadParams,
-  ) => Promise<LoadedValue | undefined | null>
-  getManyFromGroup: (
-    keys: string[],
-    group: string,
-    loadParams?: LoadParams,
-  ) => Promise<LoadedValue[]>
+  getFromGroup: (key: string, group: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
+  getManyFromGroup: (keys: string[], group: string, loadParams?: LoadParams) => Promise<LoadedValue[]>
 
   name: string
 }

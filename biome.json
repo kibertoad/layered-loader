@@ -6,7 +6,7 @@
 			"indentStyle": "space",
 			"semicolons": "asNeeded",
 			"trailingComma": "all",
-			"lineWidth": 100,
+			"lineWidth": 120,
 			"quoteStyle": "single"
 		}
 	},

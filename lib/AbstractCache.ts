@@ -70,10 +70,7 @@ export abstract class AbstractCache<
   protected readonly loadErrorHandler: LoaderErrorHandler
 
   protected readonly runningLoads: Map<string, LoadChildType>
-  private readonly notificationConsumer?: AbstractNotificationConsumer<
-    LoadedValue,
-    InMemoryCacheType
-  >
+  private readonly notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
   protected readonly notificationPublisher?: NotificationPublisherType
 
   abstract isGroupCache(): boolean
@@ -118,11 +115,7 @@ export abstract class AbstractCache<
       this.initPromises.push(
         this.notificationConsumer.subscribe().catch((err) => {
           /* c8 ignore next 1 */
-          this.notificationConsumer!.errorHandler(
-            err,
-            this.notificationConsumer!.serverUuid,
-            this.logger,
-          )
+          this.notificationConsumer!.errorHandler(err, this.notificationConsumer!.serverUuid, this.logger)
         }),
       )
     }
@@ -132,11 +125,7 @@ export abstract class AbstractCache<
       this.initPromises.push(
         this.notificationPublisher.subscribe().catch((err) => {
           /* c8 ignore next 1 */
-          this.notificationPublisher!.errorHandler(
-            err,
-            this.notificationPublisher!.channel,
-            this.logger,
-          )
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
         }),
       )
     }
@@ -161,11 +150,7 @@ export abstract class AbstractCache<
 
     if (this.notificationPublisher) {
       this.notificationPublisher.clear().catch((err) => {
-        this.notificationPublisher!.errorHandler(
-          err,
-          this.notificationPublisher!.channel,
-          this.logger,
-        )
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
       })
     }
   }

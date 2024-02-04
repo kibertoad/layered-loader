@@ -6,11 +6,7 @@ import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCach
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
 import type { Cache, CacheEntry, DataSource, GroupCache, IdResolver } from './types/DataSources'
-import type {
-  GetManyResult,
-  SynchronousCache,
-  SynchronousGroupCache,
-} from './types/SyncDataSources'
+import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
 
 export type LoaderConfig<
   LoadedValue,
@@ -28,26 +24,14 @@ export type LoaderConfig<
     | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
 > = {
   dataSources?: readonly DataSourceType[]
-  dataSourceGetOneFn?: (
-    key: string,
-    loadParams?: LoaderParams,
-  ) => Promise<LoadedValue | undefined | null>
+  dataSourceGetOneFn?: (key: string, loadParams?: LoaderParams) => Promise<LoadedValue | undefined | null>
   dataSourceGetManyFn?: (keys: string[], loadParams?: LoaderParams) => Promise<LoadedValue[]>
   dataSourceName?: string
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
-} & CommonCacheConfig<
-  LoadedValue,
-  CacheType,
-  InMemoryCacheConfigType,
-  InMemoryCacheType,
-  NotificationPublisherType
->
+} & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType>
 
-export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<
-  LoadedValue,
-  LoaderParams
-> {
+export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatCache<LoadedValue, LoaderParams> {
   private readonly dataSources: readonly DataSource<LoadedValue, LoaderParams>[]
   private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean
@@ -59,9 +43,7 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     // generated datasource
     if (config.dataSourceGetManyFn || config.dataSourceGetOneFn) {
       if (config.dataSources) {
-        throw new Error(
-          'Cannot set both "dataSources" and "dataSourceGetManyFn"/"dataSourceGetOneFn" parameters.',
-        )
+        throw new Error('Cannot set both "dataSources" and "dataSourceGetManyFn"/"dataSourceGetOneFn" parameters.')
       }
 
       this.dataSources = [
@@ -86,20 +68,14 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     this.isKeyRefreshing = new Set()
   }
 
-  protected override resolveValue(
-    key: string,
-    loadParams?: LoaderParams,
-  ): Promise<LoadedValue | undefined | null> {
+  protected override resolveValue(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
     return super.resolveValue(key, loadParams).then((cachedValue) => {
       // value resolved from cache
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
             this.asyncCache.expirationTimeLoadingOperation.get(key).then((expirationTime) => {
-              if (
-                expirationTime &&
-                expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!
-              ) {
+              if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
                 // check second time, maybe someone obtained the lock while we were checking the expiration date
                 if (!this.isKeyRefreshing.has(key)) {
                   this.isKeyRefreshing.add(key)

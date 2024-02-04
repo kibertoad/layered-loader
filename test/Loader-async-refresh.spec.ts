@@ -131,9 +131,7 @@ describe('Loader Async', () => {
       // kick off the refresh
       expect(await operation.get('key')).toBe('value')
       await setTimeout(100)
-      await expect(() => operation.get('key')).rejects.toThrow(
-        /Failed to resolve value for key "key"/,
-      )
+      await expect(() => operation.get('key')).rejects.toThrow(/Failed to resolve value for key "key"/)
       await Promise.resolve()
       expect(loader.counter).toBe(3)
     })

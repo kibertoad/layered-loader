@@ -1,9 +1,6 @@
 import type { CommonCacheConfig } from './AbstractCache'
 import { AbstractGroupCache } from './AbstractGroupCache'
-import type {
-  InMemoryGroupCache,
-  InMemoryGroupCacheConfiguration,
-} from './memory/InMemoryGroupCache'
+import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import type { GroupCache } from './types/DataSources'
 

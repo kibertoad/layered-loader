@@ -73,10 +73,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)
       // @ts-ignore
-      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       await setTimeout(100)
       expect(loader.counter).toBe(1)
@@ -85,10 +82,7 @@ describe('GroupLoader Async Refresh', () => {
       await setTimeout(5)
       expect(loader.counter).toBe(2)
       // @ts-ignore
-      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await Promise.resolve()
@@ -122,10 +116,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await promise0).toEqual(user1)
       expect(loader.counter).toBe(1)
       // @ts-ignore
-      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await setTimeout(90)
@@ -141,10 +132,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(loader.counter).toBe(2)
       await setTimeout(5)
       // @ts-ignore
-      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await Promise.resolve()
@@ -179,10 +167,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await promise0).toEqual(user1)
       expect(loader.counter).toBe(1)
       // @ts-ignore
-      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       await setTimeout(15)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
@@ -199,10 +184,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(loader.counter).toBe(2)
       await setTimeout(5)
       // @ts-ignore
-      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
-        user1.userId,
-        user1.companyId,
-      )
+      const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
 
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await Promise.resolve()

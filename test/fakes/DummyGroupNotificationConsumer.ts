@@ -2,10 +2,7 @@ import type { InMemoryGroupCache } from '../../lib/memory/InMemoryGroupCache'
 import { AbstractNotificationConsumer } from '../../lib/notifications/AbstractNotificationConsumer'
 import type { User } from '../types/testTypes'
 
-export class DummyGroupNotificationConsumer extends AbstractNotificationConsumer<
-  User,
-  InMemoryGroupCache<User>
-> {
+export class DummyGroupNotificationConsumer extends AbstractNotificationConsumer<User, InMemoryGroupCache<User>> {
   public closed = false
 
   close(): Promise<void> {

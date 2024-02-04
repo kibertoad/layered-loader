@@ -29,8 +29,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   }
 
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
-    const resolvedValue: string =
-      value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
+    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
     if (this.config.ttlInMsecs) {
       return this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs)
     }

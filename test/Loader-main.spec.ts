@@ -756,9 +756,7 @@ describe('Loader Main', () => {
         },
       })
 
-      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(
-        /Retrieval of multiple entities/,
-      )
+      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(/Retrieval of multiple entities/)
     })
 
     it('returns value when resolved via multiple caches', async () => {

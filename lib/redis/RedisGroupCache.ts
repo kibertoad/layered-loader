@@ -9,16 +9,11 @@ import { GET_OR_SET_ZERO_WITHOUT_TTL, GET_OR_SET_ZERO_WITH_TTL } from './lua'
 
 const GROUP_INDEX_KEY = 'group-index'
 
-export interface RedisGroupCacheConfiguration
-  extends RedisCacheConfiguration,
-    GroupCacheConfiguration {
+export interface RedisGroupCacheConfiguration extends RedisCacheConfiguration, GroupCacheConfiguration {
   groupTtlInMsecs?: number
 }
 
-export class RedisGroupCache<T>
-  extends AbstractRedisCache<RedisGroupCacheConfiguration, T>
-  implements GroupCache<T>
-{
+export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfiguration, T> implements GroupCache<T> {
   public readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
   public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis group cache'
@@ -77,9 +72,7 @@ export class RedisGroupCache<T>
       return undefined
     }
 
-    const redisResult = await this.redis.get(
-      this.resolveKeyWithGroup(key, groupId, currentGroupKey),
-    )
+    const redisResult = await this.redis.get(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     return this.postprocessResult(redisResult)
   }
 
@@ -92,9 +85,7 @@ export class RedisGroupCache<T>
       }
     }
 
-    const transformedKeys = keys.map((key) =>
-      this.resolveKeyWithGroup(key, groupId, currentGroupKey),
-    )
+    const transformedKeys = keys.map((key) => this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
 
@@ -124,9 +115,7 @@ export class RedisGroupCache<T>
       return undefined
     }
 
-    const remainingTtl = await this.redis.pttl(
-      this.resolveKeyWithGroup(key, groupId, currentGroupKey),
-    )
+    const remainingTtl = await this.redis.pttl(this.resolveKeyWithGroup(key, groupId, currentGroupKey))
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
@@ -134,10 +123,7 @@ export class RedisGroupCache<T>
     const getGroupKeyPromise = this.config.groupTtlInMsecs
       ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(
-          this.resolveGroupIndexPrefix(groupId),
-          this.config.groupTtlInMsecs,
-        )
+        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
       : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
@@ -155,10 +141,7 @@ export class RedisGroupCache<T>
     const getGroupKeyPromise = this.config.groupTtlInMsecs
       ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(
-          this.resolveGroupIndexPrefix(groupId),
-          this.config.groupTtlInMsecs,
-        )
+        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
       : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
