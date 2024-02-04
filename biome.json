@@ -13,7 +13,8 @@
 	"linter": {
 		"rules": {
 			"style": {
-				"noNonNullAssertion": "off"
+				"noNonNullAssertion": "off",
+				"noVar": "off"
 			},
 			"correctness": {},
 			"suspicious": {

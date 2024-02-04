@@ -17,7 +17,7 @@ export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificat
   }
 
   setTargetCache(targetCache: InMemoryGroupCache<User>) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       // @ts-ignore
       if (!consumer.targetCache) {
         consumer.setTargetCache(targetCache)
@@ -35,25 +35,25 @@ export class DummyGroupNotificationConsumerMultiplexer extends AbstractNotificat
   }
 
   setForGroup(key: string, value: User, group: string) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.setForGroup(key, value, group)
     }
   }
 
   deleteFromGroup(key: string, group: string) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.deleteFromGroup(key, group)
     }
   }
 
   deleteGroup(group: string) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.deleteGroup(group)
     }
   }
 
   clear() {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.clear()
     }
   }

@@ -12,7 +12,7 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   }
 
   setTargetCache(targetCache: SynchronousCache<string>) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       // @ts-ignore
       if (!consumer.targetCache) {
         consumer.setTargetCache(targetCache)
@@ -30,19 +30,19 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   }
 
   set(key: string, value: string) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.set(key, value)
     }
   }
 
   delete(key: string) {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.delete(key)
     }
   }
 
   clear() {
-    for (const consumer of this.notificationConsumers) {
+    for (var consumer of this.notificationConsumers) {
       consumer.clear()
     }
   }

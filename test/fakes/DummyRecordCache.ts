@@ -35,7 +35,7 @@ export class DummyRecordCache implements Cache<string> {
   }
 
   setMany(entries: readonly CacheEntry<string>[]): Promise<unknown> {
-    for (const entry of entries) {
+    for (var entry of entries) {
       this.values[entry.key] = entry.value
     }
     return Promise.resolve()
@@ -52,7 +52,7 @@ export class DummyRecordCache implements Cache<string> {
   }
 
   deleteMany(keys: string[]): Promise<unknown> {
-    for (const key of keys) {
+    for (var key of keys) {
       delete this.values[key]
     }
     return Promise.resolve(undefined)

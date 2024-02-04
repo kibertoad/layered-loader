@@ -32,7 +32,7 @@ export class DummyGroupedCache implements GroupCache<User> {
   }
 
   setManyForGroup(entries: readonly CacheEntry<User>[], group: string): Promise<unknown> {
-    for (const entry of entries) {
+    for (var entry of entries) {
       this.groupValues[group][entry.key] = entry.value
     }
     return Promise.resolve()
