@@ -1,4 +1,4 @@
-import { setTimeout } from 'timers/promises'
+import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
 import { afterEach, beforeEach, expect, vitest } from 'vitest'
 import type { LoaderConfig } from '../lib/Loader'

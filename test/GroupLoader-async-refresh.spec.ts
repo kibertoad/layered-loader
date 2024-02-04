@@ -1,5 +1,5 @@
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { setTimeout } from 'timers/promises'
 import { GroupLoader } from '../lib/GroupLoader'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'

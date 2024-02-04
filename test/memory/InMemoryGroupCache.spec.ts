@@ -1,4 +1,4 @@
-import { setTimeout } from 'timers/promises'
+import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
 import { describe } from 'vitest'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'

@@ -1,4 +1,4 @@
-import { setTimeout } from 'timers/promises'
+import { setTimeout } from 'node:timers/promises'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import type { IdResolver } from '../lib/types/DataSources'

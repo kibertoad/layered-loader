@@ -1,5 +1,5 @@
+import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { setTimeout } from 'timers/promises'
 import { Loader } from '../lib/Loader'
 import { RedisCache } from '../lib/redis'
 import { CountingDataSource } from './fakes/CountingDataSource'
