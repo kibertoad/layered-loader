@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { RedisNotificationConfig } from './RedisNotificationFactory'
-import { RedisGroupNotificationPublisher } from './RedisGroupNotificationPublisher'
 import { RedisGroupNotificationConsumer } from './RedisGroupNotificationConsumer'
+import { RedisGroupNotificationPublisher } from './RedisGroupNotificationPublisher'
+import type { RedisNotificationConfig } from './RedisNotificationFactory'
 
 export function createGroupNotificationPair<T>(config: RedisNotificationConfig) {
   const serverUuid = randomUUID()

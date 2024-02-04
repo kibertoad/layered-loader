@@ -1,25 +1,25 @@
 import { setTimeout } from 'timers/promises'
+import { HitStatisticsRecord } from 'toad-cache'
+import { afterEach, beforeEach, expect, vitest } from 'vitest'
 import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { DummyDataSource } from './fakes/DummyDataSource'
+import type { IdResolver } from '../lib/types/DataSources'
 import { CountingDataSource } from './fakes/CountingDataSource'
-import { ThrowingLoader } from './fakes/ThrowingLoader'
-import { ThrowingCache } from './fakes/ThrowingCache'
-import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
+import { CountingRecordLoader } from './fakes/CountingRecordLoader'
+import { CountingTimedCache } from './fakes/CountingTimedCache'
 import { DummyCache } from './fakes/DummyCache'
+import { DummyDataSource } from './fakes/DummyDataSource'
 import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
-import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
-import { HitStatisticsRecord } from 'toad-cache'
-import { getTimestamp } from './utils/dateUtils'
-import type { IdResolver } from '../lib/types/DataSources'
-import { afterEach, beforeEach, expect, vitest } from 'vitest'
+import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
 import { DummyRecordCache } from './fakes/DummyRecordCache'
-import { CountingRecordLoader } from './fakes/CountingRecordLoader'
-import { CountingTimedCache } from './fakes/CountingTimedCache'
+import { TemporaryThrowingLoader } from './fakes/TemporaryThrowingLoader'
+import { ThrowingCache } from './fakes/ThrowingCache'
+import { ThrowingLoader } from './fakes/ThrowingLoader'
+import { getTimestamp } from './utils/dateUtils'
 
 const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
@@ -467,7 +467,10 @@ describe('Loader Main', () => {
 
     it('handles error during cache update', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new Loader({ asyncCache: new ThrowingCache(), dataSources: [new DummyDataSource('value')] })
+      const operation = new Loader({
+        asyncCache: new ThrowingCache(),
+        dataSources: [new DummyDataSource('value')],
+      })
       const value = await operation.get('value')
       expect(value).toBe('value')
       expect(consoleSpy).toHaveBeenCalledTimes(2)
@@ -651,7 +654,10 @@ describe('Loader Main', () => {
 
     it('logs error during load', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new Loader<string>({ dataSources: [new ThrowingLoader()], throwIfLoadError: true })
+      const operation = new Loader<string>({
+        dataSources: [new ThrowingLoader()],
+        throwIfLoadError: true,
+      })
 
       await expect(() => {
         return operation.getMany(['value'], idResolver)
@@ -661,7 +667,10 @@ describe('Loader Main', () => {
 
     it('returns empty result if flag is not set and error is thrown', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
-      const operation = new Loader<string>({ dataSources: [new ThrowingLoader()], throwIfLoadError: false })
+      const operation = new Loader<string>({
+        dataSources: [new ThrowingLoader()],
+        throwIfLoadError: false,
+      })
 
       const result = await operation.getMany(['value'], idResolver)
 
@@ -747,7 +756,9 @@ describe('Loader Main', () => {
         },
       })
 
-      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(/Retrieval of multiple entities/)
+      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(
+        /Retrieval of multiple entities/,
+      )
     })
 
     it('returns value when resolved via multiple caches', async () => {

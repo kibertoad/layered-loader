@@ -1,12 +1,12 @@
-import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type { Redis } from 'ioredis'
-import type { RedisConsumerConfig } from './RedisNotificationConsumer'
+import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache'
+import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type {
   DeleteFromGroupNotificationCommand,
   DeleteGroupNotificationCommand,
   GroupNotificationCommand,
 } from './RedisGroupNotificationPublisher'
-import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache'
+import type { RedisConsumerConfig } from './RedisNotificationConsumer'
 
 export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
   LoadedValue,
@@ -42,7 +42,9 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
         }
 
         if (parsedMessage.actionId === 'DELETE_GROUP') {
-          return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
+          return this.targetCache.deleteGroup(
+            (parsedMessage as DeleteGroupNotificationCommand).group,
+          )
         }
 
         if (parsedMessage.actionId === 'CLEAR') {

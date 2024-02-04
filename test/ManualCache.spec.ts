@@ -1,9 +1,9 @@
-import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import { ThrowingCache } from './fakes/ThrowingCache'
 import { ManualCache } from '../lib/ManualCache'
-import { DummyCache } from './fakes/DummyCache'
+import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { CountingCache } from './fakes/CountingCache'
+import { DummyCache } from './fakes/DummyCache'
 import { TemporaryThrowingCache } from './fakes/TemporaryThrowingCache'
+import { ThrowingCache } from './fakes/ThrowingCache'
 
 const IN_MEMORY_CACHE_CONFIG = {
   cacheId: 'dummy',

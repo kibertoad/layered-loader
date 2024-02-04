@@ -1,7 +1,7 @@
-import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import type { Redis } from 'ioredis'
-import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
 import type { GroupNotificationPublisher } from '../notifications/GroupNotificationPublisher'
+import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
+import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
 import type { RedisPublisherConfig } from './RedisNotificationPublisher'
 
 export type GroupNotificationCommand = {
@@ -21,7 +21,9 @@ export const CLEAR_COMMAND = 'CLEAR'
 export const DELETE_GROUP_COMMAND = 'DELETE_GROUP'
 export const DELETE_FROM_GROUP_COMMAND = 'DELETE_FROM_GROUP'
 
-export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotificationPublisher<LoadedValue> {
+export class RedisGroupNotificationPublisher<LoadedValue>
+  implements GroupNotificationPublisher<LoadedValue>
+{
   public readonly channel: string
   public readonly errorHandler: PublisherErrorHandler
 

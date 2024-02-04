@@ -1,6 +1,6 @@
-import type { ToadCache, HitStatisticsRecord } from 'toad-cache'
-import type { SynchronousCache, GetManyResult } from '../types/SyncDataSources'
+import type { HitStatisticsRecord, ToadCache } from 'toad-cache'
 import type { CommonCacheConfiguration } from '../types/DataSources'
+import type { GetManyResult, SynchronousCache } from '../types/SyncDataSources'
 import { resolveCacheConstructor } from './memoryCacheUtils'
 
 type CacheTypeId = 'lru-map' | 'fifo-map' | 'lru-object' | 'fifo-object' | 'lru-object-statistics'

@@ -1,5 +1,5 @@
-import type { Loader } from '../Loader'
 import type { GroupLoader } from '../GroupLoader'
+import type { Loader } from '../Loader'
 import type { GetManyResult } from './SyncDataSources'
 
 export type IdResolver<T> = (entity: T) => string
@@ -63,8 +63,16 @@ export interface DataSource<LoadedValue, LoadParams = undefined> {
 }
 
 export interface GroupDataSource<LoadedValue, LoadParams = undefined> {
-  getFromGroup: (key: string, group: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
-  getManyFromGroup: (keys: string[], group: string, loadParams?: LoadParams) => Promise<LoadedValue[]>
+  getFromGroup: (
+    key: string,
+    group: string,
+    loadParams?: LoadParams,
+  ) => Promise<LoadedValue | undefined | null>
+  getManyFromGroup: (
+    keys: string[],
+    group: string,
+    loadParams?: LoadParams,
+  ) => Promise<LoadedValue[]>
 
   name: string
 }

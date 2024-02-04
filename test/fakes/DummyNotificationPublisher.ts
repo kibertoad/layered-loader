@@ -1,6 +1,6 @@
 import type { NotificationPublisher } from '../../lib/notifications/NotificationPublisher'
-import type { DummyNotificationConsumer } from './DummyNotificationConsumer'
 import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../../lib/notifications/NotificationPublisher'
+import type { DummyNotificationConsumer } from './DummyNotificationConsumer'
 
 export class DummyNotificationPublisher implements NotificationPublisher<string> {
   public closed = false

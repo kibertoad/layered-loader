@@ -1,7 +1,7 @@
 import type { CacheEntry, GroupCache } from '../../lib/types/DataSources'
+import type { GetManyResult } from '../../lib/types/SyncDataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
-import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class DummyGroupedCache implements GroupCache<User> {
   private value: User | undefined
@@ -32,7 +32,7 @@ export class DummyGroupedCache implements GroupCache<User> {
   }
 
   setManyForGroup(entries: readonly CacheEntry<User>[], group: string): Promise<unknown> {
-    for (let entry of entries) {
+    for (const entry of entries) {
       this.groupValues[group][entry.key] = entry.value
     }
     return Promise.resolve()

@@ -1,10 +1,10 @@
+import Redis from 'ioredis'
 import { setTimeout } from 'timers/promises'
 import { Loader } from '../lib/Loader'
-import { CountingDataSource } from './fakes/CountingDataSource'
 import { RedisCache } from '../lib/redis'
-import Redis from 'ioredis'
-import { redisOptions } from './fakes/TestRedisConfig'
+import { CountingDataSource } from './fakes/CountingDataSource'
 import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
+import { redisOptions } from './fakes/TestRedisConfig'
 
 describe('Loader Async', () => {
   let redis: Redis
@@ -131,7 +131,9 @@ describe('Loader Async', () => {
       // kick off the refresh
       expect(await operation.get('key')).toBe('value')
       await setTimeout(100)
-      await expect(() => operation.get('key')).rejects.toThrow(/Failed to resolve value for key "key"/)
+      await expect(() => operation.get('key')).rejects.toThrow(
+        /Failed to resolve value for key "key"/,
+      )
       await Promise.resolve()
       expect(loader.counter).toBe(3)
     })

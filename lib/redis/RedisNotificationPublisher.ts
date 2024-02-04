@@ -1,5 +1,8 @@
-import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import type { Redis } from 'ioredis'
+import type {
+  NotificationPublisher,
+  PublisherErrorHandler,
+} from '../notifications/NotificationPublisher'
 import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
 import type { Logger } from '../util/Logger'
 

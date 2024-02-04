@@ -1,6 +1,6 @@
 import { AbstractNotificationConsumer } from '../../lib/notifications/AbstractNotificationConsumer'
-import type { DummyNotificationConsumer } from './DummyNotificationConsumer'
 import type { SynchronousCache } from '../../lib/types/SyncDataSources'
+import type { DummyNotificationConsumer } from './DummyNotificationConsumer'
 
 export class DummyNotificationConsumerMultiplexer extends AbstractNotificationConsumer<string> {
   public closed = false
@@ -12,7 +12,7 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   }
 
   setTargetCache(targetCache: SynchronousCache<string>) {
-    for (let consumer of this.notificationConsumers) {
+    for (const consumer of this.notificationConsumers) {
       // @ts-ignore
       if (!consumer.targetCache) {
         consumer.setTargetCache(targetCache)
@@ -30,19 +30,19 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   }
 
   set(key: string, value: string) {
-    for (let consumer of this.notificationConsumers) {
+    for (const consumer of this.notificationConsumers) {
       consumer.set(key, value)
     }
   }
 
   delete(key: string) {
-    for (let consumer of this.notificationConsumers) {
+    for (const consumer of this.notificationConsumers) {
       consumer.delete(key)
     }
   }
 
   clear() {
-    for (let consumer of this.notificationConsumers) {
+    for (const consumer of this.notificationConsumers) {
       consumer.clear()
     }
   }

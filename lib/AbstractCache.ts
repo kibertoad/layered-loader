@@ -1,15 +1,15 @@
-import type { SynchronousGroupCache, SynchronousCache } from './types/SyncDataSources'
-import type { Cache, GroupCache } from './types/DataSources'
-import type { Logger } from './util/Logger'
-import { defaultLogger } from './util/Logger'
-import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
-import type { NotificationPublisher } from './notifications/NotificationPublisher'
-import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
 import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
 import { InMemoryCache } from './memory/InMemoryCache'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
+import { InMemoryGroupCache } from './memory/InMemoryGroupCache'
 import { NoopCache } from './memory/NoopCache'
+import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { NotificationPublisher } from './notifications/NotificationPublisher'
+import type { Cache, GroupCache } from './types/DataSources'
+import type { SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
+import type { Logger } from './util/Logger'
+import { defaultLogger } from './util/Logger'
 
 export type LoaderErrorHandler = (
   err: Error,
@@ -70,7 +70,10 @@ export abstract class AbstractCache<
   protected readonly loadErrorHandler: LoaderErrorHandler
 
   protected readonly runningLoads: Map<string, LoadChildType>
-  private readonly notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
+  private readonly notificationConsumer?: AbstractNotificationConsumer<
+    LoadedValue,
+    InMemoryCacheType
+  >
   protected readonly notificationPublisher?: NotificationPublisherType
 
   abstract isGroupCache(): boolean
@@ -115,7 +118,11 @@ export abstract class AbstractCache<
       this.initPromises.push(
         this.notificationConsumer.subscribe().catch((err) => {
           /* c8 ignore next 1 */
-          this.notificationConsumer!.errorHandler(err, this.notificationConsumer!.serverUuid, this.logger)
+          this.notificationConsumer!.errorHandler(
+            err,
+            this.notificationConsumer!.serverUuid,
+            this.logger,
+          )
         }),
       )
     }
@@ -125,7 +132,11 @@ export abstract class AbstractCache<
       this.initPromises.push(
         this.notificationPublisher.subscribe().catch((err) => {
           /* c8 ignore next 1 */
-          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+          this.notificationPublisher!.errorHandler(
+            err,
+            this.notificationPublisher!.channel,
+            this.logger,
+          )
         }),
       )
     }
@@ -150,7 +161,11 @@ export abstract class AbstractCache<
 
     if (this.notificationPublisher) {
       this.notificationPublisher.clear().catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        this.notificationPublisher!.errorHandler(
+          err,
+          this.notificationPublisher!.channel,
+          this.logger,
+        )
       })
     }
   }

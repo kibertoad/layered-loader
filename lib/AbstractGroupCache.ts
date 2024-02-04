@@ -1,8 +1,8 @@
 import { AbstractCache } from './AbstractCache'
-import type { GroupCache, IdResolver } from './types/DataSources'
-import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
+import type { GroupCache, IdResolver } from './types/DataSources'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 
 export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> extends AbstractCache<
   LoadedValue,
@@ -28,17 +28,28 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> ex
 
     if (this.notificationPublisher) {
       void this.notificationPublisher.deleteGroup(group).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        this.notificationPublisher!.errorHandler(
+          err,
+          this.notificationPublisher!.channel,
+          this.logger,
+        )
       })
     }
   }
 
-  public getInMemoryOnly(key: string, group: string, loadParams?: LoadParams): LoadedValue | undefined | null {
+  public getInMemoryOnly(
+    key: string,
+    group: string,
+    loadParams?: LoadParams,
+  ): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
       const groupLoads = this.resolveGroupLoads(group)
       if (!groupLoads.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
-        if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+        if (
+          expirationTime &&
+          expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs
+        ) {
           void this.getAsyncOnly(key, group, loadParams)
         }
       }
@@ -52,7 +63,11 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> ex
     return this.inMemoryCache.getManyFromGroup(keys, group)
   }
 
-  public getAsyncOnly(key: string, group: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
+  public getAsyncOnly(
+    key: string,
+    group: string,
+    loadParams?: LoadParams,
+  ): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
@@ -93,7 +108,11 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> ex
     })
   }
 
-  public get(key: string, group: string, loadParams?: LoadParams): Promise<LoadedValue | undefined | null> {
+  public get(
+    key: string,
+    group: string,
+    loadParams?: LoadParams,
+  ): Promise<LoadedValue | undefined | null> {
     const inMemoryValue = this.getInMemoryOnly(key, group, loadParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
@@ -134,7 +153,11 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = undefined> ex
 
     if (this.notificationPublisher) {
       void this.notificationPublisher.deleteFromGroup(key, group).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        this.notificationPublisher!.errorHandler(
+          err,
+          this.notificationPublisher!.channel,
+          this.logger,
+        )
       })
     }
   }

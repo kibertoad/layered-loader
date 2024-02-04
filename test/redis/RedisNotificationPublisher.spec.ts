@@ -1,13 +1,13 @@
 import Redis from 'ioredis'
-import { redisOptions } from '../fakes/TestRedisConfig'
 import { setTimeout } from 'timers/promises'
 import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
+import { redisOptions } from '../fakes/TestRedisConfig'
 
-import { DummyCache } from '../fakes/DummyCache'
-import { waitAndRetry } from '../utils/waitUtils'
 import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
+import { DummyCache } from '../fakes/DummyCache'
 import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
+import { waitAndRetry } from '../utils/waitUtils'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
@@ -39,17 +39,19 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates invalidation event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
@@ -96,17 +98,19 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates bulk invalidation event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
@@ -153,17 +157,19 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates clear event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-    })
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -210,14 +216,15 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error on clear', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: new FakeThrowingRedis(),
-      errorHandler: (err, channel) => {
-        expect(channel).toBe(CHANNEL_ID)
-      },
-    })
+    const { publisher: notificationPublisher, consumer: notificationConsumer } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: new FakeThrowingRedis(),
+        errorHandler: (err, channel) => {
+          expect(channel).toBe(CHANNEL_ID)
+        },
+      })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -231,14 +238,15 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error on delete', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: new FakeThrowingRedis(),
-      errorHandler: (err, channel) => {
-        expect(channel).toBe(CHANNEL_ID)
-      },
-    })
+    const { publisher: notificationPublisher, consumer: notificationConsumer } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: new FakeThrowingRedis(),
+        errorHandler: (err, channel) => {
+          expect(channel).toBe(CHANNEL_ID)
+        },
+      })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -253,15 +261,16 @@ describe('RedisNotificationPublisher', () => {
   it('Handles connection error on delete', async () => {
     expect.assertions(2)
     await redisPublisher.quit()
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: redisPublisher,
-      errorHandler: (err, channel) => {
-        expect(err.message).toBe('Connection is closed.')
-        expect(channel).toBe(CHANNEL_ID)
-      },
-    })
+    const { publisher: notificationPublisher, consumer: notificationConsumer } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+        errorHandler: (err, channel) => {
+          expect(err.message).toBe('Connection is closed.')
+          expect(channel).toBe(CHANNEL_ID)
+        },
+      })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -278,11 +287,12 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error by default', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
-      channel: CHANNEL_ID,
-      consumerRedis: redisConsumer,
-      publisherRedis: new FakeThrowingRedis(),
-    })
+    const { publisher: notificationPublisher, consumer: notificationConsumer } =
+      createNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: new FakeThrowingRedis(),
+      })
 
     const operation = new Loader({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
@@ -291,7 +301,9 @@ describe('RedisNotificationPublisher', () => {
       notificationPublisher: notificationPublisher,
       logger: {
         error: (err) => {
-          expect(err).toBe('Error while publishing notification to channel test_channel: Operation has failed')
+          expect(err).toBe(
+            'Error while publishing notification to channel test_channel: Operation has failed',
+          )
         },
       },
     })

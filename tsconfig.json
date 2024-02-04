@@ -24,5 +24,7 @@
     "esModuleInterop": false,
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["node_modules", "dist", "test", "vitest.config.ts"]
+  "exclude": ["node_modules", "dist", "test",
+    "vitest.config.mts"
+  ]
 }
