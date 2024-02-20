@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import {createClient, RedisClientOptions, RedisClientType} from 'redis'
 import type { CommonCacheConfiguration } from '../types/DataSources'
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
@@ -15,12 +15,16 @@ export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
   separator: ':',
 }
 
+function isRedisClientOptions(value: unknown): value is RedisClientOptions<any, any, any> {
+  return 'url' in (value as RedisClientOptions)
+}
+
 export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfiguration, LoadedValue> {
-  protected readonly redis: Redis
+  protected readonly redis: RedisClientType<any, any, any>
   protected readonly config: ConfigType
 
-  constructor(redis: Redis, config: Partial<ConfigType>) {
-    this.redis = redis
+  constructor(redis: RedisClientOptions<any, any, any>, config: Partial<ConfigType>) {
+    this.redis = isRedisClientOptions(redis) ? createClient<any, any, any>(redis) : redis
     // @ts-ignore
     this.config = {
       ...DEFAULT_REDIS_CACHE_CONFIGURATION,
@@ -31,7 +35,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
     const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
     if (this.config.ttlInMsecs) {
-      return this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs)
+      return this.redis.set(resolvedKey, resolvedValue, { PX: this.config.ttlInMsecs })
     }
     return this.redis.set(resolvedKey, resolvedValue)
   }
@@ -54,7 +58,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
     const pattern = this.resolveCachePattern()
     let cursor = '0'
     do {
-      const scanResults = await this.redis.scan(cursor, 'MATCH', pattern)
+      const scanResults = await this.redis.scan(cursor, {MATCH: pattern })
 
       cursor = scanResults[0]
       if (scanResults[1].length > 0) {
