@@ -887,6 +887,30 @@ describe('Loader Main', () => {
     })
   })
 
+  describe('forceRefresh', () => {
+    it('retrieves the latest value from the data source', async () => {
+      const asyncCache = new DummyCache(undefined)
+      const loader = new CountingDataSource('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: asyncCache,
+        dataSources: [loader],
+      })
+
+      const valuePre = await operation.get('key')
+      expect(asyncCache.value).toBe('value')
+      loader.value = 'value2'
+      await operation.forceRefresh('key')
+      const valuePost = await operation.get('key')
+      expect(asyncCache.value).toBe('value2')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value2')
+      expect(loader.counter).toBe(2)
+    })
+  })
+
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
@@ -909,13 +933,13 @@ describe('Loader Main', () => {
     })
 
     it('correctly handles errors during invalidation', async () => {
-      const cache2 = new ThrowingCache()
+      const throwingCache = new ThrowingCache()
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-        asyncCache: cache2,
+        asyncCache: throwingCache,
         dataSources: [loader1, loader2],
       })
 

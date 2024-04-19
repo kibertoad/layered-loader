@@ -1,3 +1,4 @@
+import { Loader } from '../../lib/Loader'
 import type { Cache } from '../../lib/types/DataSources'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
 import type { User } from '../types/testTypes'
@@ -6,8 +7,8 @@ export class DummyCache implements Cache<string> {
   value: string | undefined | null
   name = 'Dummy cache'
   isCache = true
-  readonly expirationTimeLoadingOperation: null
-  readonly ttlLeftBeforeRefreshInMsecs: 999999
+  readonly expirationTimeLoadingOperation = new Loader<number>({})
+  readonly ttlLeftBeforeRefreshInMsecs = 999999
 
   constructor(returnedValue: string | undefined) {
     this.value = returnedValue
@@ -55,6 +56,10 @@ export class DummyCache implements Cache<string> {
   }
 
   getManyFromGroup(): Promise<GetManyResult<User>> {
+    throw new Error('Not implemented')
+  }
+
+  setMany(): Promise<unknown> {
     throw new Error('Not implemented')
   }
 }
