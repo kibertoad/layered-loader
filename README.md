@@ -147,7 +147,7 @@ const loader = new Loader<string>({
   },
 
   // this cache will be checked if in-memory one returns undefined
-  asyncCache: new RedisCache(ioRedis, {
+  asyncCache: new RedisCache<string>(ioRedis, {
     json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
     ttlInMsecs: 1000 * 60 * 10,
   }),
@@ -174,7 +174,7 @@ const loader = new Loader<string>({
   },
 
   // this cache will be checked if in-memory one returns undefined
-  asyncCache: new RedisCache(ioRedis, {
+  asyncCache: new RedisCache<string>(ioRedis, {
     json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
     ttlInMsecs: 1000 * 60 * 10,
   }),
@@ -386,7 +386,7 @@ const cache = new ManualCache<string>({
   },
 
   // this cache will be checked if in-memory one returns undefined
-  asyncCache: new RedisCache(ioRedis, {
+  asyncCache: new RedisCache<string>(ioRedis, {
     json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
     ttlInMsecs: 1000 * 60 * 10,
   }),
