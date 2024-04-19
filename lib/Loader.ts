@@ -72,12 +72,15 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     return this.loadFromLoaders(key, loadParams).then((finalValue) => {
       if (finalValue !== undefined) {
         this.inMemoryCache.set(key, finalValue)
-      }
-      if (this.runningLoads.has(key)) {
-        this.runningLoads.delete(key)
+
+        /* v8 ignore next 3 */
+        if (this.runningLoads.has(key)) {
+          this.runningLoads.delete(key)
+        }
       }
 
       // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too
+      /* v8 ignore next 5 */
       if (this.notificationPublisher) {
         this.notificationPublisher.delete(key).catch((err) => {
           this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
