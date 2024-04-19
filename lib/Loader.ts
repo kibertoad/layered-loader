@@ -68,6 +68,26 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     this.isKeyRefreshing = new Set()
   }
 
+  public forceRefresh(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
+    return this.loadFromLoaders(key, loadParams).then((finalValue) => {
+      if (finalValue !== undefined) {
+        this.inMemoryCache.set(key, finalValue)
+      }
+      if (this.runningLoads.has(key)) {
+        this.runningLoads.delete(key)
+      }
+
+      // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too
+      if (this.notificationPublisher) {
+        this.notificationPublisher.delete(key).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        })
+      }
+
+      return finalValue
+    })
+  }
+
   protected override resolveValue(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
     return super.resolveValue(key, loadParams).then((cachedValue) => {
       // value resolved from cache

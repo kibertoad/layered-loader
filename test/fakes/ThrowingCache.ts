@@ -1,11 +1,12 @@
+import { Loader } from '../../lib/Loader'
 import type { Cache } from '../../lib/types/DataSources'
 import type { GetManyResult } from '../../lib/types/SyncDataSources'
 
 export class ThrowingCache implements Cache<string> {
   name = 'Throwing cache'
   isCache = true
-  readonly expirationTimeLoadingOperation: null
-  readonly ttlLeftBeforeRefreshInMsecs: 999999
+  readonly expirationTimeLoadingOperation = new Loader<number>({})
+  readonly ttlLeftBeforeRefreshInMsecs = 999999
 
   get(): Promise<string | undefined | null> {
     return Promise.resolve().then(() => {
@@ -45,5 +46,13 @@ export class ThrowingCache implements Cache<string> {
 
   getExpirationTime(): Promise<number> {
     return Promise.resolve(99999)
+  }
+
+  close(): Promise<unknown> {
+    throw new Error('Not implemented')
+  }
+
+  deleteMany(): Promise<unknown> {
+    throw new Error('Not implemented')
   }
 }

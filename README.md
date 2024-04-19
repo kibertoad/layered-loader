@@ -401,6 +401,15 @@ const classifier = await cache.get('1')
 
 Note that Loaders are generally recommended over ManualCaches, as they offer better performance: LoadingOperations deduplicate all the get requests that come during the window between checking the cache and populating it, while Caching Operation will resolve all of them to undefined after checking the cache, both increasing load on the cache, and also potentially invoking the loading logic multiple times.
 
+### Forcing an update
+
+In certain cases you may want to fetch fresh data from the datasource before invalidating the cache. In that case you should use the `forceRefresh` method:
+
+```ts
+// This will resolve the latest version of the data for the key "1", update async and inmemory caches and fire a NotificationPublisher invalidation event, if publisher is set  
+await cache.forceRefresh('1')
+```
+
 ## Usage in high-performance systems
 
 ### Synchronous short-circuit
