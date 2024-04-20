@@ -5,6 +5,7 @@ import type {
   DeleteManyNotificationCommand,
   DeleteNotificationCommand,
   NotificationCommand,
+  SetNotificationCommand,
 } from './RedisNotificationPublisher'
 
 export type RedisConsumerConfig = {
@@ -48,6 +49,13 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 
         if (parsedMessage.actionId === 'CLEAR') {
           return this.targetCache.clear()
+        }
+
+        if (parsedMessage.actionId === 'SET') {
+          return this.targetCache.set(
+            (parsedMessage as SetNotificationCommand<LoadedValue>).key,
+            (parsedMessage as SetNotificationCommand<LoadedValue>).value,
+          )
         }
       })
     })

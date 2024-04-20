@@ -68,6 +68,28 @@ export class Loader<LoadedValue, LoaderParams = undefined> extends AbstractFlatC
     this.isKeyRefreshing = new Set()
   }
 
+  public async forceSetValue(key: string, newValue: LoadedValue | null) {
+    this.inMemoryCache.set(key, newValue)
+    /* v8 ignore next 3 */
+    if (this.runningLoads.has(key)) {
+      this.runningLoads.delete(key)
+    }
+
+    if (this.asyncCache) {
+      await this.asyncCache.set(key, newValue).catch((err) => {
+        /* v8 ignore next 1 */
+        this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      })
+    }
+
+    /* v8 ignore next 5 */
+    if (this.notificationPublisher) {
+      this.notificationPublisher.set(key, newValue).catch((err) => {
+        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+      })
+    }
+  }
+
   public forceRefresh(key: string, loadParams?: LoaderParams): Promise<LoadedValue | undefined | null> {
     return this.loadFromLoaders(key, loadParams).then((finalValue) => {
       if (finalValue !== undefined) {
