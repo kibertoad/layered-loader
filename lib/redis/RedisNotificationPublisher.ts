@@ -11,12 +11,17 @@ export type RedisPublisherConfig = {
 }
 
 export type NotificationCommand = {
-  actionId: typeof CLEAR_COMMAND | typeof DELETE_COMMAND | typeof DELETE_MANY_COMMAND
+  actionId: typeof CLEAR_COMMAND | typeof DELETE_COMMAND | typeof DELETE_MANY_COMMAND | typeof SET_COMMAND
   originUuid: string
 }
 
 export type DeleteNotificationCommand = NotificationCommand & {
   key: string
+}
+
+export type SetNotificationCommand<T> = NotificationCommand & {
+  key: string
+  value: T | null
 }
 
 export type DeleteManyNotificationCommand = NotificationCommand & {
@@ -26,6 +31,7 @@ export type DeleteManyNotificationCommand = NotificationCommand & {
 export const CLEAR_COMMAND = 'CLEAR'
 export const DELETE_COMMAND = 'DELETE'
 export const DELETE_MANY_COMMAND = 'DELETE_MANY'
+export const SET_COMMAND = 'SET'
 
 export class RedisNotificationPublisher<LoadedValue> implements NotificationPublisher<LoadedValue> {
   public readonly channel: string
@@ -59,6 +65,18 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
         originUuid: this.serverUuid,
         key,
       } satisfies DeleteNotificationCommand),
+    )
+  }
+
+  set(key: string, value: LoadedValue | null): Promise<unknown> {
+    return this.redis.publish(
+      this.channel,
+      JSON.stringify({
+        actionId: SET_COMMAND,
+        originUuid: this.serverUuid,
+        key,
+        value,
+      } satisfies SetNotificationCommand<LoadedValue>),
     )
   }
 

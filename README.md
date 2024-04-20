@@ -406,8 +406,17 @@ Note that Loaders are generally recommended over ManualCaches, as they offer bet
 In certain cases you may want to fetch fresh data from the datasource before invalidating the cache. In that case you should use the `forceRefresh` method:
 
 ```ts
-// This will resolve the latest version of the data for the key "1", update async and inmemory caches and fire a NotificationPublisher invalidation event, if publisher is set  
+// This will resolve the latest version of the data for the key "1", update async and inmemory caches and fire a NotificationPublisher invalidation command, if publisher is set  
 await cache.forceRefresh('1')
+```
+
+### Forcing a specific value
+
+In certain cases you may want to explicitly store a specific value in all of your caches layers. In that case you should use the `forceSetValue` method:
+
+```ts
+// This will set the value of all configured caches for the key "1" to a value "newValue", and fire a NotificationPublisher set value command, if publisher is set  
+await cache.forceSetValue('1', 'newValue')
 ```
 
 ## Usage in high-performance systems

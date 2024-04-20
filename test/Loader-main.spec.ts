@@ -911,6 +911,29 @@ describe('Loader Main', () => {
     })
   })
 
+  describe('forceSet', () => {
+    it('sets the explicit value', async () => {
+      const asyncCache = new DummyCache(undefined)
+      const loader = new CountingDataSource('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: asyncCache,
+        dataSources: [loader],
+      })
+
+      const valuePre = await operation.get('key')
+      expect(asyncCache.value).toBe('value')
+      await operation.forceSetValue('key', 'value2')
+      const valuePost = await operation.get('key')
+      expect(asyncCache.value).toBe('value2')
+
+      expect(valuePre).toBe('value')
+      expect(valuePost).toBe('value2')
+      expect(loader.counter).toBe(1)
+    })
+  })
+
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)

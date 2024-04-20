@@ -39,25 +39,25 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates invalidation event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer1,
       notificationPublisher: notificationPublisher1,
     })
 
-    const operation2 = new Loader({
+    const operation2 = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer2,
@@ -95,26 +95,87 @@ describe('RedisNotificationPublisher', () => {
     await notificationPublisher1.close()
   })
 
-  it('Propagates bulk invalidation event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+  it('Propagates set event to remote cache', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer1,
       notificationPublisher: notificationPublisher1,
     })
 
-    const operation2 = new Loader({
+    const operation2 = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer2,
+      notificationPublisher: notificationPublisher2,
+    })
+    await operation.init()
+    await operation2.init()
+
+    await operation.getAsyncOnly('key')
+    await operation2.getAsyncOnly('key')
+    const resultPre1 = operation.getInMemoryOnly('key')
+    const resultPre2 = operation2.getInMemoryOnly('key')
+    await operation.forceSetValue('key', 'value2')
+    await operation.forceSetValue('key2', null)
+
+    await waitAndRetry(
+      () => {
+        const resultPost1 = operation.getInMemoryOnly('key')
+        const resultPost2 = operation2.getInMemoryOnly('key')
+        const resultPostValue2 = operation2.getInMemoryOnly('key2')
+        return resultPost1 === 'value2' && resultPost2 === 'value2' && resultPostValue2 === null
+      },
+      50,
+      100,
+    )
+
+    const resultPost1 = operation.getInMemoryOnly('key')
+    const resultPost2 = operation2.getInMemoryOnly('key')
+    const resultPostValue2 = operation2.getInMemoryOnly('key2')
+
+    expect(resultPre1).toBe('value')
+    expect(resultPre2).toBe('value')
+
+    expect(resultPost1).toBe('value2')
+    expect(resultPost2).toBe('value2')
+    expect(resultPostValue2).toBeNull()
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
+  it('Propagates bulk invalidation event to remote cache', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair<string>({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
+
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair<string>({
+      channel: CHANNEL_ID,
+      consumerRedis: redisConsumer,
+      publisherRedis: redisPublisher,
+    })
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    const operation2 = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer2,
@@ -153,26 +214,26 @@ describe('RedisNotificationPublisher', () => {
   })
 
   it('Propagates clear event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair({
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair({
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
     })
 
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer1,
       notificationPublisher: notificationPublisher1,
     })
 
-    const operation2 = new Loader({
+    const operation2 = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer2,
@@ -210,7 +271,7 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error on clear', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: new FakeThrowingRedis(),
@@ -219,7 +280,7 @@ describe('RedisNotificationPublisher', () => {
       },
     })
 
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer,
@@ -231,7 +292,7 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error on delete', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: new FakeThrowingRedis(),
@@ -240,7 +301,7 @@ describe('RedisNotificationPublisher', () => {
       },
     })
 
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer,
@@ -253,7 +314,7 @@ describe('RedisNotificationPublisher', () => {
   it('Handles connection error on delete', async () => {
     expect.assertions(2)
     await redisPublisher.quit()
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: redisPublisher,
@@ -263,7 +324,7 @@ describe('RedisNotificationPublisher', () => {
       },
     })
 
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer,
@@ -278,13 +339,13 @@ describe('RedisNotificationPublisher', () => {
 
   it('Handles error by default', async () => {
     expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair({
+    const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<string>({
       channel: CHANNEL_ID,
       consumerRedis: redisConsumer,
       publisherRedis: new FakeThrowingRedis(),
     })
 
-    const operation = new Loader({
+    const operation = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new DummyCache('value'),
       notificationConsumer: notificationConsumer,
