@@ -11,7 +11,7 @@ describe('InMemoryCache', () => {
     it('sets value after group has already expired', () => {
       const cache = new InMemoryGroupCache({
         maxGroups: 1,
-        ttlInMsecs: 1,
+        ttlInMsecs: 10,
       })
       cache.setForGroup('key', 'value', 'group')
       cache.setForGroup('key', 'value', 'group2')
