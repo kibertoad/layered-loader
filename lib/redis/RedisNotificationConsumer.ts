@@ -1,7 +1,7 @@
 import type { Redis } from 'ioredis'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type { SynchronousCache } from '../types/SyncDataSources'
-import {
+import type {
   DeleteManyNotificationCommand,
   DeleteNotificationCommand,
   NotificationCommand,
