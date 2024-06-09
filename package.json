@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "13.1.0",
+  "version": "13.2.0",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
