@@ -38,7 +38,8 @@ export class FakeThrowingRedis extends Redis {
     return createLongDelayPromise()
   }
 
-  publish(): Promise<number> {
+  // biome-ignore lint/suspicious/useAwait : It is important this throws within a promise
+  async publish(): Promise<number> {
     throw new Error('Operation has failed')
   }
 }
