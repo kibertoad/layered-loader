@@ -6,10 +6,6 @@ function createLongDelayPromise() {
 }
 
 export class FakeThrowingRedis extends Redis {
-  constructor() {
-    super()
-  }
-
   connect(): Promise<void> {
     return Promise.resolve()
   }
@@ -42,7 +38,7 @@ export class FakeThrowingRedis extends Redis {
     return createLongDelayPromise()
   }
 
-  async publish(): Promise<number> {
+  publish(): Promise<number> {
     throw new Error('Operation has failed')
   }
 }

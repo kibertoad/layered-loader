@@ -25,6 +25,8 @@ export class TemporaryThrowingLoader implements DataSource<string> {
         throw new Error('Error has occurred')
       })
     }
-    return Promise.resolve(keys.map(() => this.returnedValue as string).filter((entry) => entry != null))
+    return Promise.resolve(
+      keys.map(() => this.returnedValue as string).filter((entry) => entry != null),
+    )
   }
 }

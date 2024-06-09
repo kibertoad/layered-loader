@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+import { describe, expect, it } from 'vitest'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
 import { InMemoryCache } from '../../lib/memory/InMemoryCache'
 
@@ -97,7 +98,7 @@ describe('InMemoryCache', () => {
       expect(value3).toBe('value3')
     })
 
-    it('defaults to infinite ttl', async () => {
+    it('defaults to infinite ttl', () => {
       const cache = new InMemoryCache({
         cacheId: 'dummy',
         ttlInMsecs: undefined,

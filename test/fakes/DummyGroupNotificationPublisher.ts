@@ -22,19 +22,23 @@ export class DummyGroupNotificationPublisher implements GroupNotificationPublish
     return Promise.resolve(undefined)
   }
 
-  async deleteFromGroup(key: string, group: string) {
+  deleteFromGroup(key: string, group: string) {
     this.consumer.deleteFromGroup(key, group)
+    return Promise.resolve()
   }
 
-  async deleteGroup(group: string) {
+  deleteGroup(group: string) {
     this.consumer.deleteGroup(group)
+    return Promise.resolve()
   }
 
-  async setForGroup(key: string, value: User, group: string) {
+  setForGroup(key: string, value: User, group: string) {
     this.consumer.setForGroup(key, value, group)
+    return Promise.resolve()
   }
 
-  async clear() {
+  clear() {
     this.consumer.clear()
+    return Promise.resolve()
   }
 }

@@ -6,10 +6,6 @@ function createLongDelayPromise() {
 }
 
 export class FakeRedis extends Redis {
-  constructor() {
-    super()
-  }
-
   connect(): Promise<void> {
     return Promise.resolve()
   }

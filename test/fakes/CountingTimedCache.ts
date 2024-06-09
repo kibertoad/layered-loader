@@ -15,21 +15,24 @@ export class CountingTimedCache implements Cache<string> {
     this.cache = new FifoMap<string>(maxItems, tllInMsecs)
   }
 
-  async get(key: string): Promise<string | undefined | null> {
+  get(key: string): Promise<string | undefined | null> {
     this.counter++
-    return this.cache.get(key)
+    return Promise.resolve(this.cache.get(key))
   }
 
-  async clear(): Promise<void> {
+  clear(): Promise<void> {
     this.cache.clear()
+    return Promise.resolve()
   }
 
-  async delete(key: string): Promise<void> {
+  delete(key: string): Promise<void> {
     this.cache.delete(key)
+    return Promise.resolve()
   }
 
-  async set(key: string, value: string | null): Promise<void> {
+  set(key: string, value: string | null): Promise<void> {
     this.cache.set(key, value)
+    return Promise.resolve()
   }
 
   getExpirationTime(): Promise<number> {

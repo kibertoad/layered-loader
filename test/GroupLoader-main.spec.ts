@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+import { beforeEach, describe, expect, it, vitest } from 'vitest'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import type { IdResolver } from '../lib/types/DataSources'
@@ -308,7 +309,10 @@ describe('GroupLoader Main', () => {
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)
       // @ts-ignore
-      const expirationTimePre = operation.inMemoryCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+      const expirationTimePre = operation.inMemoryCache.getExpirationTimeFromGroup(
+        user1.userId,
+        user1.companyId,
+      )
 
       await setTimeout(100)
       expect(loader.counter).toBe(1)
@@ -318,7 +322,10 @@ describe('GroupLoader Main', () => {
       expect(loader.counter).toBe(2)
       await Promise.resolve()
       // @ts-ignore
-      const expirationTimePost = operation.inMemoryCache.getExpirationTimeFromGroup(user1.userId, user1.companyId)
+      const expirationTimePost = operation.inMemoryCache.getExpirationTimeFromGroup(
+        user1.userId,
+        user1.companyId,
+      )
 
       expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toEqual(user1)
       await Promise.resolve()
@@ -457,7 +464,10 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
+        dataSources: [
+          new DummyGroupedLoader(userValuesUndefined),
+          new DummyGroupedLoader(userValues),
+        ],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -667,7 +677,10 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyGroupedLoader(userValuesUndefined), new DummyGroupedLoader(userValues)],
+        dataSources: [
+          new DummyGroupedLoader(userValuesUndefined),
+          new DummyGroupedLoader(userValues),
+        ],
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache

@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, vitest } from 'vitest'
 import { ManualCache } from '../lib/ManualCache'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { CountingCache } from './fakes/CountingCache'

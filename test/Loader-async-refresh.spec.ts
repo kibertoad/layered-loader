@@ -1,5 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
+import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
 import { Loader } from '../lib/Loader'
 import { RedisCache } from '../lib/redis'
 import { CountingDataSource } from './fakes/CountingDataSource'
@@ -131,7 +132,9 @@ describe('Loader Async', () => {
       // kick off the refresh
       expect(await operation.get('key')).toBe('value')
       await setTimeout(100)
-      await expect(() => operation.get('key')).rejects.toThrow(/Failed to resolve value for key "key"/)
+      await expect(() => operation.get('key')).rejects.toThrow(
+        /Failed to resolve value for key "key"/,
+      )
       await Promise.resolve()
       expect(loader.counter).toBe(3)
     })

@@ -1,6 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
-import { afterEach, beforeEach, expect, vitest } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
 import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
@@ -31,7 +31,7 @@ const idResolver: IdResolver<string> = (value) => {
 }
 
 describe('Loader Main', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vitest.resetAllMocks()
   })
 
@@ -756,7 +756,9 @@ describe('Loader Main', () => {
         },
       })
 
-      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(/Retrieval of multiple entities/)
+      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(
+        /Retrieval of multiple entities/,
+      )
     })
 
     it('returns value when resolved via multiple caches', async () => {
@@ -1196,6 +1198,7 @@ describe('Loader Main', () => {
       expect(dataSource.counter).toBe(3)
     })
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: This is intentional
     it('Uses long in-memory cache with nullish caching', async () => {
       const ONE_HOUR_IN_MSECS = 1000 * 60 * 60
       const IN_MEMORY_CACHE_TTL = ONE_HOUR_IN_MSECS * 6
