@@ -6,10 +6,6 @@ function createLongDelayPromise() {
 }
 
 export class FakeThrowingRedis extends Redis {
-  constructor() {
-    super()
-  }
-
   connect(): Promise<void> {
     return Promise.resolve()
   }
@@ -42,6 +38,7 @@ export class FakeThrowingRedis extends Redis {
     return createLongDelayPromise()
   }
 
+  // biome-ignore lint/suspicious/useAwait : It is important this throws within a promise
   async publish(): Promise<number> {
     throw new Error('Operation has failed')
   }

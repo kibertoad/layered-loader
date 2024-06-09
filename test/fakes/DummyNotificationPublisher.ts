@@ -21,19 +21,23 @@ export class DummyNotificationPublisher implements NotificationPublisher<string>
     return Promise.resolve(undefined)
   }
 
-  async set(key: string, value: string) {
-    this.consumer.set(key, value)
+  set(key: string, value: string | null): Promise<unknown> {
+    this.consumer.set(key, value as string)
+    return Promise.resolve()
   }
 
-  async delete(key: string) {
+  delete(key: string) {
     this.consumer.delete(key)
+    return Promise.resolve()
   }
 
-  async deleteMany(keys: string[]) {
+  deleteMany(keys: string[]) {
     this.consumer.deleteMany(keys)
+    return Promise.resolve()
   }
 
-  async clear() {
+  clear() {
     this.consumer.clear()
+    return Promise.resolve()
   }
 }

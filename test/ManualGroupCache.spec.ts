@@ -1,4 +1,5 @@
 import Redis from 'ioredis'
+import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
 import { ManualGroupCache } from '../lib/ManualGroupCache'
 import type { InMemoryCacheConfiguration } from '../lib/memory'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
