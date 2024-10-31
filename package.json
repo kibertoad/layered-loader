@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build",
-    "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker-compose -f docker-compose.yml up --build -d wait_for_redis",
+    "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker compose -f docker-compose.yml up --build -d wait_for_redis",
     "docker:stop": "docker compose -f docker-compose.yml down",
     "test": "vitest",
     "test:everything": "npm run lint && npm run test:coverage",
