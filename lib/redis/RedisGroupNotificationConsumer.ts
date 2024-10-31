@@ -21,8 +21,13 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
     this.channel = config.channel
   }
 
-  async close() {
+  async close(): Promise<void> {
     await this.redis.unsubscribe(this.channel)
+    return new Promise((resolve) => {
+      void this.redis.quit((_err, result) => {
+        return resolve()
+      })
+    })
   }
 
   subscribe(): Promise<void> {

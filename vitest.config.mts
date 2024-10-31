@@ -8,8 +8,10 @@ export default defineConfig({
     poolOptions: {
       threads: {
         singleThread: true,
+        isolate: false,
       },
     },
+    pool: 'threads',
     environment: 'node',
     reporters: ['verbose'],
     coverage: {

@@ -273,8 +273,8 @@ const redisCache = new Redis(redisOptions)
 
 const { publisher: notificationPublisher, consumer: notificationConsumer } = createNotificationPair<User>({
   channel: 'user-cache-notifications',
-  consumerRedis: redisConsumer,
-  publisherRedis: redisPublisher,
+  consumerRedis: redisConsumer, // you can pass redis config instead
+  publisherRedis: redisPublisher, // you can pass redis config instead
 })
 
 const userLoader = new Loader({

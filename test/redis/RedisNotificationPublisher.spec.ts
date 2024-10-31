@@ -98,6 +98,65 @@ describe('RedisNotificationPublisher', () => {
     await notificationPublisher1.close()
   })
 
+  it('Propagates invalidation event to remote cache, works with redis config passed', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisOptions,
+        publisherRedis: redisOptions,
+      })
+
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    const operation2 = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer2,
+      notificationPublisher: notificationPublisher2,
+    })
+    await operation.init()
+    await operation2.init()
+
+    await operation.getAsyncOnly('key')
+    await operation2.getAsyncOnly('key')
+    const resultPre1 = operation.getInMemoryOnly('key')
+    const resultPre2 = operation2.getInMemoryOnly('key')
+    await operation.invalidateCacheFor('key')
+
+    await waitAndRetry(
+      () => {
+        const resultPost1 = operation.getInMemoryOnly('key')
+        const resultPost2 = operation2.getInMemoryOnly('key')
+        return resultPost1 === undefined && resultPost2 === undefined
+      },
+      50,
+      100,
+    )
+
+    const resultPost1 = operation.getInMemoryOnly('key')
+    const resultPost2 = operation2.getInMemoryOnly('key')
+
+    expect(resultPre1).toBe('value')
+    expect(resultPre2).toBe('value')
+
+    expect(resultPost1).toBeUndefined()
+    expect(resultPost2).toBeUndefined()
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Propagates set event to remote cache', async () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createNotificationPair<string>({
