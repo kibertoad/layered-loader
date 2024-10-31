@@ -126,6 +126,65 @@ describe('RedisGroupNotificationPublisher', () => {
     await notificationPublisher1.close()
   })
 
+  it('Propagates invalidation event to remote cache, works with redis config', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createGroupNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisOptions,
+        publisherRedis: redisOptions,
+      })
+
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createGroupNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+    const operation = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    const operation2 = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumer2,
+      notificationPublisher: notificationPublisher2,
+    })
+    await operation.init()
+    await operation2.init()
+
+    await operation.getAsyncOnly('key', 'group')
+    await operation2.getAsyncOnly('key', 'group')
+    const resultPre1 = operation.getInMemoryOnly('key', 'group')
+    const resultPre2 = operation2.getInMemoryOnly('key', 'group')
+    await operation.invalidateCacheFor('key', 'group')
+
+    await waitAndRetry(
+      () => {
+        const resultPost1 = operation.getInMemoryOnly('key', 'group')
+        const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+        return resultPost1 === undefined && resultPost2 === undefined
+      },
+      50,
+      100,
+    )
+
+    const resultPost1 = operation.getInMemoryOnly('key', 'group')
+    const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+
+    expect(resultPre1).toEqual(user1)
+    expect(resultPre2).toEqual(user1)
+
+    expect(resultPost1).toBeUndefined()
+    expect(resultPost2).toBeUndefined()
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Propagates delete group event to remote cache', async () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createGroupNotificationPair({

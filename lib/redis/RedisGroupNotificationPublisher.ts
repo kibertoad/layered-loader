@@ -68,7 +68,13 @@ export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotifi
     )
   }
 
-  async close() {}
+    close(): Promise<void> {
+        return new Promise((resolve) => {
+            void this.redis.quit((_err, result) => {
+                return resolve()
+            })
+        })
+    }
 
   async subscribe() {}
 }
