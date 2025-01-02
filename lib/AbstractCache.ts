@@ -26,6 +26,20 @@ export const DEFAULT_CACHE_ERROR_HANDLER: LoaderErrorHandler = (err, key, cache,
   logger.error(`Error while caching "${key}" with ${cache.name}: ${err.message}`)
 }
 
+export type CacheKeyResolver<SourceData> = (sourceData: SourceData) => string
+
+export type IdHolder = { id: string }
+
+export const DEFAULT_FROM_STRING_RESOLVER: CacheKeyResolver<string> = (source) => {
+  if (!(typeof source === 'string')) {
+    throw new Error('Please define cacheKeyFromLoadParamsResolver in your loader config if you are using composite loadParams and not just string keys')
+  }
+  return source
+}
+
+export const DEFAULT_FROM_ID_RESOLVER: CacheKeyResolver<IdHolder> = (source: IdHolder) => source.id
+export const DEFAULT_UNDEFINED_FROM_VALUE_RESOLVER: CacheKeyResolver<unknown> = () => { throw new Error('Please define cacheKeyFromValueResolver in your loader config if you want to use XYZ') }
+
 export type CommonCacheConfig<
   LoadedValue,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
@@ -38,6 +52,7 @@ export type CommonCacheConfig<
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
     | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
+  LoadParams = string
 > = {
   logger?: Logger
   cacheUpdateErrorHandler?: LoaderErrorHandler
@@ -46,6 +61,8 @@ export type CommonCacheConfig<
   asyncCache?: CacheType
   notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
   notificationPublisher?: NotificationPublisherType
+  cacheKeyFromLoadParamsResolver?: CacheKeyResolver<LoadParams>
+  cacheKeyFromValueResolver?: CacheKeyResolver<LoadedValue>
 }
 
 export abstract class AbstractCache<
@@ -61,9 +78,12 @@ export abstract class AbstractCache<
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
     | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
+  LoadParams = string
 > {
   protected readonly inMemoryCache: InMemoryCacheType
   protected readonly asyncCache?: CacheType
+  public readonly cacheKeyFromLoadParamsResolver: CacheKeyResolver<LoadParams>
+  public readonly cacheKeyFromValueResolver: CacheKeyResolver<LoadedValue>
 
   protected readonly logger: Logger
   protected readonly cacheUpdateErrorHandler: LoaderErrorHandler
@@ -83,10 +103,14 @@ export abstract class AbstractCache<
       CacheType,
       InMemoryCacheConfigType,
       InMemoryCacheType,
-      NotificationPublisherType
+      NotificationPublisherType,
+      LoadParams
     >,
   ) {
     this.initPromises = []
+    // @ts-expect-error By default we assume simple string params
+    this.cacheKeyFromLoadParamsResolver = config.cacheKeyFromLoadParamsResolver ?? DEFAULT_FROM_STRING_RESOLVER
+    this.cacheKeyFromValueResolver = config.cacheKeyFromValueResolver ?? DEFAULT_UNDEFINED_FROM_VALUE_RESOLVER
 
     if (config.inMemoryCache) {
       if (this.isGroupCache()) {

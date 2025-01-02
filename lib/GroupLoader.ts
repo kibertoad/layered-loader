@@ -2,7 +2,7 @@ import { AbstractGroupCache } from './AbstractGroupCache'
 import type { LoaderConfig } from './Loader'
 import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { CacheEntry, GroupCache, GroupDataSource, IdResolver } from './types/DataSources'
+import type { CacheEntry, GroupCache, GroupDataSource } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
 export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<
@@ -83,11 +83,10 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
   protected override async resolveManyGroupValues(
     keys: string[],
     group: string,
-    idResolver: IdResolver<LoadedValue>,
     loadParams?: LoaderParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // load what is available from async cache
-    const cachedValues = await super.resolveManyGroupValues(keys, group, idResolver, loadParams)
+    const cachedValues = await super.resolveManyGroupValues(keys, group, loadParams)
 
     // everything was cached, no need to load anything
     if (cachedValues.unresolvedKeys.length === 0) {
@@ -99,7 +98,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     if (this.asyncCache) {
       const cacheEntries: CacheEntry<LoadedValue>[] = loadValues.map((loadValue) => {
         return {
-          key: idResolver(loadValue),
+          key: this.cacheKeyFromValueResolver(loadValue),
           value: loadValue,
         }
       })

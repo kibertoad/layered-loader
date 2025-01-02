@@ -2,8 +2,6 @@ import type { GroupLoader } from '../GroupLoader'
 import type { Loader } from '../Loader'
 import type { GetManyResult } from './SyncDataSources'
 
-export type IdResolver<T> = (entity: T) => string
-
 export interface CommonCacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number
   ttlCacheTtl?: number // for how long to store ttl locally - useful when refresh is enabled
