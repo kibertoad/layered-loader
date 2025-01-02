@@ -19,7 +19,7 @@
     "test": "vitest",
     "test:everything": "npm run lint && npm run test:coverage",
     "test:coverage": "vitest --coverage",
-    "lint": "biome check",
+    "lint": "biome check && tsc --noEmit",
     "lint:fix": "biome check --write",
     "prepublishOnly": "npm run build:release",
     "update:dependencies": "npx npm-check-updates -u"

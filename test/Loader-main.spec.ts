@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
 import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
-import type { CacheKeyResolver } from '../lib/AbstractCache'
+import { type CacheKeyResolver, DEFAULT_FROM_ID_RESOLVER } from '../lib/AbstractCache'
 import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
@@ -569,6 +569,51 @@ describe('Loader Main', () => {
       expect(valuePre).toBeUndefined()
       expect(valuePost).toBe('prevaluepost')
       expect(valuePost2).toBe('prevaluepost')
+    })
+
+    it('resolves id from loadParams to the loader', async () => {
+      const cache2 = new DummyCache(undefined)
+      const operation = new Loader<string, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyDataSourceWithParams('value')],
+        cacheKeyFromLoadParamsResolver: DEFAULT_FROM_ID_RESOLVER,
+      })
+      // @ts-ignore
+      const cache1 = operation.inMemoryCache
+
+      const valuePre = await cache1.get('key')
+      await operation.get({ prefix: 'pre', key: 'dummy', id: 'key', suffix: 'post' })
+      const valuePost = await cache1.get('key')
+      const valuePost2 = await cache2.get('key')
+
+      expect(valuePre).toBeUndefined()
+      expect(valuePost).toBe('prevaluepost')
+      expect(valuePost2).toBe('prevaluepost')
+    })
+
+    it('throws an error if default resolver is used for composite loadparams', async () => {
+      const cache2 = new DummyCache(undefined)
+      const operation = new Loader<string, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyDataSourceWithParams('value')],
+      })
+      expect(() => operation.get({ prefix: 'pre', key: 'key', suffix: 'post' })).toThrowError(
+        /Please define cacheKeyFromLoadParamsResolver/,
+      )
+    })
+
+    it('throws an error if default resolver is used for bulk api', async () => {
+      const cache2 = new DummyCache(undefined)
+      const operation = new Loader<string, DummyLoaderParams>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: cache2,
+        dataSources: [new DummyDataSourceWithParams('value')],
+      })
+      await expect(() => operation.getMany(['test'], {})).rejects.toThrowError(
+        /Please define cacheKeyFromValueResolver/,
+      )
     })
 
     it('correctly reuses value from cache', async () => {

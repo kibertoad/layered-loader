@@ -3,6 +3,7 @@ import type { DataSource } from '../../lib/types/DataSources'
 
 export type DummyLoaderParams = {
   prefix: string
+  id?: string
   key: string
   suffix: string
 }
