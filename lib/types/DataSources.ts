@@ -54,14 +54,14 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
 }
 
 export interface DataSource<LoadedValue, LoadParams = undefined> {
-  get: (key: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
+  get: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
   getMany: (keys: string[], loadParams?: LoadParams) => Promise<LoadedValue[]>
 
   name: string
 }
 
 export interface GroupDataSource<LoadedValue, LoadParams = undefined> {
-  getFromGroup: (key: string, group: string, loadParams?: LoadParams) => Promise<LoadedValue | undefined | null>
+  getFromGroup: (loadParams: LoadParams, group: string) => Promise<LoadedValue | undefined | null>
   getManyFromGroup: (keys: string[], group: string, loadParams?: LoadParams) => Promise<LoadedValue[]>
 
   name: string

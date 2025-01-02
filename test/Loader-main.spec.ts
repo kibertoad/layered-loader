@@ -1,17 +1,17 @@
 import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
 import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
+import type { CacheKeyResolver } from '../lib/AbstractCache'
 import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
-import type { IdResolver } from '../lib/types/DataSources'
 import { CountingDataSource } from './fakes/CountingDataSource'
 import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 import { CountingTimedCache } from './fakes/CountingTimedCache'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
-import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
-import { DummyLoaderWithParams } from './fakes/DummyLoaderWithParams'
+import { type DummyLoaderParams, DummyParamKeyResolver } from './fakes/DummyDataSourceWithParams'
+import { DummyDataSourceWithParams } from './fakes/DummyDataSourceWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
 import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
@@ -25,7 +25,7 @@ const IN_MEMORY_CACHE_CONFIG = {
   ttlInMsecs: 999,
 } satisfies InMemoryCacheConfiguration
 
-const idResolver: IdResolver<string> = (value) => {
+const idResolver: CacheKeyResolver<string> = (value) => {
   const number = value.match(/(\d+)/)?.[0] ?? ''
   return `key${number}`
 }
@@ -555,13 +555,14 @@ describe('Loader Main', () => {
       const operation = new Loader<string, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyLoaderWithParams('value')],
+        dataSources: [new DummyDataSourceWithParams('value')],
+        cacheKeyFromLoadParamsResolver: DummyParamKeyResolver,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
-      await operation.get('key', { prefix: 'pre', suffix: 'post' })
+      await operation.get({ prefix: 'pre', key: 'key', suffix: 'post' })
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
@@ -607,9 +608,11 @@ describe('Loader Main', () => {
 
   describe('getMany', () => {
     it('returns empty list when fails to resolve value', async () => {
-      const operation = new Loader<string>({})
+      const operation = new Loader<string>({
+        cacheKeyFromValueResolver: idResolver,
+      })
 
-      const result = await operation.getMany(['key', 'key2'], idResolver)
+      const result = await operation.getMany(['key', 'key2'])
 
       expect(result).toEqual([])
     })
@@ -617,10 +620,11 @@ describe('Loader Main', () => {
     it('throws when fails to resolve value, no loaders and flag is set', async () => {
       const operation = new Loader<string>({
         throwIfUnresolved: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany(['key1', 'key2'], idResolver)
+        return operation.getMany(['key1', 'key2'])
       }).rejects.toThrow(/Failed to resolve value for some of the keys: key1, key2/)
     })
 
@@ -628,10 +632,11 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         throwIfUnresolved: true,
         dataSources: [new DummyDataSource(undefined)],
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany(['key1', 'key2'], idResolver)
+        return operation.getMany(['key1', 'key2'])
       }).rejects.toThrow(/Failed to resolve value for some of the keys: key1, key2/)
     })
 
@@ -646,9 +651,10 @@ describe('Loader Main', () => {
         asyncCache: cache,
         dataSources: [loader],
         throwIfUnresolved: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const value = await operation.getMany(['key', 'key2'], idResolver)
+      const value = await operation.getMany(['key', 'key2'])
       expect(value).toEqual(['value', 'value2'])
     })
 
@@ -657,10 +663,11 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         dataSources: [new ThrowingLoader()],
         throwIfLoadError: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany(['value'], idResolver)
+        return operation.getMany(['value'])
       }).rejects.toThrow(/Error has occurred/)
       expect(consoleSpy).toHaveBeenCalledTimes(1)
     })
@@ -670,9 +677,10 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         dataSources: [new ThrowingLoader()],
         throwIfLoadError: false,
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const result = await operation.getMany(['value'], idResolver)
+      const result = await operation.getMany(['value'])
 
       expect(result).toEqual([])
       expect(consoleSpy).toHaveBeenCalledTimes(1)
@@ -680,30 +688,36 @@ describe('Loader Main', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyDataSource(undefined)
-      const operation = new Loader<string>({ dataSources: [loader] })
+      const operation = new Loader<string>({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
 
-      const value = await operation.getMany(['value'], idResolver)
+      const value = await operation.getMany(['value'])
       expect(value).toEqual([])
 
       loader.value = null
-      const value2 = await operation.getMany(['value'], idResolver)
+      const value2 = await operation.getMany(['value'])
       expect(value2).toEqual([])
 
       loader.value = 'value'
-      const value3 = await operation.getMany(['dummy'], idResolver)
+      const value3 = await operation.getMany(['dummy'])
       expect(value3).toEqual(['value'])
     })
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingLoader('value')
-      const operation = new Loader<string>({ dataSources: [loader] })
+      const operation = new Loader<string>({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
 
       await expect(() => {
-        return operation.getMany(['value'], idResolver)
+        return operation.getMany(['value'])
       }).rejects.toThrow(/Error has occurred/)
 
       loader.isThrowing = false
-      const value = await operation.getMany(['dummy'], idResolver)
+      const value = await operation.getMany(['dummy'])
       expect(value).toEqual(['value'])
     })
 
@@ -712,18 +726,22 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         asyncCache: new ThrowingCache(),
         dataSources: [new DummyDataSource('value')],
+        cacheKeyFromValueResolver: idResolver,
       })
-      const value = await operation.getMany(['value'], idResolver)
+      const value = await operation.getMany(['value'])
       expect(value).toEqual(['value'])
       expect(consoleSpy).toHaveBeenCalledTimes(2)
     })
 
     it('returns value when resolved via single cache', async () => {
-      const operation = new Loader<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        cacheKeyFromValueResolver: idResolver,
+      })
       // @ts-ignore
       operation.inMemoryCache.set('key', 'value')
 
-      const result = await operation.getMany(['key'], idResolver)
+      const result = await operation.getMany(['key'])
 
       expect(result).toEqual(['value'])
     })
@@ -738,9 +756,10 @@ describe('Loader Main', () => {
 
           throw new Error('Not found')
         },
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const result = await operation.getMany(['key'], idResolver)
+      const result = await operation.getMany(['key'])
 
       expect(result).toEqual(['value'])
     })
@@ -754,11 +773,10 @@ describe('Loader Main', () => {
           }
           throw new Error('Not found')
         },
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      await expect(operation.getMany(['key'], idResolver)).rejects.toThrow(
-        /Retrieval of multiple entities/,
-      )
+      await expect(operation.getMany(['key'])).rejects.toThrow(/Retrieval of multiple entities/)
     })
 
     it('returns value when resolved via multiple caches', async () => {
@@ -767,10 +785,11 @@ describe('Loader Main', () => {
       const operation = new Loader<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: asyncCache,
+        cacheKeyFromValueResolver: idResolver,
       })
       asyncCache.value = 'value'
 
-      const result = await operation.getMany(['key', 'key2'], idResolver)
+      const result = await operation.getMany(['key', 'key2'])
 
       expect(result).toEqual(['value', 'value'])
     })
@@ -789,12 +808,13 @@ describe('Loader Main', () => {
             key2: 'value2',
           }),
         ],
+        cacheKeyFromValueResolver: idResolver,
       })
       // @ts-ignore
       const inMemoryCache = operation.inMemoryCache
 
       const valuePre = inMemoryCache.getMany(['key'])
-      await operation.getMany(['key'], idResolver)
+      await operation.getMany(['key'])
       const valuePost = inMemoryCache.getMany(['key'])
       const valuePost2 = await asyncCache.getMany(['key'])
 
@@ -817,13 +837,14 @@ describe('Loader Main', () => {
       const operation = new Loader<string, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyLoaderWithParams('value')],
+        dataSources: [new DummyDataSourceWithParams('value')],
+        cacheKeyFromValueResolver: idResolver,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = cache1.getMany(['key'])
-      await operation.getMany(['key'], idResolver, { prefix: 'pre', suffix: 'post' })
+      await operation.getMany(['key'], { prefix: 'pre', suffix: 'post' })
       const valuePost = cache1.getMany(['key'])
       const valuePost2 = await cache2.getMany(['key'])
 
@@ -856,10 +877,11 @@ describe('Loader Main', () => {
         },
         asyncCache: cache2,
         dataSources: [loader1, loader2],
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const valuePre = await operation.getMany(['key', 'key2'], idResolver)
-      const valuePost = await operation.getMany(['key', 'key2'], idResolver)
+      const valuePre = await operation.getMany(['key', 'key2'])
+      const valuePost = await operation.getMany(['key', 'key2'])
 
       expect(valuePre).toEqual(['value', 'value2'])
       expect(valuePost).toEqual(['value', 'value2'])
@@ -873,9 +895,12 @@ describe('Loader Main', () => {
         key2: 'value2',
       })
 
-      const operation = new Loader<string>({ dataSources: [loader] })
-      const valuePromise = operation.getMany(['key', 'key2'], idResolver)
-      const valuePromise2 = operation.getMany(['key', 'key2'], idResolver)
+      const operation = new Loader<string>({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
+      const valuePromise = operation.getMany(['key', 'key2'])
+      const valuePromise2 = operation.getMany(['key', 'key2'])
       const valuePromise3 = operation.get('key')
 
       const value = await valuePromise

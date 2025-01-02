@@ -10,9 +10,9 @@ import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './t
 
 export type LoaderConfig<
   LoadedValue,
-  LoaderParams = string,
+  LoadParams = string,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
-  DataSourceType = DataSource<LoadedValue, LoaderParams>,
+  DataSourceType = DataSource<LoadedValue, LoadParams>,
   InMemoryCacheConfigType extends
     | InMemoryCacheConfiguration
     | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
@@ -21,12 +21,11 @@ export type LoaderConfig<
     | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
-    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
-  LoadParams = string
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
 > = {
   dataSources?: readonly DataSourceType[]
-  dataSourceGetOneFn?: (key: string, loadParams?: LoaderParams) => Promise<LoadedValue | undefined | null>
-  dataSourceGetManyFn?: (keys: string[], loadParams?: LoaderParams) => Promise<LoadedValue[]>
+  dataSourceGetOneFn?: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
+  dataSourceGetManyFn?: (keys: string[], loadParams?: LoadParams) => Promise<LoadedValue[]>
   dataSourceName?: string
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
@@ -38,13 +37,7 @@ export class Loader<LoadedValue, LoadParams = string> extends AbstractFlatCache<
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: LoaderConfig<LoadedValue, LoadParams, Cache<LoadedValue>,
-      DataSource<LoadedValue, LoadParams>,
-      InMemoryCacheConfiguration,
-      SynchronousCache<LoadedValue>,
-      NotificationPublisher<LoadedValue>,
-      LoadParams
-  >) {
+  constructor(config: LoaderConfig<LoadedValue, LoadParams, Cache<LoadedValue>>) {
     super(config)
 
     // generated datasource
@@ -164,7 +157,7 @@ export class Loader<LoadedValue, LoadParams = string> extends AbstractFlatCache<
 
   private async loadFromLoaders(key: string, loadParams: LoadParams) {
     for (let index = 0; index < this.dataSources.length; index++) {
-      const resolvedValue = await this.dataSources[index].get(key, loadParams).catch((err) => {
+      const resolvedValue = await this.dataSources[index].get(loadParams).catch((err) => {
         this.loadErrorHandler(err, key, this.dataSources[index], this.logger)
         if (this.throwIfLoadError) {
           throw err

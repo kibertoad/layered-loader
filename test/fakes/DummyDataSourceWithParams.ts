@@ -1,11 +1,15 @@
+import type { CacheKeyResolver } from '../../lib/AbstractCache'
 import type { DataSource } from '../../lib/types/DataSources'
 
 export type DummyLoaderParams = {
   prefix: string
+  key: string
   suffix: string
 }
 
-export class DummyLoaderWithParams implements DataSource<string, DummyLoaderParams> {
+export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.key
+
+export class DummyDataSourceWithParams implements DataSource<string, DummyLoaderParams> {
   value: string | undefined | null
   name = 'Dummy loader'
   isCache = false
@@ -14,7 +18,7 @@ export class DummyLoaderWithParams implements DataSource<string, DummyLoaderPara
     this.value = returnedValue
   }
 
-  get(_key: string, params?: DummyLoaderParams): Promise<string | undefined | null> {
+  get(params: DummyLoaderParams): Promise<string | undefined | null> {
     if (!params) {
       throw new Error('Params were not passed')
     }

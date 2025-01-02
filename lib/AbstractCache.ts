@@ -38,7 +38,7 @@ export const DEFAULT_FROM_STRING_RESOLVER: CacheKeyResolver<string> = (source) =
 }
 
 export const DEFAULT_FROM_ID_RESOLVER: CacheKeyResolver<IdHolder> = (source: IdHolder) => source.id
-export const DEFAULT_UNDEFINED_FROM_VALUE_RESOLVER: CacheKeyResolver<unknown> = () => { throw new Error('Please define cacheKeyFromValueResolver in your loader config if you want to use XYZ') }
+export const DEFAULT_UNDEFINED_FROM_VALUE_RESOLVER: CacheKeyResolver<unknown> = () => { throw new Error('Please define cacheKeyFromValueResolver in your loader config if you want to use getMany operations') }
 
 export type CommonCacheConfig<
   LoadedValue,
