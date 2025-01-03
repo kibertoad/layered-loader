@@ -21,14 +21,14 @@ export type { InMemoryCacheConfiguration } from './lib/memory/InMemoryCache'
 export type { RedisCacheConfiguration } from './lib/redis/AbstractRedisCache'
 export type { RedisGroupCacheConfiguration } from './lib/redis/RedisGroupCache'
 export type { LoaderConfig } from './lib/Loader'
-export type { CommonCacheConfig } from './lib/AbstractCache'
+export type { CommonCacheConfig, CacheKeyResolver, IdHolder } from './lib/AbstractCache'
+export { DEFAULT_FROM_STRING_RESOLVER, DEFAULT_FROM_ID_RESOLVER } from './lib/AbstractCache'
 export type { GroupLoaderConfig } from './lib/GroupLoader'
 export type { ManualGroupCacheConfig } from './lib/ManualGroupCache'
 export type {
   DataSource,
   Cache,
   CommonCacheConfiguration,
-  IdResolver,
 } from './lib/types/DataSources'
 export type { Logger, LogFn } from './lib/util/Logger'
 

@@ -19,8 +19,8 @@
     "test": "vitest",
     "test:everything": "npm run lint && npm run test:coverage",
     "test:coverage": "vitest --coverage",
-    "lint": "biome check index.ts lib test biome.json",
-    "lint:fix": "biome check --write index.ts lib test biome.json",
+    "lint": "biome check && tsc --noEmit",
+    "lint:fix": "biome check --write",
     "prepublishOnly": "npm run build:release",
     "update:dependencies": "npx npm-check-updates -u"
   },
@@ -50,21 +50,17 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "ioredis": "^5.4.1",
+    "ioredis": "^5.4.2",
     "toad-cache": "^3.7.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@types/node": "^20.17.4",
-    "@vitest/coverage-v8": "^2.1.4",
+    "@types/node": "^20.17.11",
+    "@vitest/coverage-v8": "^2.1.8",
     "del-cli": "^6.0.0",
     "rfdc": "^1.4.1",
-    "vitest": "^2.1.4",
-    "typescript": "^5.6.3"
+    "vitest": "^2.1.8",
+    "typescript": "^5.7.2"
   },
-  "files": [
-    "README.md",
-    "LICENSE",
-    "dist/*"
-  ]
+  "files": ["README.md", "LICENSE", "dist/*"]
 }

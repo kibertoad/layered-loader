@@ -2,25 +2,25 @@ import { AbstractGroupCache } from './AbstractGroupCache'
 import type { LoaderConfig } from './Loader'
 import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { CacheEntry, GroupCache, GroupDataSource, IdResolver } from './types/DataSources'
+import type { CacheEntry, GroupCache, GroupDataSource } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
-export type GroupLoaderConfig<LoadedValue, LoaderParams = undefined> = LoaderConfig<
+export type GroupLoaderConfig<LoadedValue, LoadParams = string> = LoaderConfig<
   LoadedValue,
-  LoaderParams,
+  LoadParams,
   GroupCache<LoadedValue>,
-  GroupDataSource<LoadedValue, LoaderParams>,
+  GroupDataSource<LoadedValue, LoadParams>,
   InMemoryGroupCacheConfiguration,
   InMemoryGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>
 >
-export class GroupLoader<LoadedValue, LoaderParams = undefined> extends AbstractGroupCache<LoadedValue, LoaderParams> {
-  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoaderParams>[]
+export class GroupLoader<LoadedValue, LoadParams = string> extends AbstractGroupCache<LoadedValue, LoadParams> {
+  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: GroupLoaderConfig<LoadedValue, LoaderParams>) {
+  constructor(config: GroupLoaderConfig<LoadedValue, LoadParams>) {
     super(config)
     this.dataSources = config.dataSources ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -31,7 +31,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
   protected override resolveGroupValue(
     key: string,
     group: string,
-    loadParams?: LoaderParams,
+    loadParams: LoadParams,
   ): Promise<LoadedValue | undefined | null> {
     return super.resolveGroupValue(key, group).then((cachedValue) => {
       if (cachedValue !== undefined) {
@@ -83,11 +83,10 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
   protected override async resolveManyGroupValues(
     keys: string[],
     group: string,
-    idResolver: IdResolver<LoadedValue>,
-    loadParams?: LoaderParams,
+    loadParams?: LoadParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // load what is available from async cache
-    const cachedValues = await super.resolveManyGroupValues(keys, group, idResolver, loadParams)
+    const cachedValues = await super.resolveManyGroupValues(keys, group, loadParams)
 
     // everything was cached, no need to load anything
     if (cachedValues.unresolvedKeys.length === 0) {
@@ -99,7 +98,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     if (this.asyncCache) {
       const cacheEntries: CacheEntry<LoadedValue>[] = loadValues.map((loadValue) => {
         return {
-          key: idResolver(loadValue),
+          key: this.cacheKeyFromValueResolver(loadValue),
           value: loadValue,
         }
       })
@@ -122,9 +121,9 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     }
   }
 
-  private async loadFromLoaders(key: string, group: string, loadParams?: LoaderParams) {
+  private async loadFromLoaders(key: string, group: string, loadParams: LoadParams) {
     for (let index = 0; index < this.dataSources.length; index++) {
-      const resolvedValue = await this.dataSources[index].getFromGroup(key, group, loadParams).catch((err) => {
+      const resolvedValue = await this.dataSources[index].getFromGroup(loadParams, group).catch((err) => {
         this.loadErrorHandler(err, key, this.dataSources[index], this.logger)
         if (this.throwIfLoadError) {
           throw err
@@ -148,7 +147,7 @@ export class GroupLoader<LoadedValue, LoaderParams = undefined> extends Abstract
     return undefined
   }
 
-  private async loadManyFromLoaders(keys: string[], group: string, loadParams?: LoaderParams) {
+  private async loadManyFromLoaders(keys: string[], group: string, loadParams?: LoadParams) {
     let lastResolvedValues
     for (let index = 0; index < this.dataSources.length; index++) {
       lastResolvedValues = await this.dataSources[index].getManyFromGroup(keys, group, loadParams).catch((err) => {

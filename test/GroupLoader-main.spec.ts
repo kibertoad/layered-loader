@@ -1,16 +1,16 @@
 import { setTimeout } from 'node:timers/promises'
 import { beforeEach, describe, expect, it, vitest } from 'vitest'
+import type { CacheKeyResolver } from '../lib/AbstractCache'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
-import type { IdResolver } from '../lib/types/DataSources'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import type { DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
 import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
 import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
 import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
+import { DummyGroupedDataSourceWithParams } from './fakes/DummyGroupedDataSourceWithParams'
 import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
-import { DummyGroupedLoaderWithParams } from './fakes/DummyGroupedLoaderWithParams'
-import type { DummyLoaderParams } from './fakes/DummyLoaderWithParams'
 import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
 import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
@@ -53,7 +53,7 @@ const userValuesUndefined = {
   [user3.companyId]: {},
 }
 
-const idResolver: IdResolver<User> = (value) => {
+const idResolver: CacheKeyResolver<User> = (value) => {
   return value.userId
 }
 
@@ -487,13 +487,14 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyGroupedLoaderWithParams(userValues)],
+        dataSources: [new DummyGroupedDataSourceWithParams(userValues)],
+        cacheKeyFromLoadParamsResolver: (value) => value.key,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
-      await operation.get(user1.userId, user1.companyId, { prefix: 'pre', suffix: 'post' })
+      await operation.get({ prefix: 'pre', key: user1.userId, suffix: 'post' }, user1.companyId)
       const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
       const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
 
@@ -539,9 +540,11 @@ describe('GroupLoader Main', () => {
 
   describe('getMany', () => {
     it('returns empty array when fails to resolve value', async () => {
-      const operation = new GroupLoader<User>({})
+      const operation = new GroupLoader<User>({
+        cacheKeyFromValueResolver: idResolver,
+      })
 
-      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const result = await operation.getMany([user1.userId], user1.companyId)
 
       expect(result).toEqual([])
     })
@@ -549,10 +552,11 @@ describe('GroupLoader Main', () => {
     it('throws when fails to resolve value, with flag and no loaders', async () => {
       const operation = new GroupLoader<User>({
         throwIfUnresolved: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany([user1.userId], user1.companyId, idResolver)
+        return operation.getMany([user1.userId], user1.companyId)
       }).rejects.toThrow('Failed to resolve value for some of the keys (group 1): 1')
     })
 
@@ -560,10 +564,11 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         throwIfUnresolved: true,
         dataSources: [new DummyGroupedLoader(userValuesUndefined)],
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany([user1.userId], user1.companyId, idResolver)
+        return operation.getMany([user1.userId], user1.companyId)
       }).rejects.toThrow('Failed to resolve value for some of the keys (group 1): 1')
     })
 
@@ -571,9 +576,10 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         throwIfLoadError: false,
         dataSources: [new ThrowingGroupedLoader()],
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const result = await operation.getMany([user1.userId], user1.companyId)
 
       expect(result).toEqual([])
     })
@@ -586,9 +592,10 @@ describe('GroupLoader Main', () => {
         asyncCache: cache,
         dataSources: [loader],
         throwIfUnresolved: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value = await operation.getMany([user1.userId], user1.companyId)
       expect(value).toEqual([user1])
     })
 
@@ -597,10 +604,11 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         dataSources: [new ThrowingGroupedLoader()],
         throwIfLoadError: true,
+        cacheKeyFromValueResolver: idResolver,
       })
 
       await expect(() => {
-        return operation.getMany([user1.userId], user1.companyId, idResolver)
+        return operation.getMany([user1.userId], user1.companyId)
       }).rejects.toThrow(/Error has occurred/)
 
       expect(consoleSpy).toHaveBeenCalledTimes(1)
@@ -608,30 +616,36 @@ describe('GroupLoader Main', () => {
 
     it('resets loading operation after value was not found previously', async () => {
       const loader = new DummyGroupedLoader(userValuesUndefined)
-      const operation = new GroupLoader<User>({ dataSources: [loader] })
+      const operation = new GroupLoader<User>({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
 
-      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value = await operation.getMany([user1.userId], user1.companyId)
       expect(value).toEqual([])
 
       loader.groupValues = null
-      const value2 = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value2 = await operation.getMany([user1.userId], user1.companyId)
       expect(value2).toEqual([])
 
       loader.groupValues = userValues
-      const value3 = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value3 = await operation.getMany([user1.userId], user1.companyId)
       expect(value3).toEqual([user1])
     })
 
     it('resets loading operation after error during load', async () => {
       const loader = new TemporaryThrowingGroupedLoader(userValues)
-      const operation = new GroupLoader({ dataSources: [loader] })
+      const operation = new GroupLoader({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
 
       await expect(() => {
-        return operation.getMany([user1.userId], user1.companyId, idResolver)
+        return operation.getMany([user1.userId], user1.companyId)
       }).rejects.toThrow(/Error has occurred/)
 
       loader.isThrowing = false
-      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value = await operation.getMany([user1.userId], user1.companyId)
       expect(value).toEqual([user1])
     })
 
@@ -640,20 +654,24 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         asyncCache: new ThrowingGroupedCache(),
         dataSources: [new DummyGroupedLoader(userValues)],
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const value = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const value = await operation.getMany([user1.userId], user1.companyId)
 
       expect(value).toEqual([user1])
       expect(consoleSpy).toHaveBeenCalledTimes(2)
     })
 
     it('returns value when resolved via single loader', async () => {
-      const operation = new GroupLoader<User>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        cacheKeyFromValueResolver: idResolver,
+      })
       // @ts-ignore
       operation.inMemoryCache.setForGroup(user1.userId, user1, user1.companyId)
 
-      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const result = await operation.getMany([user1.userId], user1.companyId)
 
       expect(result).toEqual([user1])
     })
@@ -664,10 +682,11 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: asyncCache,
+        cacheKeyFromValueResolver: idResolver,
       })
       await asyncCache.setForGroup(user1.userId, user1, user1.companyId)
 
-      const result = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const result = await operation.getMany([user1.userId], user1.companyId)
 
       expect(result).toEqual([user1])
     })
@@ -681,12 +700,13 @@ describe('GroupLoader Main', () => {
           new DummyGroupedLoader(userValuesUndefined),
           new DummyGroupedLoader(userValues),
         ],
+        cacheKeyFromValueResolver: idResolver,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = cache1.getFromGroup(user1.userId, user1.companyId)
-      await operation.getMany([user1.userId], user1.companyId, idResolver)
+      await operation.getMany([user1.userId], user1.companyId)
       const valuePost = cache1.getFromGroup(user1.userId, user1.companyId)
       const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
 
@@ -700,13 +720,14 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader<User, DummyLoaderParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
-        dataSources: [new DummyGroupedLoaderWithParams(userValues)],
+        dataSources: [new DummyGroupedDataSourceWithParams(userValues)],
+        cacheKeyFromValueResolver: idResolver,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
-      await operation.getMany([user1.userId], user1.companyId, idResolver, {
+      await operation.getMany([user1.userId], user1.companyId, {
         prefix: 'pre',
         suffix: 'post',
       })
@@ -727,10 +748,11 @@ describe('GroupLoader Main', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [loader1, loader2],
+        cacheKeyFromValueResolver: idResolver,
       })
 
-      const valuePre = await operation.getMany([user1.userId], user1.companyId, idResolver)
-      const valuePost = await operation.getMany([user1.userId], user1.companyId, idResolver)
+      const valuePre = await operation.getMany([user1.userId], user1.companyId)
+      const valuePost = await operation.getMany([user1.userId], user1.companyId)
 
       expect(valuePre).toEqual([user1])
       expect(valuePost).toEqual([user1])
@@ -740,9 +762,12 @@ describe('GroupLoader Main', () => {
     it('does not batch identical retrievals', async () => {
       const loader = new CountingGroupedLoader(userValues)
 
-      const operation = new GroupLoader<User>({ dataSources: [loader] })
-      const valuePromise = operation.getMany([user1.userId], user1.companyId, idResolver)
-      const valuePromise2 = operation.getMany([user1.userId], user1.companyId, idResolver)
+      const operation = new GroupLoader<User>({
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
+      const valuePromise = operation.getMany([user1.userId], user1.companyId)
+      const valuePromise2 = operation.getMany([user1.userId], user1.companyId)
 
       const value = await valuePromise
       const value2 = await valuePromise2

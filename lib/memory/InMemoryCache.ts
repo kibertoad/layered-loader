@@ -13,7 +13,7 @@ export interface InMemoryCacheConfiguration extends CommonCacheConfiguration {
 }
 
 const DEFAULT_CONFIGURATION = {
-  cacheType: 'lru-object',
+  cacheType: 'lru-map',
   maxItems: 500,
 } satisfies Omit<InMemoryCacheConfiguration, 'ttlInMsecs'>
 

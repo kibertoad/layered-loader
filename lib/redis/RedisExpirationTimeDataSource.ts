@@ -1,6 +1,6 @@
 import type { Cache, DataSource } from '../types/DataSources'
 
-export class RedisExpirationTimeDataSource implements DataSource<number> {
+export class RedisExpirationTimeDataSource implements DataSource<number, string> {
   public readonly name = 'RedisExpirationTimeLoader'
   private readonly parentAsyncCache: Cache<any>
 
