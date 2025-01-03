@@ -142,7 +142,7 @@ const loader = new Loader<string>({
   // this cache will be checked first
   inMemoryCache: {
     cacheType: 'lru-map', // you can choose between lru and fifo caches, fifo being 10% slightly faster
-      // 'lru-object' is another option, it is slightly faster for non-string keys
+                          // 'lru-object' is another option, it is slightly faster for non-string keys
     ttlInMsecs: 1000 * 60,
     maxItems: 100,
   },
@@ -169,7 +169,8 @@ It is also possible to inline datasource definition:
 const loader = new Loader<string>({
   // this cache will be checked first
   inMemoryCache: {
-    cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being ~10% faster
+    cacheType: 'lru-map', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+                          // 'lru-object' is another option, it is slightly faster for non-string keys
     ttlInMsecs: 1000 * 60,
     maxItems: 100,
   },
