@@ -1,5 +1,6 @@
 export { Loader } from './lib/Loader'
 export { GroupLoader } from './lib/GroupLoader'
+export { ManualCache } from './lib/ManualCache'
 export { ManualGroupCache } from './lib/ManualGroupCache'
 export { RedisCache } from './lib/redis/RedisCache'
 export { RedisGroupCache } from './lib/redis/RedisGroupCache'

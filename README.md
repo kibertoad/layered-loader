@@ -141,7 +141,8 @@ class ClassifiersDataSource implements DataSource<Record<string, any>> {
 const loader = new Loader<string>({
   // this cache will be checked first
   inMemoryCache: {
-    cacheType: 'lru-object', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+    cacheType: 'lru-map', // you can choose between lru and fifo caches, fifo being 10% slightly faster
+      // 'lru-object' is another option, it is slightly faster for non-string keys
     ttlInMsecs: 1000 * 60,
     maxItems: 100,
   },
@@ -214,7 +215,7 @@ Loader provides following methods:
 - `invalidateCacheForMany(keys: string[]): Promise<void>` - expunge all entries for given keys from all caches of this Loader;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
 - `get(loadParams: LoadParams = string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which those data sources passed to the Loader constructor.
-- `getMany(keys: string[], idResolver: (entity: T) => string, loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Note that this retrieval mode doesn't support neither fetch deduplication nor the preemptive background refresh.
+- `getMany(keys: string[], loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Note that this retrieval mode doesn't support neither fetch deduplication nor the preemptive background refresh. Note that you need to manually resolve all keys upfront for this retrieval method (e. g. by using cacheKeyFromLoadParamsResolver from the Loader).
 
 ## Parametrized loading
 
@@ -239,7 +240,7 @@ class MyParametrizedDataSource implements DataSource<string, MyLoaderParams> {
 const loader = new Loader<string, MyLoaderParams>({
   inMemoryCache: IN_MEMORY_CACHE_CONFIG,
   dataSources: [new MyParametrizedDataSource()],
-  cacheKeyFromLoadParamsResolver: (params) => params.entityId 
+  cacheKeyFromLoadParamsResolver: (params) => params.entityId // if unique id consists of more than one field, you can concatenate them here
 })
 await operation.get({ jwtToken: 'someTokenValue', entityId: 'key' })
 ```
