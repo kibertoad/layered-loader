@@ -224,6 +224,34 @@ describe('RedisCache', () => {
   })
 
   describe('set', () => {
+    it('respects redis connection prefix', async () => {
+      const keyPrefix = 'prefix:'
+      const cachePrefix = 'layered-loader:entity'
+      const redisPrefix = new Redis({
+        ...redisOptions,
+        keyPrefix,
+      })
+
+      const cache = new RedisCache(redisPrefix, {
+        ttlInMsecs: 9999999,
+        prefix: cachePrefix,
+      })
+      const key = 'key'
+      const value = 'value'
+      await cache.set(key, value)
+
+      const redisNoPrefix = new Redis({
+        ...redisOptions,
+        keyPrefix: undefined,
+      })
+      const storedValue = await redisNoPrefix.get(`${keyPrefix}${cachePrefix}:${key}`)
+
+      expect(storedValue).toBe(value)
+
+      redisPrefix.disconnect()
+      redisNoPrefix.disconnect()
+    })
+
     it('defaults to infinite ttl', async () => {
       const cache = new RedisCache(redis, {
         ttlInMsecs: undefined,

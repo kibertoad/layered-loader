@@ -136,11 +136,11 @@ describe('RedisGroupCache', () => {
   describe('setForGroup', () => {
     it('sets value after group has already expired', async () => {
       const cache = new RedisGroupCache(redis, {
-        ttlInMsecs: 2,
-        groupTtlInMsecs: 1,
+        ttlInMsecs: 500,
+        groupTtlInMsecs: 100,
       })
       await cache.setForGroup('key', 'value', 'group')
-      await setTimeout(15)
+      await setTimeout(120)
 
       const preValue = await cache.getFromGroup('key', 'group')
       expect(preValue).toBeUndefined()
