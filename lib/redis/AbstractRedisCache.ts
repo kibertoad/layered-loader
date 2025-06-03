@@ -10,7 +10,7 @@ export interface RedisCacheConfiguration extends CommonCacheConfiguration {
 
 export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
   json: false,
-  prefix: 'layered-cache:',
+  prefix: 'layered-cache',
   ttlInMsecs: 1000 * 60 * 10,
   separator: ':',
 }
