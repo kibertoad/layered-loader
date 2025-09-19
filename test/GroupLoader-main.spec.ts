@@ -776,6 +776,20 @@ describe('GroupLoader Main', () => {
       expect(value2).toEqual([user1])
       expect(loader.counter).toBe(2)
     })
+
+    it('deduplicates keys in getMany with mixed cache layers', async () => {
+      const loader = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        dataSources: [new CountingGroupedLoader(userValues)],
+        cacheKeyFromValueResolver: (user: User) => user.userId,
+      })
+
+      const duplicatedKeys = ['1', '1', '2', '2', '1']
+
+      const result = await loader.getMany(duplicatedKeys, '1')
+      expect(result).toEqual([user1, user2])
+    })
   })
 
   describe('invalidateCacheFor', () => {
