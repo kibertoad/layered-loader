@@ -3,6 +3,7 @@ import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCach
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import type { GroupCache } from './types/DataSources'
 import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
+import {unique} from "./util/unique";
 
 export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> extends AbstractCache<
   LoadedValue,
@@ -84,7 +85,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> exten
     group: string,
     loadParams?: LoadParams,
   ): Promise<GetManyResult<LoadedValue>> {
-    // This doesn't support deduplication, and never might, as that would affect perf strongly. Maybe as an opt-in option in the future?
+    // Deduplication is handled at the getMany level for optimal performance
     return this.resolveManyGroupValues(keys, group, loadParams).then((result) => {
       for (let i = 0; i < result.resolvedValues.length; i++) {
         const resolvedValue = result.resolvedValues[i]
@@ -110,7 +111,8 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> exten
     group: string,
     loadParams?: LoadParams,
   ): Promise<LoadedValue[]> {
-    const inMemoryValues = this.getManyInMemoryOnly(keys, group)
+    const uniqueKeys = unique(keys)
+    const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys, group)
     // everything is in memory, hurray
     if (inMemoryValues.unresolvedKeys.length === 0) {
       return Promise.resolve(inMemoryValues.resolvedValues)
