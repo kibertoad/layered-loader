@@ -968,7 +968,6 @@ describe('Loader Main', () => {
 
       const result = await loader.getMany(['key1', 'key1', 'key2', 'key2', 'key1'])
       expect(result).toEqual(['value', 'value'])
-
     })
   })
 
