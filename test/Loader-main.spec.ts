@@ -957,6 +957,18 @@ describe('Loader Main', () => {
       expect(value3).toBe('value')
       expect(loader.counter).toBe(3)
     })
+
+    it('deduplicates keys in getMany with mixed cache layers', async () => {
+      const loader = new Loader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyCache('value'),
+        dataSources: [new CountingDataSource('value')],
+        cacheKeyFromValueResolver: idResolver,
+      })
+
+      const result = await loader.getMany(['key1', 'key1', 'key2', 'key2', 'key1'])
+      expect(result).toEqual(['value', 'value'])
+    })
   })
 
   describe('forceRefresh', () => {

@@ -1,8 +1,9 @@
-import {AbstractCache, CommonCacheConfig} from './AbstractCache'
+import {AbstractCache} from './AbstractCache'
 import type { Cache } from './types/DataSources'
 import type { GetManyResult, SynchronousCache } from './types/SyncDataSources'
 import {InMemoryCacheConfiguration} from "./memory/InMemoryCache";
 import {NotificationPublisher} from "./notifications/NotificationPublisher";
+import {unique} from "./util/unique";
 
 export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extends AbstractCache<
   LoadedValue,
@@ -86,7 +87,8 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extend
   }
 
   public getMany(keys: string[], loadParams?: LoadParams): Promise<LoadedValue[]> {
-    const inMemoryValues = this.getManyInMemoryOnly(keys)
+    const uniqueKeys = unique(keys)
+    const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys)
     // everything is in memory, hurray
     if (inMemoryValues.unresolvedKeys.length === 0) {
       return Promise.resolve(inMemoryValues.resolvedValues)
