@@ -1,10 +1,7 @@
-import type { CacheKeyResolver } from '../../lib/AbstractCache'
 import type { GroupDataSource } from '../../lib/types/DataSources'
 import type { GroupValues, User } from '../types/testTypes'
 import { cloneDeep } from '../utils/cloneUtils'
 import type { DummyLoaderManyParams, DummyLoaderParams } from './DummyDataSourceWithParams'
-
-export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.key
 
 export class DummyGroupedDataSourceWithParams
   implements GroupDataSource<User, DummyLoaderParams, DummyLoaderManyParams>
@@ -22,7 +19,7 @@ export class DummyGroupedDataSourceWithParams
     if (!params) {
       throw new Error('Params were not passed')
     }
-    const user = this.groupValues?.[group]?.[params.key]
+    const user = this.groupValues?.[group]?.[params.id]
     if (!user) {
       throw new Error('User not found')
     }

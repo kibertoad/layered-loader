@@ -489,13 +489,13 @@ describe('GroupLoader Main', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyGroupedDataSourceWithParams(userValues)],
-        cacheKeyFromLoadParamsResolver: (value) => value.key,
+        cacheKeyFromLoadParamsResolver: (value) => value.id,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
-      await operation.get({ prefix: 'pre', key: user1.userId, suffix: 'post' }, user1.companyId)
+      await operation.get({ prefix: 'pre', id: user1.userId, suffix: 'post' }, user1.companyId)
       const valuePost = await cache1.getFromGroup(user1.userId, user1.companyId)
       const valuePost2 = await cache2.getFromGroup(user1.userId, user1.companyId)
 

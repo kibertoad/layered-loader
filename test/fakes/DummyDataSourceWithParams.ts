@@ -1,13 +1,9 @@
 import type { CacheKeyResolver } from '../../lib/AbstractCache'
 import type { DataSource } from '../../lib/types/DataSources'
 
-export const DEFAULT_FROM_KEY_RESOLVER: CacheKeyResolver<DummyLoaderParams> = (
-  source: DummyLoaderParams,
-) => source.key
-
 export type DummyLoaderParams = {
   prefix: string
-  key: string
+  id: string
   suffix: string
 }
 
@@ -16,7 +12,7 @@ export type DummyLoaderManyParams = {
   suffix: string
 }
 
-export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.key
+export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.id
 
 export class DummyDataSourceWithParams
   implements DataSource<string, DummyLoaderParams, DummyLoaderManyParams>
