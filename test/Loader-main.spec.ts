@@ -588,7 +588,7 @@ describe('Loader Main', () => {
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
-      await operation.get({ prefix: 'pre', key: 'dummy', id: 'key', suffix: 'post' })
+      await operation.get({ prefix: 'pre', key: 'key', suffix: 'post' })
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
