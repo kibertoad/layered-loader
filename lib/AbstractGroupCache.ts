@@ -5,7 +5,7 @@ import type { GroupCache } from './types/DataSources'
 import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 import {unique} from "./util/unique";
 
-export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> extends AbstractCache<
+export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupCache<LoadedValue>,
@@ -83,7 +83,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> exten
   public getManyAsyncOnly(
     keys: string[],
     group: string,
-    loadParams?: LoadParams,
+    loadParams?: LoadManyParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // Deduplication is handled at the getMany level for optimal performance
     return this.resolveManyGroupValues(keys, group, loadParams).then((result) => {
@@ -109,7 +109,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> exten
   public getMany(
     keys: string[],
     group: string,
-    loadParams?: LoadParams,
+    loadParams?: LoadManyParams,
   ): Promise<LoadedValue[]> {
     const uniqueKeys = unique(keys)
     const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys, group)
@@ -162,7 +162,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string> exten
   protected async resolveManyGroupValues(
     keys: string[],
     group: string,
-    _loadParams?: LoadParams,
+    _loadParams?: LoadManyParams,
   ) {
     if (this.asyncCache) {
       return this.asyncCache.getManyFromGroup(keys, group).catch((err) => {

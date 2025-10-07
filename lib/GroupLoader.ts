@@ -5,22 +5,23 @@ import type { GroupNotificationPublisher } from './notifications/GroupNotificati
 import type { CacheEntry, GroupCache, GroupDataSource } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
-export type GroupLoaderConfig<LoadedValue, LoadParams = string> = LoaderConfig<
+export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> = LoaderConfig<
   LoadedValue,
   LoadParams,
+  LoadManyParams,
   GroupCache<LoadedValue>,
-  GroupDataSource<LoadedValue, LoadParams>,
+  GroupDataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryGroupCacheConfiguration,
   InMemoryGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>
 >
-export class GroupLoader<LoadedValue, LoadParams = string> extends AbstractGroupCache<LoadedValue, LoadParams> {
-  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams>[]
+export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractGroupCache<LoadedValue, LoadParams, LoadManyParams> {
+  private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: GroupLoaderConfig<LoadedValue, LoadParams>) {
+  constructor(config: GroupLoaderConfig<LoadedValue, LoadParams, LoadManyParams>) {
     super(config)
     this.dataSources = config.dataSources ?? []
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -83,7 +84,7 @@ export class GroupLoader<LoadedValue, LoadParams = string> extends AbstractGroup
   protected override async resolveManyGroupValues(
     keys: string[],
     group: string,
-    loadParams?: LoadParams,
+    loadParams?: LoadManyParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // load what is available from async cache
     const cachedValues = await super.resolveManyGroupValues(keys, group, loadParams)
@@ -147,7 +148,7 @@ export class GroupLoader<LoadedValue, LoadParams = string> extends AbstractGroup
     return undefined
   }
 
-  private async loadManyFromLoaders(keys: string[], group: string, loadParams?: LoadParams) {
+  private async loadManyFromLoaders(keys: string[], group: string, loadParams?: LoadManyParams) {
     let lastResolvedValues
     for (let index = 0; index < this.dataSources.length; index++) {
       lastResolvedValues = await this.dataSources[index].getManyFromGroup(keys, group, loadParams).catch((err) => {
