@@ -216,7 +216,7 @@ Loader provides following methods:
 - `invalidateCacheForMany(keys: string[]): Promise<void>` - expunge all entries for given keys from all caches of this Loader;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
 - `get(loadParams: LoadParams = string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which those data sources passed to the Loader constructor.
-- `getMany(keys: string[], loadParams?: P): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Duplicate keys in the input array are automatically deduplicated to optimize performance and prevent redundant data source calls. Note that this retrieval mode doesn't support preemptive background refresh. Note that you need to manually resolve all keys upfront for this retrieval method (e. g. by using cacheKeyFromLoadParamsResolver from the Loader).
+- `getMany(keys: string[], loadManyParams?: LoadManyParams = LoadParams): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Duplicate keys in the input array are automatically deduplicated to optimize performance and prevent redundant data source calls. Note that this retrieval mode doesn't support preemptive background refresh. Note that you need to manually resolve all keys upfront for this retrieval method (e. g. by using cacheKeyFromLoadParamsResolver from the Loader).
 
 ## Parametrized loading
 
@@ -231,10 +231,23 @@ export type MyLoaderParams = {
   entityId: string
 }
 
-class MyParametrizedDataSource implements DataSource<string, MyLoaderParams> {
+export type MyLoaderManyParams = {
+  jwtToken: string
+}
+
+class MyParametrizedDataSource implements DataSource<string, MyLoaderParams, MyLoaderManyParams> {
   async get(params: MyLoaderParams): Promise<string | undefined | null> {
     const resolvedValue = await someResolutionLogic(params.entityId, params.jwtToken)
     return resolvedValue
+  }
+
+  async getMany(entityIds: string[], params?: MyLoaderManyParams): Promise<string>[] {
+    if (!params) {
+        throw new Error('Load params are mandatory for MyParametrizedDataSource')
+    } 
+      
+    const resolvedValues = await someBulkResolutionLogic(entityIds, params.jwtToken)
+    return resolvedValues
   }
 }
 

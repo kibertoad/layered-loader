@@ -6,8 +6,8 @@ export class DummyRecordCache implements Cache<string> {
   values: Record<string, string | undefined | null>
   name = 'Dummy cache'
   isCache = true
-  readonly expirationTimeLoadingOperation: null
-  readonly ttlLeftBeforeRefreshInMsecs: 999999
+  readonly expirationTimeLoadingOperation: any
+  readonly ttlLeftBeforeRefreshInMsecs: any = null
 
   constructor(returnedValues: Record<string, string>) {
     this.values = returnedValues ?? {}

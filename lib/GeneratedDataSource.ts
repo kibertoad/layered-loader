@@ -1,16 +1,16 @@
 import type { DataSource } from './types/DataSources'
 
-export type GeneratedDataSourceParams<LoadedValue, LoaderParams = undefined> = {
+export type GeneratedDataSourceParams<LoadedValue, LoaderParams = undefined, LoaderManyParams = LoaderParams> = {
   name?: string
   dataSourceGetOneFn?: (loadParams: LoaderParams) => Promise<LoadedValue | undefined | null>
-  dataSourceGetManyFn?: (keys: string[], loadParams?: LoaderParams) => Promise<LoadedValue[]>
+  dataSourceGetManyFn?: (keys: string[], loadParams?: LoaderManyParams) => Promise<LoadedValue[]>
 }
 
-export class GeneratedDataSource<LoadedValue, LoadParams = undefined> implements DataSource<LoadedValue, LoadParams> {
+export class GeneratedDataSource<LoadedValue, LoadParams = undefined, LoadManyParams = LoadParams extends string ? undefined : LoadParams> implements DataSource<LoadedValue, LoadParams, LoadManyParams> {
   private readonly getOneFn: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
-  private readonly getManyFn: (keys: string[], loadParams?: LoadParams) => Promise<LoadedValue[]>
+  private readonly getManyFn: (keys: string[], loadParams?: LoadManyParams) => Promise<LoadedValue[]>
   public readonly name: string
-  constructor(params: GeneratedDataSourceParams<LoadedValue, LoadParams>) {
+  constructor(params: GeneratedDataSourceParams<LoadedValue, LoadParams, LoadManyParams>) {
     this.name = params.name ?? 'Generated loader'
     this.getOneFn =
       params.dataSourceGetOneFn ??
@@ -29,7 +29,7 @@ export class GeneratedDataSource<LoadedValue, LoadParams = undefined> implements
     return this.getOneFn(loadParams)
   }
 
-  getMany(keys: string[], loadParams: LoadParams | undefined): Promise<LoadedValue[]> {
+  getMany(keys: string[], loadParams: LoadManyParams | undefined): Promise<LoadedValue[]> {
     return this.getManyFn(keys, loadParams)
   }
 }

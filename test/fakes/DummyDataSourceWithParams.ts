@@ -3,14 +3,20 @@ import type { DataSource } from '../../lib/types/DataSources'
 
 export type DummyLoaderParams = {
   prefix: string
-  id?: string
-  key: string
+  id: string
   suffix: string
 }
 
-export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.key
+export type DummyLoaderManyParams = {
+  prefix: string
+  suffix: string
+}
 
-export class DummyDataSourceWithParams implements DataSource<string, DummyLoaderParams> {
+export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.id
+
+export class DummyDataSourceWithParams
+  implements DataSource<string, DummyLoaderParams, DummyLoaderManyParams>
+{
   value: string | undefined | null
   name = 'Dummy loader'
   isCache = false
@@ -27,7 +33,7 @@ export class DummyDataSourceWithParams implements DataSource<string, DummyLoader
     return Promise.resolve(`${params.prefix}${this.value}${params.suffix}`)
   }
 
-  getMany(keys: string[], loadParams: DummyLoaderParams | undefined): Promise<string[]> {
+  getMany(keys: string[], loadParams: DummyLoaderManyParams | undefined): Promise<string[]> {
     if (!loadParams) {
       throw new Error('Params were not passed')
     }

@@ -5,7 +5,7 @@ import {InMemoryCacheConfiguration} from "./memory/InMemoryCache";
 import {NotificationPublisher} from "./notifications/NotificationPublisher";
 import {unique} from "./util/unique";
 
-export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extends AbstractCache<
+export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractCache<
   LoadedValue,
   Promise<LoadedValue | undefined | null> | undefined,
   Cache<LoadedValue>,
@@ -62,7 +62,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extend
 
   public getManyAsyncOnly(
     keys: string[],
-    loadParams?: LoadParams,
+    loadParams?: LoadManyParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // This doesn't support deduplication, and never might, as that would affect perf strongly. Maybe as an opt-in option in the future?
     const loadingPromise = this.resolveManyValues(keys, loadParams)
@@ -86,7 +86,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extend
     return this.getAsyncOnly(loadParams)
   }
 
-  public getMany(keys: string[], loadParams?: LoadParams): Promise<LoadedValue[]> {
+  public getMany(keys: string[], loadParams?: LoadManyParams): Promise<LoadedValue[]> {
     const uniqueKeys = unique(keys)
     const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys)
     // everything is in memory, hurray
@@ -113,7 +113,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string> extend
 
   protected async resolveManyValues(
     keys: string[],
-    _loadParams?: LoadParams,
+    _loadParams?: LoadManyParams,
   ): Promise<GetManyResult<LoadedValue>> {
     if (this.asyncCache) {
       return this.asyncCache.getMany(keys).catch((err) => {

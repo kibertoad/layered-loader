@@ -10,7 +10,11 @@ import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 import { CountingTimedCache } from './fakes/CountingTimedCache'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
-import { type DummyLoaderParams, DummyParamKeyResolver } from './fakes/DummyDataSourceWithParams'
+import {
+  type DummyLoaderManyParams,
+  type DummyLoaderParams,
+  DummyParamKeyResolver,
+} from './fakes/DummyDataSourceWithParams'
 import { DummyDataSourceWithParams } from './fakes/DummyDataSourceWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
@@ -178,6 +182,7 @@ describe('Loader Main', () => {
       })
 
       expect(() => {
+        // @ts-expect-error this is for testing
         notificationConsumer.setTargetCache(null)
       }).toThrow(/Cannot modify already set target cache/)
     })
@@ -562,7 +567,7 @@ describe('Loader Main', () => {
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
-      await operation.get({ prefix: 'pre', key: 'key', suffix: 'post' })
+      await operation.get({ prefix: 'pre', id: 'key', suffix: 'post' })
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
@@ -583,7 +588,7 @@ describe('Loader Main', () => {
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
-      await operation.get({ prefix: 'pre', key: 'dummy', id: 'key', suffix: 'post' })
+      await operation.get({ prefix: 'pre', id: 'key', suffix: 'post' })
       const valuePost = await cache1.get('key')
       const valuePost2 = await cache2.get('key')
 
@@ -599,25 +604,29 @@ describe('Loader Main', () => {
         asyncCache: cache2,
         dataSources: [new DummyDataSourceWithParams('value')],
       })
-      expect(() => operation.get({ prefix: 'pre', key: 'key', suffix: 'post' })).toThrowError(
+      expect(() => operation.get({ prefix: 'pre', id: 'key', suffix: 'post' })).toThrowError(
         /Please define cacheKeyFromLoadParamsResolver/,
       )
     })
 
     it('throws an error if default resolver is used for bulk api', async () => {
       const cache2 = new DummyCache(undefined)
-      const operation = new Loader<string, DummyLoaderParams>({
+      const operation = new Loader<string, DummyLoaderParams, DummyLoaderManyParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyDataSourceWithParams('value')],
       })
-      await expect(() => operation.getMany(['test'], {})).rejects.toThrowError(
-        /Please define cacheKeyFromValueResolver/,
-      )
+      await expect(() =>
+        operation.getMany(['test'], {
+          prefix: 'test',
+          suffix: 'test',
+        }),
+      ).rejects.toThrowError(/Please define cacheKeyFromValueResolver/)
     })
 
     it('correctly reuses value from cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -879,7 +888,7 @@ describe('Loader Main', () => {
 
     it('passes loadParams to the loader', async () => {
       const cache2 = new DummyRecordCache({})
-      const operation = new Loader<string, DummyLoaderParams>({
+      const operation = new Loader<string, DummyLoaderParams, DummyLoaderManyParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyDataSourceWithParams('value')],
@@ -1021,6 +1030,7 @@ describe('Loader Main', () => {
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1041,6 +1051,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const throwingCache = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1064,6 +1075,7 @@ describe('Loader Main', () => {
   describe('invalidateCacheForMany', () => {
     it('invalidates multiple entries', async () => {
       const cache2 = new DummyRecordCache({})
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1092,6 +1104,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1115,6 +1128,7 @@ describe('Loader Main', () => {
   describe('invalidateCache', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1136,6 +1150,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 

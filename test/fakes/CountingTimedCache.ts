@@ -8,7 +8,7 @@ export class CountingTimedCache implements Cache<string> {
   name = 'Counting cache'
   readonly ttlLeftBeforeRefreshInMsecs = 0
   // @ts-ignore
-  readonly expirationTimeLoadingOperation = null
+  readonly expirationTimeLoadingOperation: any = null
   public readonly cache: FifoMap<string | null>
 
   constructor(maxItems: number, tllInMsecs: number) {

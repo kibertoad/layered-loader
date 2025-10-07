@@ -11,8 +11,9 @@ import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './t
 export type LoaderConfig<
   LoadedValue,
   LoadParams = string,
+  LoadManyParams = LoadParams extends string ? undefined : LoadParams,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
-  DataSourceType = DataSource<LoadedValue, LoadParams>,
+  DataSourceType = DataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryCacheConfigType extends
     | InMemoryCacheConfiguration
     | InMemoryGroupCacheConfiguration = InMemoryCacheConfiguration,
@@ -25,19 +26,19 @@ export type LoaderConfig<
 > = {
   dataSources?: readonly DataSourceType[]
   dataSourceGetOneFn?: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
-  dataSourceGetManyFn?: (keys: string[], loadParams?: LoadParams) => Promise<LoadedValue[]>
+  dataSourceGetManyFn?: (keys: string[], loadParams?: LoadManyParams) => Promise<LoadedValue[]>
   dataSourceName?: string
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
 } & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType, LoadParams>
 
-export class Loader<LoadedValue, LoadParams = string> extends AbstractFlatCache<LoadedValue, LoadParams> {
-  private readonly dataSources: readonly DataSource<LoadedValue, LoadParams>[]
+export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractFlatCache<LoadedValue, LoadParams, LoadManyParams> {
+  private readonly dataSources: readonly DataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
-  constructor(config: LoaderConfig<LoadedValue, LoadParams, Cache<LoadedValue>>) {
+  constructor(config: LoaderConfig<LoadedValue, LoadParams, LoadManyParams, Cache<LoadedValue>>) {
     super(config)
 
     // generated datasource
@@ -183,7 +184,7 @@ export class Loader<LoadedValue, LoadParams = string> extends AbstractFlatCache<
 
   protected override async resolveManyValues(
     keys: string[],
-    loadParams: LoadParams,
+    loadParams: LoadManyParams,
   ): Promise<GetManyResult<LoadedValue>> {
     // load what is available from async cache
     const cachedValues = await super.resolveManyValues(keys, loadParams)
@@ -221,7 +222,7 @@ export class Loader<LoadedValue, LoadParams = string> extends AbstractFlatCache<
     }
   }
 
-  private async loadManyFromLoaders(keys: string[], loadParams: LoadParams) {
+  private async loadManyFromLoaders(keys: string[], loadParams: LoadManyParams) {
     let lastResolvedValues
     for (let index = 0; index < this.dataSources.length; index++) {
       lastResolvedValues = await this.dataSources[index].getMany(keys, loadParams).catch((err) => {

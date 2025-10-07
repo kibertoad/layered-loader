@@ -4,8 +4,8 @@ import type { User } from '../types/testTypes'
 
 export class ThrowingGroupedCache implements GroupCache<User> {
   name = 'Throwing grouped cache'
-  readonly expirationTimeLoadingGroupedOperation: null
-  readonly ttlLeftBeforeRefreshInMsecs: 999999
+  readonly expirationTimeLoadingGroupedOperation: any
+  readonly ttlLeftBeforeRefreshInMsecs = 999999
 
   get(): Promise<User | undefined | null> {
     return Promise.resolve().then(() => {
