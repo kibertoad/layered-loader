@@ -5,7 +5,7 @@ import type { GroupCache } from './types/DataSources'
 import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
 import {unique} from "./util/unique";
 
-export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractCache<
+export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractCache<
   LoadedValue,
   Map<string, Promise<LoadedValue | undefined | null> | undefined>,
   GroupCache<LoadedValue>,

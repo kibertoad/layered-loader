@@ -15,7 +15,7 @@ export class CountingDataSource implements DataSource<string> {
     return Promise.resolve(this.value)
   }
 
-  getMany(keys: string[], _loadParams: undefined): Promise<string[]> {
+  getMany(keys: string[], _loadManyParams: undefined): Promise<string[]> {
     this.counter++
 
     return Promise.resolve(keys.map(() => this.value as string).filter((entry) => entry != null))

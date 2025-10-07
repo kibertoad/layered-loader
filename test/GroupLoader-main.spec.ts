@@ -4,7 +4,7 @@ import type { CacheKeyResolver } from '../lib/AbstractCache'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
-import type { DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
+import type { DummyLoaderManyParams, DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
 import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
 import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
 import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
@@ -244,6 +244,7 @@ describe('GroupLoader Main', () => {
       })
 
       expect(() => {
+        // @ts-expect-error this is for a test
         notificationConsumer.setTargetCache(null)
       }).toThrow(/Cannot modify already set target cache/)
     })
@@ -717,7 +718,7 @@ describe('GroupLoader Main', () => {
 
     it('passes loadParams to the loader', async () => {
       const cache2 = new DummyGroupedCache(userValuesUndefined)
-      const operation = new GroupLoader<User, DummyLoaderParams>({
+      const operation = new GroupLoader<User, DummyLoaderParams, DummyLoaderManyParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyGroupedDataSourceWithParams(userValues)],

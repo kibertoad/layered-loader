@@ -24,6 +24,10 @@ export class DelayedCountingGroupedLoader implements GroupDataSource<User> {
     return this.promise
   }
 
+  getManyFromGroup(): Promise<User[]> {
+    throw new Error('Method not implemented.')
+  }
+
   finishLoading() {
     this.resolver(this.resolveValue)
     return this.promise

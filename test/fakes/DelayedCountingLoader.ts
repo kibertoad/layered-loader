@@ -19,6 +19,10 @@ export class DelayedCountingLoader implements DataSource<string> {
     return this.promise
   }
 
+  getMany(): Promise<string[]> {
+    throw new Error('Method not implemented.')
+  }
+
   finishLoading() {
     this.resolver(this.value)
     return this.promise

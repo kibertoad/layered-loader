@@ -1,16 +1,26 @@
 import type { CacheKeyResolver } from '../../lib/AbstractCache'
 import type { DataSource } from '../../lib/types/DataSources'
 
+export const DEFAULT_FROM_KEY_RESOLVER: CacheKeyResolver<DummyLoaderParams> = (
+  source: DummyLoaderParams,
+) => source.key
+
 export type DummyLoaderParams = {
   prefix: string
-  id?: string
   key: string
+  suffix: string
+}
+
+export type DummyLoaderManyParams = {
+  prefix: string
   suffix: string
 }
 
 export const DummyParamKeyResolver: CacheKeyResolver<DummyLoaderParams> = (params) => params.key
 
-export class DummyDataSourceWithParams implements DataSource<string, DummyLoaderParams> {
+export class DummyDataSourceWithParams
+  implements DataSource<string, DummyLoaderParams, DummyLoaderManyParams>
+{
   value: string | undefined | null
   name = 'Dummy loader'
   isCache = false
@@ -27,7 +37,7 @@ export class DummyDataSourceWithParams implements DataSource<string, DummyLoader
     return Promise.resolve(`${params.prefix}${this.value}${params.suffix}`)
   }
 
-  getMany(keys: string[], loadParams: DummyLoaderParams | undefined): Promise<string[]> {
+  getMany(keys: string[], loadParams: DummyLoaderManyParams | undefined): Promise<string[]> {
     if (!loadParams) {
       throw new Error('Params were not passed')
     }

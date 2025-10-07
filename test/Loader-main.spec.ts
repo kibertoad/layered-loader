@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
 import { HitStatisticsRecord } from 'toad-cache'
 import { afterEach, beforeEach, describe, expect, it, vitest } from 'vitest'
-import { type CacheKeyResolver, DEFAULT_FROM_ID_RESOLVER } from '../lib/AbstractCache'
+import type { CacheKeyResolver } from '../lib/AbstractCache'
 import type { LoaderConfig } from '../lib/Loader'
 import { Loader } from '../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
@@ -10,7 +10,12 @@ import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 import { CountingTimedCache } from './fakes/CountingTimedCache'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
-import { type DummyLoaderParams, DummyParamKeyResolver } from './fakes/DummyDataSourceWithParams'
+import {
+  DEFAULT_FROM_KEY_RESOLVER,
+  type DummyLoaderManyParams,
+  type DummyLoaderParams,
+  DummyParamKeyResolver,
+} from './fakes/DummyDataSourceWithParams'
 import { DummyDataSourceWithParams } from './fakes/DummyDataSourceWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
@@ -577,7 +582,7 @@ describe('Loader Main', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyDataSourceWithParams('value')],
-        cacheKeyFromLoadParamsResolver: DEFAULT_FROM_ID_RESOLVER,
+        cacheKeyFromLoadParamsResolver: DEFAULT_FROM_KEY_RESOLVER,
       })
       // @ts-ignore
       const cache1 = operation.inMemoryCache
@@ -618,6 +623,7 @@ describe('Loader Main', () => {
 
     it('correctly reuses value from cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -879,7 +885,7 @@ describe('Loader Main', () => {
 
     it('passes loadParams to the loader', async () => {
       const cache2 = new DummyRecordCache({})
-      const operation = new Loader<string, DummyLoaderParams>({
+      const operation = new Loader<string, DummyLoaderParams, DummyLoaderManyParams>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
         dataSources: [new DummyDataSourceWithParams('value')],
@@ -1021,6 +1027,7 @@ describe('Loader Main', () => {
   describe('invalidateCacheFor', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1041,6 +1048,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const throwingCache = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1064,6 +1072,7 @@ describe('Loader Main', () => {
   describe('invalidateCacheForMany', () => {
     it('invalidates multiple entries', async () => {
       const cache2 = new DummyRecordCache({})
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1092,6 +1101,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1115,6 +1125,7 @@ describe('Loader Main', () => {
   describe('invalidateCache', () => {
     it('correctly invalidates cache', async () => {
       const cache2 = new DummyCache(undefined)
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 
@@ -1136,6 +1147,7 @@ describe('Loader Main', () => {
 
     it('correctly handles errors during invalidation', async () => {
       const cache2 = new ThrowingCache()
+      // @ts-expect-error this is for testing
       const loader1 = new CountingDataSource(undefined)
       const loader2 = new CountingDataSource('value')
 

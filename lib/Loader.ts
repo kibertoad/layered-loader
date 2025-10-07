@@ -11,7 +11,7 @@ import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './t
 export type LoaderConfig<
   LoadedValue,
   LoadParams = string,
-  LoadManyParams = LoadParams,
+  LoadManyParams = LoadParams extends string ? undefined : LoadParams,
   CacheType extends Cache<LoadedValue> | GroupCache<LoadedValue> = Cache<LoadedValue>,
   DataSourceType = DataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryCacheConfigType extends
@@ -32,7 +32,7 @@ export type LoaderConfig<
   throwIfUnresolved?: boolean
 } & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType, LoadParams>
 
-export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractFlatCache<LoadedValue, LoadParams, LoadManyParams> {
+export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractFlatCache<LoadedValue, LoadParams, LoadManyParams> {
   private readonly dataSources: readonly DataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly isKeyRefreshing: Set<string>
   protected readonly throwIfLoadError: boolean

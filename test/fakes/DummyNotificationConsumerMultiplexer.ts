@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { AbstractNotificationConsumer } from '../../lib/notifications/AbstractNotificationConsumer'
 import type { SynchronousCache } from '../../lib/types/SyncDataSources'
 import type { DummyNotificationConsumer } from './DummyNotificationConsumer'
@@ -7,7 +8,7 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   private notificationConsumers: DummyNotificationConsumer[]
 
   constructor(notificationConsumers: DummyNotificationConsumer[]) {
-    super()
+    super(randomUUID())
     this.notificationConsumers = notificationConsumers
   }
 
@@ -44,6 +45,12 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
   clear() {
     for (var consumer of this.notificationConsumers) {
       consumer.clear()
+    }
+  }
+
+  deleteMany(keys: string[]) {
+    for (var consumer of this.notificationConsumers) {
+      consumer.deleteMany(keys)
     }
   }
 }

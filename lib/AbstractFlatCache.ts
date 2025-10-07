@@ -5,7 +5,7 @@ import {InMemoryCacheConfiguration} from "./memory/InMemoryCache";
 import {NotificationPublisher} from "./notifications/NotificationPublisher";
 import {unique} from "./util/unique";
 
-export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractCache<
+export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractCache<
   LoadedValue,
   Promise<LoadedValue | undefined | null> | undefined,
   Cache<LoadedValue>,

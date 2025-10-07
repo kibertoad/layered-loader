@@ -15,7 +15,7 @@ export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams =
   InMemoryGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>
 >
-export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> extends AbstractGroupCache<LoadedValue, LoadParams, LoadManyParams> {
+export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractGroupCache<LoadedValue, LoadParams, LoadManyParams> {
   private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
   protected readonly throwIfLoadError: boolean

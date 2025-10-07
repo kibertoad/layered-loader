@@ -7,8 +7,8 @@ export class DummyGroupedCache implements GroupCache<User> {
   private value: User | undefined
   groupValues: GroupValues
   name = 'Dummy cache'
-  readonly expirationTimeLoadingGroupedOperation: null
-  readonly ttlLeftBeforeRefreshInMsecs: 99999
+  readonly expirationTimeLoadingGroupedOperation: any
+  readonly ttlLeftBeforeRefreshInMsecs = 99999
 
   constructor(returnedValues: GroupValues) {
     this.groupValues = cloneDeep(returnedValues)

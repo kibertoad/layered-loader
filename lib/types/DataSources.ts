@@ -53,14 +53,16 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
 }
 
-export interface DataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> {
+export interface DataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> {
   get: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
+
+  // note that we cannot combine keys and loadParams here, because we may be asked to only fetch a subset of originally requested keys, as the others might be cached already
   getMany: (keys: string[], loadParams?: LoadManyParams) => Promise<LoadedValue[]>
 
   name: string
 }
 
-export interface GroupDataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> {
+export interface GroupDataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> {
   getFromGroup: (loadParams: LoadParams, group: string) => Promise<LoadedValue | undefined | null>
   getManyFromGroup: (keys: string[], group: string, loadParams?: LoadManyParams) => Promise<LoadedValue[]>
 
