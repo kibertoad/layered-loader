@@ -89,7 +89,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
 
-    return this.redis.mget(transformedKeys).then((redisResult) => {
+    return this.redis.mget(transformedKeys).then((redisResult: (string | null)[]) => {
       for (let i = 0; i < keys.length; i++) {
         const currentResult = redisResult[i]
 

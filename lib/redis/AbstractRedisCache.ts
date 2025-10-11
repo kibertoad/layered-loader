@@ -1,5 +1,6 @@
-import type { Redis } from 'ioredis'
 import type { CommonCacheConfiguration } from '../types/DataSources'
+import type { RedisClientInterface, RedisClientType } from './RedisClientAdapter'
+import { createRedisAdapter } from './RedisClientAdapter'
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
   prefix: string
@@ -16,11 +17,11 @@ export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
 }
 
 export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfiguration, LoadedValue> {
-  protected readonly redis: Redis
+  protected readonly redis: RedisClientInterface
   protected readonly config: ConfigType
 
-  constructor(redis: Redis, config: Partial<ConfigType>) {
-    this.redis = redis
+  constructor(redis: RedisClientType, config: Partial<ConfigType>) {
+    this.redis = createRedisAdapter(redis)
     // @ts-ignore
     this.config = {
       ...DEFAULT_REDIS_CACHE_CONFIGURATION,

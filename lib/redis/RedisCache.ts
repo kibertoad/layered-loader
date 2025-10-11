@@ -1,9 +1,9 @@
-import type Redis from 'ioredis'
 import { Loader } from '../Loader'
 import type { Cache, CacheEntry } from '../types/DataSources'
 import type { GetManyResult } from '../types/SyncDataSources'
 import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache, DEFAULT_REDIS_CACHE_CONFIGURATION } from './AbstractRedisCache'
+import type { RedisClientType } from './RedisClientAdapter'
 import { RedisExpirationTimeDataSource } from './RedisExpirationTimeDataSource'
 
 export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T> implements Cache<T> {
@@ -11,7 +11,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
 
-  constructor(redis: Redis, config: Partial<RedisCacheConfiguration> = DEFAULT_REDIS_CACHE_CONFIGURATION) {
+  constructor(redis: RedisClientType, config: Partial<RedisCacheConfiguration> = DEFAULT_REDIS_CACHE_CONFIGURATION) {
     super(redis, config)
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
 
@@ -74,7 +74,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   getExpirationTime(key: string): Promise<number | undefined> {
     const now = Date.now()
 
-    return this.redis.pttl(this.resolveKey(key)).then((remainingTtl) => {
+    return this.redis.pttl(this.resolveKey(key)).then((remainingTtl: number) => {
       return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
     })
   }
