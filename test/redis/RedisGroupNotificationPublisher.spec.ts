@@ -41,12 +41,12 @@ const userValues = {
   },
 }
 
-describe('RedisGroupNotificationPublisher', () => {
+describe.each(testServerConfigs)('RedisGroupNotificationPublisher ($name)', ({ options }) => {
   let redisPublisher: Redis
   let redisConsumer: Redis
   beforeEach(async () => {
-    redisPublisher = new Redis(redisOptions)
-    redisConsumer = new Redis(redisOptions)
+    redisPublisher = new Redis(options)
+    redisConsumer = new Redis(options)
     await redisPublisher.flushall()
     await redisConsumer.flushall()
   })

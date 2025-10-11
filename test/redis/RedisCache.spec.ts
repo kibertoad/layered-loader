@@ -6,7 +6,7 @@ import { testServerConfigs } from '../fakes/TestRedisConfig'
 
 const TTL_IN_MSECS = 999
 
-describe.each(testServerConfigs)('RedisCache ($name)', ({ name, options }) => {
+describe.each(testServerConfigs)('RedisCache ($name)', ({ options }) => {
   let redis: Redis
   beforeEach(async () => {
     redis = new Redis(options)

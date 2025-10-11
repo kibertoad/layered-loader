@@ -2,7 +2,7 @@ import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
 import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
-import { redisOptions } from '../fakes/TestRedisConfig'
+import { testServerConfigs } from '../fakes/TestRedisConfig'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
@@ -13,12 +13,12 @@ import { waitAndRetry } from '../utils/waitUtils'
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 const CHANNEL_ID = 'test_channel'
 
-describe('RedisNotificationPublisher', () => {
+describe.each(testServerConfigs)('RedisNotificationPublisher ($name)', ({ options }) => {
   let redisPublisher: Redis
   let redisConsumer: Redis
   beforeEach(async () => {
-    redisPublisher = new Redis(redisOptions)
-    redisConsumer = new Redis(redisOptions)
+    redisPublisher = new Redis(options)
+    redisConsumer = new Redis(options)
     await redisPublisher.flushall()
     await redisConsumer.flushall()
   })
