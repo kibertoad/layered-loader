@@ -2,14 +2,14 @@ import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RedisCache } from '../../lib/redis/RedisCache'
-import { redisOptions } from '../fakes/TestRedisConfig'
+import { testServerConfigs } from '../fakes/TestRedisConfig'
 
 const TTL_IN_MSECS = 999
 
-describe('RedisCache', () => {
+describe.each(testServerConfigs)('RedisCache ($name)', ({ name, options }) => {
   let redis: Redis
   beforeEach(async () => {
-    redis = new Redis(redisOptions)
+    redis = new Redis(options)
     await redis.flushall()
   })
   afterEach(async () => {
@@ -228,7 +228,7 @@ describe('RedisCache', () => {
       const keyPrefix = 'prefix:'
       const cachePrefix = 'layered-loader:entity'
       const redisPrefix = new Redis({
-        ...redisOptions,
+        ...options,
         keyPrefix,
       })
 
@@ -241,7 +241,7 @@ describe('RedisCache', () => {
       await cache.set(key, value)
 
       const redisNoPrefix = new Redis({
-        ...redisOptions,
+        ...options,
         keyPrefix: undefined,
       })
       const storedValue = await redisNoPrefix.get(`${keyPrefix}${cachePrefix}:${key}`)

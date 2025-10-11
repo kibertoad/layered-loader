@@ -102,8 +102,8 @@ describe('RedisNotificationPublisher', () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createNotificationPair<string>({
         channel: CHANNEL_ID,
-        consumerRedis: redisOptions,
-        publisherRedis: redisOptions,
+        consumerRedis: options,
+        publisherRedis: options,
       })
 
     const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =

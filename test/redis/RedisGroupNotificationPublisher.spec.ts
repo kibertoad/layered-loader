@@ -6,7 +6,7 @@ import type { InMemoryCacheConfiguration } from '../../lib/memory'
 import { createGroupNotificationPair } from '../../lib/redis/RedisGroupNotificationFactory'
 import { DummyGroupedCache } from '../fakes/DummyGroupedCache'
 import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
-import { redisOptions } from '../fakes/TestRedisConfig'
+import { testServerConfigs } from '../fakes/TestRedisConfig'
 import type { User } from '../types/testTypes'
 import { waitAndRetry } from '../utils/waitUtils'
 
@@ -130,8 +130,8 @@ describe('RedisGroupNotificationPublisher', () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createGroupNotificationPair({
         channel: CHANNEL_ID,
-        consumerRedis: redisOptions,
-        publisherRedis: redisOptions,
+        consumerRedis: options,
+        publisherRedis: options,
       })
 
     const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =

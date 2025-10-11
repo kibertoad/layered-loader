@@ -2,14 +2,14 @@ import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RedisGroupCache } from '../../lib/redis/RedisGroupCache'
-import { redisOptions } from '../fakes/TestRedisConfig'
+import { testServerConfigs } from '../fakes/TestRedisConfig'
 
 const TTL_IN_MSECS = 999
 
-describe('RedisGroupCache', () => {
+describe.each(testServerConfigs)('RedisGroupCache ($name)', ({ name, options }) => {
   let redis: Redis
   beforeEach(async () => {
-    redis = new Redis(redisOptions)
+    redis = new Redis(options)
     await redis.flushall()
   })
   afterEach(async () => {

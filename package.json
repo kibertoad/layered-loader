@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build",
-    "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker compose -f docker-compose.yml up --build -d wait_for_redis",
+    "docker:start": "docker compose -f docker-compose.yml up --build -d redis valkey && docker compose -f docker-compose.yml up --build -d wait_for_redis",
     "docker:stop": "docker compose -f docker-compose.yml down",
     "test": "vitest",
     "test:everything": "npm run lint && npm run test:coverage",
@@ -59,8 +59,12 @@
     "@vitest/coverage-v8": "^3.2.0",
     "del-cli": "^6.0.0",
     "rfdc": "^1.4.1",
-    "vitest": "^3.2.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.0"
   },
-  "files": ["README.md", "LICENSE", "dist/*"]
+  "files": [
+    "README.md",
+    "LICENSE",
+    "dist/*"
+  ]
 }
