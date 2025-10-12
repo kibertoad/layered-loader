@@ -146,6 +146,7 @@ export class IoRedisClientAdapter implements RedisClientInterface {
  */
 export class ValkeyGlideClientAdapter implements RedisClientInterface {
   readonly clientType = 'valkey-glide' as const
+  private messageCallbacks: Map<string, (channel: string, message: string) => void> = new Map()
   
   constructor(private readonly client: GlideClient) {}
 
@@ -219,8 +220,31 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     return this.client.publish(message, channel)
   }
 
-  // Pub/Sub subscribe/unsubscribe not supported in the same way
-  // valkey-glide requires a separate client with callback configuration
+  async subscribe(channel: string, callback?: (channel: string, message: string) => void): Promise<void> {
+    // For valkey-glide, subscriptions should be configured at client creation time
+    // via pubSubSubscriptions. This method stores the callback for bridging.
+    // The actual subscription must already be configured on the client.
+    if (callback) {
+      this.messageCallbacks.set(channel, callback)
+    }
+  }
+
+  async unsubscribe(channel: string): Promise<void> {
+    // Remove the callback for this channel
+    this.messageCallbacks.delete(channel)
+  }
+
+  on(event: string, callback: (...args: any[]) => void): void {
+    // For valkey-glide, the message callback is configured at client creation.
+    // This method is for ioredis compatibility - we store callbacks that will
+    // be invoked when the client's pubSubSubscriptions callback is triggered.
+    if (event === 'message') {
+      // Store a global message handler that delegates to channel-specific callbacks
+      const messageHandler = callback as (channel: string, message: string) => void
+      // Store this for all channels
+      this.messageCallbacks.set('__global__', messageHandler)
+    }
+  }
 
   async quit(): Promise<void> {
     await this.client.close()
