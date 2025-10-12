@@ -161,6 +161,72 @@ const loader = new Loader<string>({
 const classifier = await loader.get('1')
 ```
 
+### Using Valkey-Glide (Alternative to ioredis)
+
+Here's the same example using `@valkey/valkey-glide`:
+
+```ts
+import { GlideClient } from '@valkey/valkey-glide'
+import { RedisCache, InMemoryCache } from 'layered-loader'
+import type { DataSource } from 'layered-loader'
+
+const valkeyClient = await GlideClient.createClient({
+  addresses: [{ host: 'localhost', port: 6379 }],
+  credentials: { password: 'sOmE_sEcUrE_pAsS' },
+})
+
+class ClassifiersDataSource implements DataSource<Record<string, any>> {
+  private readonly db: Knex
+  name = 'Classifiers DB loader'
+  isCache = false
+
+  constructor(db: Knex) {
+    this.db = db
+  }
+
+  async get(key: string): Promise<Record<string, any> | undefined | null> {
+    const results = await this.db('classifiers')
+      .select('*')
+      .where({
+        id: parseInt(key),
+      })
+    return results[0]
+  }
+
+  async getMany(keys: string[]): Promise<Record<string, any>[]> {
+    return this.db('classifiers').select('*').whereIn('id', keys.map(parseInt))
+  }
+}
+
+const loader = new Loader<string>({
+  // this cache will be checked first
+  inMemoryCache: {
+    cacheType: 'lru-map',
+    ttlInMsecs: 1000 * 60,
+    maxItems: 100,
+  },
+
+  // this cache will be checked if in-memory one returns undefined
+  asyncCache: new RedisCache<string>(valkeyClient, {
+    json: true, // this instructs loader to serialize passed objects as string and deserialize them back to objects
+    ttlInMsecs: 1000 * 60 * 10,
+  }),
+
+  // this will be used if neither cache has the requested data
+  dataSources: [new ClassifiersDataSource(db)],
+})
+
+// If cache is empty, but there is data in the DB, after this operation is completed, both caches will be populated
+const classifier = await loader.get('1')
+```
+
+**Key differences with valkey-glide:**
+- ✅ `createClient()` is **async** - use `await`
+- ✅ `addresses` is an **array** - supports cluster mode
+- ✅ `credentials` is an **object** - structured config
+
+For complete migration instructions, see [docs/VALKEY_MIGRATION.md](docs/VALKEY_MIGRATION.md).
+
 ### Simplified loader syntax
 
 It is also possible to inline datasource definition:
@@ -304,6 +370,58 @@ await userLoader.init() // this will ensure that consumers have definitely finis
 
 await userLoader.invalidateCacheFor('key') // this will transparently invalidate cache across all instances of your application
 ```
+
+#### Using Valkey-Glide for Notifications
+
+The same notification setup works with `@valkey/valkey-glide`. Note that valkey-glide requires subscriptions to be configured at client creation:
+
+```ts
+import { GlideClient } from '@valkey/valkey-glide'
+import { createNotificationPair, Loader, RedisCache } from 'layered-loader'
+
+const CHANNEL = 'user-cache-notifications'
+
+export type User = {
+  // some type
+}
+
+// Create clients with pub/sub configuration
+const { publisher: notificationPublisher, consumer: notificationConsumer } = await createNotificationPair<User>({
+  channel: CHANNEL,
+  publisherRedis: {
+    addresses: [{ host: 'localhost', port: 6379 }],
+    credentials: { password: 'sOmE_sEcUrE_pAsS' },
+  },
+  consumerRedis: {
+    addresses: [{ host: 'localhost', port: 6379 }],
+    credentials: { password: 'sOmE_sEcUrE_pAsS' },
+    pubsubSubscriptions: {
+      channelsAndPatterns: {
+        0: new Set([CHANNEL]),  // 0 = Exact mode for channel names
+      },
+    },
+  },
+})
+
+const valkeyCache = await GlideClient.createClient({
+  addresses: [{ host: 'localhost', port: 6379 }],
+  credentials: { password: 'sOmE_sEcUrE_pAsS' },
+})
+
+const userLoader = new Loader({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: new RedisCache<User>(valkeyCache, {
+    ttlInMsecs: 1000 * 60 * 60,
+  }),
+  notificationConsumer,
+  notificationPublisher,
+})
+
+await userLoader.init()
+await userLoader.invalidateCacheFor('key') // this will transparently invalidate cache across all instances
+```
+
+For more details on pub/sub configuration with valkey-glide, see [docs/VALKEY_MIGRATION.md](docs/VALKEY_MIGRATION.md#pubsub-notifications).
 
 There is an equivalent for group loaders as well:
 
@@ -506,9 +624,20 @@ ToDo
 
 ## Provided async caches
 
+### Supported Redis Clients
+
+`layered-loader` supports two Redis clients through a transparent adapter pattern:
+
+1. **ioredis** - Traditional Node.js Redis client
+2. **@valkey/valkey-glide** - Modern Valkey client with Rust core (recommended for new projects)
+
+Both clients work seamlessly with all Redis-based caches (`RedisCache`, `RedisGroupCache`) and notification systems. No code changes are needed when switching between them!
+
+**Migration Guide:** See [docs/VALKEY_MIGRATION.md](docs/VALKEY_MIGRATION.md) for detailed migration instructions.
+
 ### RedisCache
 
-`RedisCache` uses Redis for caching data, and is recommended for highly distributed systems. It requires an active instance of `ioredis`, and it does not perform any connection/disconnection operations on its own.
+`RedisCache` uses Redis/Valkey for caching data, and is recommended for highly distributed systems. It requires an active instance of either `ioredis` or `@valkey/valkey-glide`, and it does not perform any connection/disconnection operations on its own.
 It has following configuration options:
 
 - `prefix: string` - what prefix should be added to all keys in this cache. Used to differentiate among different groups of entities within single Redis DB (serving as a pseudo-table);
