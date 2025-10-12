@@ -27,8 +27,9 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   }
 
   async close(): Promise<void> {
+    // Only unsubscribe from the channel - don't close the underlying client
+    // The client lifecycle is managed by whoever created it
     await this.redis.unsubscribe!(this.channel)
-    await this.redis.quit()
   }
 
   subscribe(): Promise<void> {

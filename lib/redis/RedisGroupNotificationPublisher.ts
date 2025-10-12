@@ -69,7 +69,8 @@ export class RedisGroupNotificationPublisher<LoadedValue> implements GroupNotifi
   }
 
   async close(): Promise<void> {
-    await this.redis.quit()
+    // Don't close the underlying client - its lifecycle is managed by whoever created it
+    // The publisher doesn't hold subscriptions that need cleanup
   }
 
   async subscribe() {}

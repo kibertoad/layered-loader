@@ -154,9 +154,17 @@ export class IoRedisClientAdapter implements RedisClientInterface {
  */
 export class ValkeyGlideClientAdapter implements RedisClientInterface {
   readonly clientType = 'valkey-glide' as const
-  private messageCallbacks: Map<string, (channel: string, message: string) => void> = new Map()
+  private messageCallbacks: Map<string, Array<(channel: string, message: string) => void>>
   
-  constructor(private readonly client: GlideClient) {}
+  constructor(private readonly client: GlideClient) {
+    // Check if client has a message router (set by createPubSubPair)
+    // If so, use it; otherwise create a new one
+    if ((client as any).__messageRouter) {
+      this.messageCallbacks = (client as any).__messageRouter
+    } else {
+      this.messageCallbacks = new Map()
+    }
+  }
 
   async get(key: string): Promise<string | null> {
     const result = await this.client.get(key)
@@ -239,7 +247,24 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
   }
 
   async publish(channel: string, message: string): Promise<number> {
-    // Note: valkey-glide has different argument order
+    // Note: valkey-glide has different argument order: publish(message, channel)
+    // Debug type checking
+    if (typeof message !== 'string') {
+      console.error('[ValkeyGlideClientAdapter] publish: message is not a string!', {
+        messageType: typeof message,
+        message: message,
+        channel: channel,
+      })
+      throw new Error(`publish: message must be a string, got ${typeof message}`)
+    }
+    if (typeof channel !== 'string') {
+      console.error('[ValkeyGlideClientAdapter] publish: channel is not a string!', {
+        channelType: typeof channel,
+        channel: channel,
+        message: message,
+      })
+      throw new Error(`publish: channel must be a string, got ${typeof channel}`)
+    }
     return this.client.publish(message, channel)
   }
 
@@ -248,12 +273,15 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     // via pubSubSubscriptions. This method stores the callback for bridging.
     // The actual subscription must already be configured on the client.
     if (callback) {
-      this.messageCallbacks.set(channel, callback)
+      // Add this callback to the array of callbacks for this channel
+      const callbacks = this.messageCallbacks.get(channel) || []
+      callbacks.push(callback)
+      this.messageCallbacks.set(channel, callbacks)
     }
   }
 
   async unsubscribe(channel: string): Promise<void> {
-    // Remove the callback for this channel
+    // Remove all callbacks for this channel
     this.messageCallbacks.delete(channel)
   }
 
@@ -264,8 +292,10 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     if (event === 'message') {
       // Store a global message handler that delegates to channel-specific callbacks
       const messageHandler = callback as (channel: string, message: string) => void
-      // Store this for all channels
-      this.messageCallbacks.set('__global__', messageHandler)
+      // Add to the array of global handlers
+      const callbacks = this.messageCallbacks.get('__global__') || []
+      callbacks.push(messageHandler)
+      this.messageCallbacks.set('__global__', callbacks)
     }
   }
 

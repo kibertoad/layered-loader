@@ -70,17 +70,56 @@ export const testServerConfigs: ServerConfig[] = [
       }
     },
     createPubSubPair: async (channel: string) => {
-      // For valkey-glide, configure pub/sub at creation time
+      // For valkey-glide, we need to create a message router
+      // This will be stored on the client and invoked by the adapter
+      // We use an array of callbacks to support multiple consumers on the same channel
+      const messageRouter = new Map<string, Array<(channel: string, message: string) => void>>()
+
+      // Helper to convert GlideString to string
+      const convertToString = (value: any): string => {
+        if (typeof value === 'string') return value
+        if (Buffer.isBuffer(value)) return value.toString('utf8')
+        return String(value)
+      }
+
+      // Helper to dispatch message to all callbacks
+      const dispatchMessage = (channelName: string, message: string) => {
+        const channelCallbacks = messageRouter.get(channelName)
+        if (channelCallbacks) {
+          for (const callback of channelCallbacks) {
+            callback(channelName, message)
+          }
+        }
+        const globalCallbacks = messageRouter.get('__global__')
+        if (globalCallbacks) {
+          for (const callback of globalCallbacks) {
+            callback(channelName, message)
+          }
+        }
+      }
+
       const consumerConfig: GlideClientConfiguration = {
-        ...valkeyGlideConfig,
+        addresses: valkeyGlideConfig.addresses,
+        clientName: valkeyGlideConfig.clientName,
+        requestTimeout: valkeyGlideConfig.requestTimeout,
+        credentials: valkeyGlideConfig.credentials,
         pubsubSubscriptions: {
           channelsAndPatterns: {
-            channels: [{ type: 'Exact', value: channel }],
-            patterns: [],
+            // 0 = Exact, 1 = Pattern (from GlideClientConfiguration.PubSubChannelModes)
+            0: new Set([channel]),
+          },
+          callback: (msg, context) => {
+            const channelName = context.channel ? convertToString(context.channel) : channel
+            const message = convertToString(msg)
+            dispatchMessage(channelName, message)
           },
         },
       }
+
       const consumer = await GlideClient.createClient(consumerConfig)
+      // Store the router on the client so the adapter can access it
+      ;(consumer as any).__messageRouter = messageRouter
+
       const publisher = await GlideClient.createClient(valkeyGlideConfig)
       return { publisher, consumer }
     },
