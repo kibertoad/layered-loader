@@ -1,4 +1,4 @@
-import { TimeUnit, type GlideClient } from '@valkey/valkey-glide'
+import { Script, TimeUnit, type GlideClient } from '@valkey/valkey-glide'
 import type Redis from 'ioredis'
 
 /**
@@ -27,6 +27,9 @@ export interface RedisClientInterface {
   // Advanced operations (may not be supported by all clients)
   incr?(key: string): Promise<number>
   multi?(commands: any[]): Promise<any>
+  
+  // Lua script execution
+  invokeScript(scriptCode: string, keys: string[], args: string[]): Promise<any>
   
   // Pub/Sub operations
   publish(channel: string, message: string): Promise<number>
@@ -108,6 +111,11 @@ export class IoRedisClientAdapter implements RedisClientInterface {
 
   async multi(commands: any[]): Promise<any> {
     return this.client.multi(commands).exec()
+  }
+
+  async invokeScript(scriptCode: string, keys: string[], args: string[]): Promise<any> {
+    // Use EVAL command to execute Lua script
+    return this.client.eval(scriptCode, keys.length, ...keys, ...args)
   }
 
   async publish(channel: string, message: string): Promise<number> {
@@ -214,6 +222,21 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
 
   // incr not implemented - would need to be added to interface if needed
   // multi not supported by valkey-glide in the same way
+
+  async invokeScript(scriptCode: string, keys: string[], args: string[]): Promise<any> {
+    // Use valkey-glide Script class to execute Lua script
+    const script = new Script(scriptCode)
+    try {
+      const result = await this.client.invokeScript(script, {
+        keys,
+        args,
+      })
+      return result
+    } finally {
+      // Clean up the script object
+      script.release()
+    }
+  }
 
   async publish(channel: string, message: string): Promise<number> {
     // Note: valkey-glide has different argument order

@@ -48,28 +48,12 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
   async deleteGroup(group: string) {
     const key = this.resolveGroupIndexPrefix(group)
-    
-    // For ioredis, use multi for transactions with TTL
-    if (this.config.ttlInMsecs && isIoRedisClient(this.redis.getUnderlyingClient())) {
-      const ioredis = this.redis.getUnderlyingClient() as Redis
-      await ioredis.multi().incr(key).pexpire(key, this.config.ttlInMsecs).exec()
-      return
-    }
-    
-    // For valkey-glide or no TTL with multi support, use Lua script for atomic operation
     if (this.config.ttlInMsecs) {
-      const script = `
-        redis.call('INCR', KEYS[1])
-        redis.call('PEXPIRE', KEYS[1], ARGV[1])
-        return 1
-      `
-      await this.redis.invokeScript(script, [key], [this.config.ttlInMsecs.toString()])
+      await this.ioredisClient.multi().incr(key).pexpire(key, this.config.ttlInMsecs).exec()
       return
     }
-    
-    // Simple incr for no TTL case - use Lua script for compatibility
-    const script = `return redis.call('INCR', KEYS[1])`
-    return this.redis.invokeScript(script, [key], [])
+
+    return this.ioredisClient.incr(key)
   }
 
   async deleteFromGroup(key: string, group: string): Promise<void> {
@@ -134,15 +118,15 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   }
 
   async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
-    // Use adapter's invokeScript for Lua script execution
-    const script = this.config.groupTtlInMsecs ? GET_OR_SET_ZERO_WITH_TTL : GET_OR_SET_ZERO_WITHOUT_TTL
-    const args = this.config.groupTtlInMsecs ? [this.config.groupTtlInMsecs.toString()] : []
-    
-    const currentGroupKey = await this.redis.invokeScript(
-      script,
-      [this.resolveGroupIndexPrefix(groupId)],
-      args
-    )
+    const getGroupKeyPromise = this.config.groupTtlInMsecs
+      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.ioredisClient.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
+      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        this.ioredisClient.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+
+    const currentGroupKey = await getGroupKeyPromise
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
@@ -162,9 +146,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
       args
     )
 
-    if (this.config.ttlInMsecs && isIoRedisClient(this.redis.getUnderlyingClient())) {
-      // Use ioredis multi for batch set with TTL
-      const ioredis = this.redis.getUnderlyingClient() as Redis
+    if (this.config.ttlInMsecs) {
       const setCommands = []
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]
@@ -177,18 +159,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
         ])
       }
 
-      return ioredis.multi(setCommands).exec()
-    }
-    
-    if (this.config.ttlInMsecs) {
-      // For valkey-glide with TTL, set each entry individually (no multi support)
-      const promises = []
-      for (const entry of entries) {
-        const key = this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey)
-        const value = entry.value && this.config.json ? JSON.stringify(entry.value) : (entry.value as unknown as string)
-        promises.push(this.redis.set(key, value, 'PX', this.config.ttlInMsecs))
-      }
-      return Promise.all(promises)
+      return this.ioredisClient.multi(setCommands).exec()
     }
 
     // No TTL set - use mset with Record format for adapter compatibility
