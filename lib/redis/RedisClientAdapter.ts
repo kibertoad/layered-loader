@@ -73,9 +73,9 @@ export class IoRedisClientAdapter implements RedisClientInterface {
   }
 
   async mset(keyValuePairs: string[]): Promise<string> {
-    // ioredis expects flat array [key, value, key, value, ...]
-    // Forward the flat array unchanged
-    return this.client.mset(keyValuePairs)
+    // ioredis expects variadic arguments: mset(key1, value1, key2, value2, ...)
+    // Spread the flat array into variadic arguments
+    return this.client.mset(...keyValuePairs)
   }
 
   async del(keys: string | string[]): Promise<number> {

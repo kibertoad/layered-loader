@@ -457,6 +457,36 @@ describe.each(testServerConfigs)('RedisCache ($name)', ({ createClient, closeCli
       expect(ttl2).toEqual(expect.any(Number))
       expect(value2).toEqual({ value: 'value2' })
     })
+
+    it('stores keys correctly using flat array format (not array indices)', async () => {
+      // This test verifies the mset signature fix
+      // Before the fix, keys would be stored as "0", "1", "2", "3" (array indices)
+      // After the fix, keys are stored as "key1", "key2" (actual key names)
+      const cache = new RedisCache(redis, {
+        prefix: 'test',
+        ttlInMsecs: undefined,
+      })
+      
+      await cache.setMany([
+        { key: 'key1', value: 'value1' },
+        { key: 'key2', value: 'value2' },
+      ])
+
+      // Verify we can retrieve values by their correct keys
+      const value1 = await cache.get('key1')
+      const value2 = await cache.get('key2')
+      
+      expect(value1).toBe('value1')
+      expect(value2).toBe('value2')
+      
+      // Verify that numeric string keys (array indices) don't exist
+      const adapter = createRedisAdapter(redis)
+      const wrongKey1 = await adapter.get('test:0') // Would exist with old bug
+      const wrongKey2 = await adapter.get('test:2') // Would exist with old bug
+      
+      expect(wrongKey1).toBeNull()
+      expect(wrongKey2).toBeNull()
+    })
   })
 
   describe('close', () => {

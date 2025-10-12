@@ -103,7 +103,17 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
           ])
         }
 
-        return this.redis.multi(setCommands)
+        // Await the multi execution result
+        const result = await this.redis.multi(setCommands)
+        
+        // Invalidate expiration cache for each entry if TTL refresh is configured
+        if (this.ttlLeftBeforeRefreshInMsecs) {
+          for (const entry of entries) {
+            void this.expirationTimeLoadingOperation.invalidateCacheFor(entry.key)
+          }
+        }
+        
+        return result
       }
       
       // Fallback for clients without multi support
