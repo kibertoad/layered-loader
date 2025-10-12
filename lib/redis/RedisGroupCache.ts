@@ -49,21 +49,12 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   async deleteGroup(group: string) {
     const key = this.resolveGroupIndexPrefix(group)
     
-    // For ioredis with TTL, use multi for transactions (micro-optimization)
-    if (this.config.ttlInMsecs && isIoRedisClient(this.redis.getUnderlyingClient())) {
-      const ioredis = this.redis.getUnderlyingClient() as Redis
-      await ioredis.multi().incr(key).pexpire(key, this.config.ttlInMsecs).exec()
-      return
-    }
-    
-    // For TTL case, need atomic operation - use Lua script
-    if (this.config.ttlInMsecs) {
-      const script = `
-        redis.call('INCR', KEYS[1])
-        redis.call('PEXPIRE', KEYS[1], ARGV[1])
-        return 1
-      `
-      await this.redis.invokeScript(script, [key], [this.config.ttlInMsecs.toString()])
+    // For TTL case, use atomic multi/batch operation (both clients support it)
+    if (this.config.ttlInMsecs && this.redis.multi) {
+      await this.redis.multi([
+        ['incr', key],
+        ['pexpire', key, this.config.ttlInMsecs],
+      ])
       return
     }
     
@@ -74,8 +65,15 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     }
     
     // Fallback to Lua script (should not happen with modern adapters)
-    const script = `return redis.call('INCR', KEYS[1])`
-    return this.redis.invokeScript(script, [key], [])
+    const script = this.config.ttlInMsecs 
+      ? `
+        redis.call('INCR', KEYS[1])
+        redis.call('PEXPIRE', KEYS[1], ARGV[1])
+        return 1
+      `
+      : `return redis.call('INCR', KEYS[1])`
+    const args = this.config.ttlInMsecs ? [this.config.ttlInMsecs.toString()] : []
+    return this.redis.invokeScript(script, [key], args)
   }
 
   async deleteFromGroup(key: string, group: string): Promise<void> {

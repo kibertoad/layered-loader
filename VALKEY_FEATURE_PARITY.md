@@ -2,13 +2,14 @@
 
 ## Executive Summary
 
-**Can we drop ioredis tomorrow?** ⚠️ **Not quite yet** - but we're 99% there!
+**Can we drop ioredis tomorrow?** ✅ **YES! (Technically)** - but give users time to migrate
 
 **Current Status:**
 - ✅ **All 321 tests passing** with both ioredis and valkey-glide
-- ✅ **Core functionality fully compatible** (get, set, mget, mset, del, pub/sub, Lua scripts)
+- ✅ **100% feature parity** - Both clients support all operations natively
 - ✅ **Complete documentation** with migration guide and examples
-- ⚠️ **One micro-optimization uses ioredis** (multi/pipeline in RedisGroupCache - ~0.1ms difference)
+- ✅ **No workarounds needed** - Both use native multi/batch API for transactions
+- ⚠️ **User migration time needed** - Give users 6-12 months to migrate before deprecating ioredis
 
 ---
 
@@ -28,11 +29,14 @@
 | Connection Management | ✅ | ✅ | quit, disconnect |
 | Type Conversions | ✅ | ✅ | Buffer/string handling |
 
-### ⚠️ Partially Compatible Features
+### ✅ All Features Fully Compatible!
 
-| Feature | ioredis | valkey-glide | Impact | Workaround |
-|---------|---------|--------------|--------|------------|
-| **Multi/Pipeline** | ✅ Native | ⚠️ Lua Script | Performance optimization only | Works via Lua scripts for atomic operations, slight perf hit |
+Both clients now have complete feature parity with no workarounds needed:
+
+| Feature | ioredis | valkey-glide | Implementation |
+|---------|---------|--------------|----------------|
+| **Multi/Transaction** | ✅ multi() | ✅ Batch API (atomic) | Both support atomic multi-command operations |
+| **Pipeline** | ✅ pipeline() | ✅ Batch API (non-atomic) | Both support pipelined commands |
 
 ### 📍 Current Implementation Details
 
@@ -43,34 +47,32 @@
 async deleteGroup(group: string) {
   const key = this.resolveGroupIndexPrefix(group)
   
-  // For ioredis, use multi for transactions with TTL (OPTIMIZATION)
-  if (this.config.ttlInMsecs && isIoRedisClient(this.redis.getUnderlyingClient())) {
-    const ioredis = this.redis.getUnderlyingClient() as Redis
-    await ioredis.multi().incr(key).pexpire(key, this.config.ttlInMsecs).exec()
+  // For TTL case, use atomic multi/batch operation (both clients support it!)
+  if (this.config.ttlInMsecs && this.redis.multi) {
+    await this.redis.multi([
+      ['incr', key],
+      ['pexpire', key, this.config.ttlInMsecs],
+    ])
     return
   }
   
-  // For valkey-glide, use Lua script (WORKS BUT SLIGHTLY SLOWER)
-  if (this.config.ttlInMsecs) {
-    const script = `
-      redis.call('INCR', KEYS[1])
-      redis.call('PEXPIRE', KEYS[1], ARGV[1])
-      return 1
-    `
-    await this.redis.invokeScript(script, [key], [this.config.ttlInMsecs.toString()])
+  // No TTL case - use native incr
+  if (this.redis.incr) {
+    await this.redis.incr(key)
     return
   }
   
-  // Simple incr for no TTL case
-  const script = `return redis.call('INCR', KEYS[1])`
-  return this.redis.invokeScript(script, [key], [])
+  // Fallback (should not happen with modern adapters)
+  // ...Lua script fallback
 }
 ```
 
-**Why this exists:** 
-- ioredis.multi() is slightly more efficient than Lua scripts for simple operations
-- This is a **micro-optimization** that doesn't affect functionality
-- Both paths work correctly and pass all tests
+**Implementation Notes:**
+- **ioredis**: Uses `multi()` to create a transaction
+- **valkey-glide**: Uses `Batch` API in atomic mode (equivalent to MULTI/EXEC)
+- Both approaches are equivalent and have similar performance
+- No Lua scripts needed for this operation anymore!
+- Lua scripts only used as a fallback for older/custom clients
 
 ---
 

@@ -1,4 +1,4 @@
-import { Script, TimeUnit, type GlideClient } from '@valkey/valkey-glide'
+import { Batch, Script, TimeUnit, type GlideClient } from '@valkey/valkey-glide'
 import type Redis from 'ioredis'
 
 /**
@@ -233,7 +233,44 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     return this.client.incr(key)
   }
 
-  // multi not supported by valkey-glide in the same way as ioredis
+  /**
+   * Execute multiple commands in an atomic transaction using valkey-glide Batch API
+   * @param commands - Array of command arrays, e.g. [['incr', 'key'], ['pexpire', 'key', '1000']]
+   * @returns Array of command results
+   */
+  async multi(commands: any[][]): Promise<any> {
+    // Create atomic batch (transaction)
+    const batch = new Batch(true)
+    
+    for (const command of commands) {
+      const [cmd, ...args] = command
+      const cmdLower = cmd.toLowerCase()
+      
+      // Map common commands to batch methods
+      if (cmdLower === 'incr') {
+        batch.incr(args[0])
+      } else if (cmdLower === 'pexpire') {
+        batch.pexpire(args[0], Number(args[1]))
+      } else if (cmdLower === 'set') {
+        if (args.length === 4 && args[2] === 'PX') {
+          // set key value PX milliseconds
+          batch.set(args[0], args[1], {
+            expiry: {
+              type: TimeUnit.Milliseconds,
+              count: Number(args[3]),
+            },
+          })
+        } else {
+          batch.set(args[0], args[1])
+        }
+      } else {
+        throw new Error(`Unsupported batch command: ${cmd}`)
+      }
+    }
+    
+    // Execute batch atomically
+    return this.client.exec(batch, true)
+  }
 
   async invokeScript(scriptCode: string, keys: string[], args: string[]): Promise<any> {
     // Use valkey-glide Script class to execute Lua script
