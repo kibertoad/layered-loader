@@ -1,4 +1,3 @@
-import type Redis from 'ioredis'
 import { GroupLoader } from '../GroupLoader'
 import type { CacheEntry, GroupCache, GroupCacheConfiguration } from '../types/DataSources'
 import type { GetManyResult } from '../types/SyncDataSources'
@@ -6,7 +5,6 @@ import type { RedisCacheConfiguration } from './AbstractRedisCache'
 import { AbstractRedisCache } from './AbstractRedisCache'
 import { GET_OR_SET_ZERO_WITHOUT_TTL, GET_OR_SET_ZERO_WITH_TTL } from './lua'
 import type { RedisClientType } from './RedisClientAdapter'
-import { isIoRedisClient } from './RedisClientAdapter'
 import { RedisExpirationTimeGroupDataSource } from './RedisExpirationTimeGroupDataSource'
 
 const GROUP_INDEX_KEY = 'group-index'
@@ -166,9 +164,8 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
       args
     )
 
-    if (this.config.ttlInMsecs && isIoRedisClient(this.redis.getUnderlyingClient())) {
-      // Use ioredis multi for batch set with TTL
-      const ioredis = this.redis.getUnderlyingClient() as Redis
+    if (this.config.ttlInMsecs && this.redis.multi) {
+      // Use multi/batch API for atomic batch set with TTL (both clients support this)
       const setCommands = []
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]
@@ -181,11 +178,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
         ])
       }
 
-      return ioredis.multi(setCommands).exec()
+      return this.redis.multi(setCommands)
     }
     
     if (this.config.ttlInMsecs) {
-      // For valkey-glide with TTL, set each entry individually (no multi support)
+      // Fallback for clients without multi support: set each entry individually
       const promises = []
       for (const entry of entries) {
         const key = this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey)
@@ -195,14 +192,14 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
       return Promise.all(promises)
     }
 
-    // No TTL set - use mset with Record format for adapter compatibility
-    const keyValueObj: Record<string, string> = {}
+    // No TTL set - use mset with flat array [key, value, key, value, ...]
+    const keyValueArray: string[] = []
     for (const entry of entries) {
       const key = this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey)
       const value = entry.value && this.config.json ? JSON.stringify(entry.value) : (entry.value as unknown as string)
-      keyValueObj[key] = value
+      keyValueArray.push(key, value)
     }
-    return this.redis.mset(keyValueObj)
+    return this.redis.mset(keyValueArray)
   }
 
   resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {

@@ -89,7 +89,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
 
   async setMany(entries: readonly CacheEntry<T>[]): Promise<unknown> {
     if (this.config.ttlInMsecs) {
-      // Use multi if available (ioredis), otherwise fall back to sequential sets
+      // Use multi/batch if available (both ioredis and valkey-glide support it)
       if (this.redis.multi) {
         const setCommands = []
         for (let i = 0; i < entries.length; i++) {
@@ -106,7 +106,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
         return this.redis.multi(setCommands)
       }
       
-      // Fallback for clients without multi support (e.g., valkey-glide)
+      // Fallback for clients without multi support
       const promises = []
       for (const entry of entries) {
         promises.push(this.set(entry.key, entry.value))
@@ -114,14 +114,14 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
       return Promise.all(promises)
     }
 
-    // No TTL set - use mset with Record format
-    const keyValueObj: Record<string, string> = {}
+    // No TTL set - use mset with flat array [key, value, key, value, ...]
+    const keyValueArray: string[] = []
     for (const entry of entries) {
       const key = this.resolveKey(entry.key)
       const value = entry.value && this.config.json ? JSON.stringify(entry.value) : (entry.value as unknown as string)
-      keyValueObj[key] = value
+      keyValueArray.push(key, value)
     }
-    return this.redis.mset(keyValueObj)
+    return this.redis.mset(keyValueArray)
   }
 
   async close() {

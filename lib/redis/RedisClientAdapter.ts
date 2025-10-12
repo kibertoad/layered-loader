@@ -12,7 +12,7 @@ export interface RedisClientInterface {
   get(key: string): Promise<string | null>
   set(key: string, value: string, expiryMode?: string, expiryValue?: number): Promise<string | null>
   mget(keys: string[]): Promise<(string | null)[]>
-  mset(keyValuePairs: Record<string, string>): Promise<string>
+  mset(keyValuePairs: string[]): Promise<string>
   del(keys: string | string[]): Promise<number>
   
   // Hash operations
@@ -72,13 +72,10 @@ export class IoRedisClientAdapter implements RedisClientInterface {
     return this.client.mget(keys)
   }
 
-  async mset(keyValuePairs: Record<string, string>): Promise<string> {
-    // Convert object to flat array for ioredis
-    const flatArray: string[] = []
-    for (const [key, value] of Object.entries(keyValuePairs)) {
-      flatArray.push(key, value)
-    }
-    return this.client.mset(flatArray)
+  async mset(keyValuePairs: string[]): Promise<string> {
+    // ioredis expects flat array [key, value, key, value, ...]
+    // Forward the flat array unchanged
+    return this.client.mset(keyValuePairs)
   }
 
   async del(keys: string | string[]): Promise<number> {
@@ -198,8 +195,14 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     })
   }
 
-  async mset(keyValuePairs: Record<string, string>): Promise<string> {
-    await this.client.mset(keyValuePairs)
+  async mset(keyValuePairs: string[]): Promise<string> {
+    // valkey-glide expects Record<string, string>
+    // Convert flat array [key, value, key, value, ...] to {key: value, ...}
+    const record: Record<string, string> = {}
+    for (let i = 0; i < keyValuePairs.length; i += 2) {
+      record[keyValuePairs[i]] = keyValuePairs[i + 1]
+    }
+    await this.client.mset(record)
     return 'OK'
   }
 
