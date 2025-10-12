@@ -1,19 +1,25 @@
 import { setTimeout } from 'node:timers/promises'
-import Redis from 'ioredis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import type { RedisClientType } from '../../lib/redis/RedisClientAdapter'
+import { createRedisAdapter } from '../../lib/redis/RedisClientAdapter'
 import { RedisGroupCache } from '../../lib/redis/RedisGroupCache'
 import { testServerConfigs } from '../fakes/TestRedisConfig'
 
 const TTL_IN_MSECS = 999
 
-describe.each(testServerConfigs)('RedisGroupCache ($name)', ({ options }) => {
-  let redis: Redis
+describe.each(testServerConfigs)('RedisGroupCache ($name)', ({ createClient, closeClient }) => {
+  let redis: RedisClientType
   beforeEach(async () => {
-    redis = new Redis(options)
-    await redis.flushall()
+    redis = await createClient()
+    // Flush all using adapter
+    const adapter = createRedisAdapter(redis)
+    const underlyingClient = adapter.getUnderlyingClient()
+    if ('flushall' in underlyingClient && typeof underlyingClient.flushall === 'function') {
+      await underlyingClient.flushall()
+    }
   })
   afterEach(async () => {
-    await redis.disconnect()
+    await closeClient(redis)
   })
 
   describe('constructor', () => {
