@@ -50,11 +50,20 @@ export const testServerConfigs: ServerConfig[] = [
       })
     },
     closePubSubPair: async (pair: PubSubPair) => {
-      if ('quit' in pair.publisher && typeof pair.publisher.quit === 'function') {
-        await pair.publisher.quit()
+      // Try to close connections, but ignore errors (connection might already be closed)
+      try {
+        if ('quit' in pair.publisher && typeof pair.publisher.quit === 'function') {
+          await pair.publisher.quit()
+        }
+      } catch (err) {
+        // Ignore - connection might already be closed
       }
-      if ('quit' in pair.consumer && typeof pair.consumer.quit === 'function') {
-        await pair.consumer.quit()
+      try {
+        if ('quit' in pair.consumer && typeof pair.consumer.quit === 'function') {
+          await pair.consumer.quit()
+        }
+      } catch (err) {
+        // Ignore - connection might already be closed
       }
     },
   },
@@ -108,9 +117,10 @@ export const testServerConfigs: ServerConfig[] = [
             // 0 = Exact, 1 = Pattern (from GlideClientConfiguration.PubSubChannelModes)
             0: new Set([channel]),
           },
-          callback: (msg, context) => {
-            const channelName = context.channel ? convertToString(context.channel) : channel
-            const message = convertToString(msg)
+          callback: (msg) => {
+            // msg is a PubSubMsg with { message, channel, pattern? }
+            const channelName = convertToString(msg.channel)
+            const message = convertToString(msg.message)
             dispatchMessage(channelName, message)
           },
         },

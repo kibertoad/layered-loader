@@ -248,23 +248,6 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
 
   async publish(channel: string, message: string): Promise<number> {
     // Note: valkey-glide has different argument order: publish(message, channel)
-    // Debug type checking
-    if (typeof message !== 'string') {
-      console.error('[ValkeyGlideClientAdapter] publish: message is not a string!', {
-        messageType: typeof message,
-        message: message,
-        channel: channel,
-      })
-      throw new Error(`publish: message must be a string, got ${typeof message}`)
-    }
-    if (typeof channel !== 'string') {
-      console.error('[ValkeyGlideClientAdapter] publish: channel is not a string!', {
-        channelType: typeof channel,
-        channel: channel,
-        message: message,
-      })
-      throw new Error(`publish: channel must be a string, got ${typeof channel}`)
-    }
     return this.client.publish(message, channel)
   }
 
