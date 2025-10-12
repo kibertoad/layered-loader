@@ -1,8 +1,8 @@
 import { setTimeout } from 'node:timers/promises'
-import Redis from 'ioredis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { GroupLoader } from '../../lib/GroupLoader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory'
+import type { RedisClientType } from '../../lib/redis/RedisClientAdapter'
 import { createGroupNotificationPair } from '../../lib/redis/RedisGroupNotificationFactory'
 import { DummyGroupedCache } from '../fakes/DummyGroupedCache'
 import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
@@ -41,386 +41,399 @@ const userValues = {
   },
 }
 
-describe.each(testServerConfigs)('RedisGroupNotificationPublisher ($name)', ({ options }) => {
-  let redisPublisher: Redis
-  let redisConsumer: Redis
-  beforeEach(async () => {
-    redisPublisher = new Redis(options)
-    redisConsumer = new Redis(options)
-    await redisPublisher.flushall()
-    await redisConsumer.flushall()
-  })
-  afterEach(async () => {
-    await redisPublisher.disconnect()
-    await redisConsumer.disconnect()
-  })
+describe.each(testServerConfigs)(
+  'RedisGroupNotificationPublisher ($name)',
+  ({ options, createPubSubPair, closePubSubPair }) => {
+    let redisPublisher: RedisClientType
+    let redisConsumer: RedisClientType
 
-  it('throws an error if same Redis instance is used for both pub and sub', () => {
-    expect(() =>
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisConsumer,
-      }),
-    ).toThrow(
-      /Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection/,
-    )
-  })
+    async function setupPubSubClients() {
+      const pair = await createPubSubPair(CHANNEL_ID)
+      redisPublisher = pair.publisher
+      redisConsumer = pair.consumer
+      await redisPublisher.flushall()
+      await redisConsumer.flushall()
+    }
 
-  it('Propagates invalidation event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
-      })
-
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
-      })
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer1,
-      notificationPublisher: notificationPublisher1,
+    beforeEach(async () => {
+      await setupPubSubClients()
     })
 
-    const operation2 = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer2,
-      notificationPublisher: notificationPublisher2,
+    afterEach(async () => {
+      await closePubSubPair({ publisher: redisPublisher, consumer: redisConsumer })
     })
-    await operation.init()
-    await operation2.init()
 
-    await operation.getAsyncOnly('key', 'group')
-    await operation2.getAsyncOnly('key', 'group')
-    const resultPre1 = operation.getInMemoryOnly('key', 'group')
-    const resultPre2 = operation2.getInMemoryOnly('key', 'group')
-    await operation.invalidateCacheFor('key', 'group')
+    it('throws an error if same Redis instance is used for both pub and sub', async () => {
+      await expect(
+        createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisConsumer,
+        }),
+      ).rejects.toThrow(
+        /Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection/,
+      )
+    })
 
-    await waitAndRetry(
-      () => {
-        const resultPost1 = operation.getInMemoryOnly('key', 'group')
-        const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-        return resultPost1 === undefined && resultPost2 === undefined
-      },
-      50,
-      100,
-    )
+    it('Propagates invalidation event to remote cache', async () => {
+      const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
 
-    const resultPost1 = operation.getInMemoryOnly('key', 'group')
-    const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-
-    expect(resultPre1).toEqual(user1)
-    expect(resultPre2).toEqual(user1)
-
-    expect(resultPost1).toBeUndefined()
-    expect(resultPost2).toBeUndefined()
-
-    await notificationConsumer1.close()
-    await notificationPublisher1.close()
-  })
-
-  it('Propagates invalidation event to remote cache, works with redis config', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: options,
-        publisherRedis: options,
+      const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
       })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
       })
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer1,
-      notificationPublisher: notificationPublisher1,
+      await operation.init()
+      await operation2.init()
+
+      await operation.getAsyncOnly('key', 'group')
+      await operation2.getAsyncOnly('key', 'group')
+      const resultPre1 = operation.getInMemoryOnly('key', 'group')
+      const resultPre2 = operation2.getInMemoryOnly('key', 'group')
+      await operation.invalidateCacheFor('key', 'group')
+
+      await waitAndRetry(
+        () => {
+          const resultPost1 = operation.getInMemoryOnly('key', 'group')
+          const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+          return resultPost1 === undefined && resultPost2 === undefined
+        },
+        50,
+        100,
+      )
+
+      const resultPost1 = operation.getInMemoryOnly('key', 'group')
+      const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+
+      await notificationConsumer1.close()
+      await notificationPublisher1.close()
     })
 
-    const operation2 = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer2,
-      notificationPublisher: notificationPublisher2,
-    })
-    await operation.init()
-    await operation2.init()
+    it('Propagates invalidation event to remote cache, works with redis config', async () => {
+      const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: options,
+          publisherRedis: options,
+        })
 
-    await operation.getAsyncOnly('key', 'group')
-    await operation2.getAsyncOnly('key', 'group')
-    const resultPre1 = operation.getInMemoryOnly('key', 'group')
-    const resultPre2 = operation2.getInMemoryOnly('key', 'group')
-    await operation.invalidateCacheFor('key', 'group')
-
-    await waitAndRetry(
-      () => {
-        const resultPost1 = operation.getInMemoryOnly('key', 'group')
-        const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-        return resultPost1 === undefined && resultPost2 === undefined
-      },
-      50,
-      100,
-    )
-
-    const resultPost1 = operation.getInMemoryOnly('key', 'group')
-    const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-
-    expect(resultPre1).toEqual(user1)
-    expect(resultPre2).toEqual(user1)
-
-    expect(resultPost1).toBeUndefined()
-    expect(resultPost2).toBeUndefined()
-
-    await notificationConsumer1.close()
-    await notificationPublisher1.close()
-  })
-
-  it('Propagates delete group event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
-      })
-
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
-      })
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer1,
-      notificationPublisher: notificationPublisher1,
-    })
-
-    const operation2 = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer2,
-      notificationPublisher: notificationPublisher2,
-    })
-    await operation.init()
-    await operation2.init()
-
-    await operation.getAsyncOnly('key', 'group')
-    await operation2.getAsyncOnly('key', 'group')
-    const resultPre1 = operation.getInMemoryOnly('key', 'group')
-    const resultPre2 = operation2.getInMemoryOnly('key', 'group')
-    await operation.invalidateCacheForGroup('group')
-
-    await waitAndRetry(
-      () => {
-        const resultPost1 = operation.getInMemoryOnly('key', 'group')
-        const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-        return resultPost1 === undefined && resultPost2 === undefined
-      },
-      50,
-      100,
-    )
-
-    const resultPost1 = operation.getInMemoryOnly('key', 'group')
-    const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-
-    expect(resultPre1).toEqual(user1)
-    expect(resultPre2).toEqual(user1)
-
-    expect(resultPost1).toBeUndefined()
-    expect(resultPost2).toBeUndefined()
-
-    await notificationConsumer1.close()
-    await notificationPublisher1.close()
-  })
-
-  it('Propagates clear event to remote cache', async () => {
-    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
+      const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
       })
 
-    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+      await operation.init()
+      await operation2.init()
+
+      await operation.getAsyncOnly('key', 'group')
+      await operation2.getAsyncOnly('key', 'group')
+      const resultPre1 = operation.getInMemoryOnly('key', 'group')
+      const resultPre2 = operation2.getInMemoryOnly('key', 'group')
+      await operation.invalidateCacheFor('key', 'group')
+
+      await waitAndRetry(
+        () => {
+          const resultPost1 = operation.getInMemoryOnly('key', 'group')
+          const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+          return resultPost1 === undefined && resultPost2 === undefined
+        },
+        50,
+        100,
+      )
+
+      const resultPost1 = operation.getInMemoryOnly('key', 'group')
+      const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+
+      await notificationConsumer1.close()
+      await notificationPublisher1.close()
+    })
+
+    it('Propagates delete group event to remote cache', async () => {
+      const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+
+      const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
       })
 
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer1,
-      notificationPublisher: notificationPublisher1,
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+      await operation.init()
+      await operation2.init()
+
+      await operation.getAsyncOnly('key', 'group')
+      await operation2.getAsyncOnly('key', 'group')
+      const resultPre1 = operation.getInMemoryOnly('key', 'group')
+      const resultPre2 = operation2.getInMemoryOnly('key', 'group')
+      await operation.invalidateCacheForGroup('group')
+
+      await waitAndRetry(
+        () => {
+          const resultPost1 = operation.getInMemoryOnly('key', 'group')
+          const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+          return resultPost1 === undefined && resultPost2 === undefined
+        },
+        50,
+        100,
+      )
+
+      const resultPost1 = operation.getInMemoryOnly('key', 'group')
+      const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
+
+      await notificationConsumer1.close()
+      await notificationPublisher1.close()
     })
 
-    const operation2 = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer2,
-      notificationPublisher: notificationPublisher2,
+    it('Propagates clear event to remote cache', async () => {
+      const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+
+      const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer1,
+        notificationPublisher: notificationPublisher1,
+      })
+
+      const operation2 = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer2,
+        notificationPublisher: notificationPublisher2,
+      })
+
+      await operation.init()
+      await operation2.init()
+
+      await operation.getAsyncOnly('key', 'group')
+      await operation2.getAsyncOnly('key', 'group')
+      const resultPre1 = operation.getInMemoryOnly('key', 'group')
+      const resultPre2 = operation2.getInMemoryOnly('key', 'group')
+      await operation.invalidateCache()
+
+      await waitAndRetry(
+        () => {
+          const resultPost1 = operation.getInMemoryOnly('key', 'group')
+          const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+          return resultPost1 === undefined && resultPost2 === undefined
+        },
+        50,
+        100,
+      )
+
+      const resultPost1 = operation.getInMemoryOnly('key', 'group')
+      const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+
+      expect(resultPre1).toEqual(user1)
+      expect(resultPre2).toEqual(user1)
+
+      expect(resultPost1).toBeUndefined()
+      expect(resultPost2).toBeUndefined()
     })
 
-    await operation.init()
-    await operation2.init()
+    it('Handles error on clear', async () => {
+      expect.assertions(1)
+      const { publisher: notificationPublisher, consumer: notificationConsumer } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: new FakeThrowingRedis(),
+          errorHandler: (_err, channel) => {
+            expect(channel).toBe(CHANNEL_ID)
+          },
+        })
 
-    await operation.getAsyncOnly('key', 'group')
-    await operation2.getAsyncOnly('key', 'group')
-    const resultPre1 = operation.getInMemoryOnly('key', 'group')
-    const resultPre2 = operation2.getInMemoryOnly('key', 'group')
-    await operation.invalidateCache()
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer,
+        notificationPublisher: notificationPublisher,
+      })
 
-    await waitAndRetry(
-      () => {
-        const resultPost1 = operation.getInMemoryOnly('key', 'group')
-        const resultPost2 = operation2.getInMemoryOnly('key', 'group')
-        return resultPost1 === undefined && resultPost2 === undefined
-      },
-      50,
-      100,
-    )
+      await operation.invalidateCache()
+    })
 
-    const resultPost1 = operation.getInMemoryOnly('key', 'group')
-    const resultPost2 = operation2.getInMemoryOnly('key', 'group')
+    it('Handles error on delete', async () => {
+      expect.assertions(1)
+      const { publisher: notificationPublisher, consumer: notificationConsumer } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: new FakeThrowingRedis(),
+          errorHandler: (_err, channel) => {
+            expect(channel).toBe(CHANNEL_ID)
+          },
+        })
 
-    expect(resultPre1).toEqual(user1)
-    expect(resultPre2).toEqual(user1)
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer,
+        notificationPublisher: notificationPublisher,
+      })
 
-    expect(resultPost1).toBeUndefined()
-    expect(resultPost2).toBeUndefined()
-  })
+      await operation.invalidateCacheFor('key', 'group')
+    })
 
-  it('Handles error on clear', async () => {
-    expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: new FakeThrowingRedis(),
-        errorHandler: (_err, channel) => {
-          expect(channel).toBe(CHANNEL_ID)
+    it('Handles error on delete group', async () => {
+      expect.assertions(1)
+      const { publisher: notificationPublisher, consumer: notificationConsumer } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: new FakeThrowingRedis(),
+          errorHandler: (_err, channel) => {
+            expect(channel).toBe(CHANNEL_ID)
+          },
+        })
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer,
+        notificationPublisher: notificationPublisher,
+      })
+
+      await operation.invalidateCacheForGroup('group')
+    })
+
+    it('Handles error by default', async () => {
+      expect.assertions(1)
+      const { publisher: notificationPublisher, consumer: notificationConsumer } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: new FakeThrowingRedis(),
+        })
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer,
+        notificationPublisher: notificationPublisher,
+        logger: {
+          error: (err) => {
+            expect(err).toBe(
+              'Error while publishing notification to channel test_channel: Operation has failed',
+            )
+          },
         },
       })
 
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer,
-      notificationPublisher: notificationPublisher,
+      await operation.invalidateCacheFor('key', 'group')
     })
 
-    await operation.invalidateCache()
-  })
+    it('Handles connection error on delete', async () => {
+      expect.assertions(1)
+      const { publisher: notificationPublisher, consumer: notificationConsumer } =
+        await createGroupNotificationPair({
+          channel: CHANNEL_ID,
+          consumerRedis: redisConsumer,
+          publisherRedis: redisPublisher,
+        })
 
-  it('Handles error on delete', async () => {
-    expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: new FakeThrowingRedis(),
-        errorHandler: (_err, channel) => {
-          expect(channel).toBe(CHANNEL_ID)
+      // Close the publisher connection to simulate connection error
+      if ('quit' in redisPublisher && typeof redisPublisher.quit === 'function') {
+        await redisPublisher.quit()
+      } else if ('close' in redisPublisher && typeof redisPublisher.close === 'function') {
+        await redisPublisher.close()
+      }
+
+      const operation = new GroupLoader({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new DummyGroupedCache(userValues),
+        notificationConsumer: notificationConsumer,
+        notificationPublisher: notificationPublisher,
+        logger: {
+          error: (err) => {
+            expect(err).toContain('closed')
+          },
         },
       })
 
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer,
-      notificationPublisher: notificationPublisher,
+      await operation.invalidateCacheFor('key', 'group')
+
+      await setTimeout(1)
+      await setTimeout(1)
     })
-
-    await operation.invalidateCacheFor('key', 'group')
-  })
-
-  it('Handles error on delete group', async () => {
-    expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: new FakeThrowingRedis(),
-        errorHandler: (_err, channel) => {
-          expect(channel).toBe(CHANNEL_ID)
-        },
-      })
-
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer,
-      notificationPublisher: notificationPublisher,
-    })
-
-    await operation.invalidateCacheForGroup('group')
-  })
-
-  it('Handles error by default', async () => {
-    expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: new FakeThrowingRedis(),
-      })
-
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer,
-      notificationPublisher: notificationPublisher,
-      logger: {
-        error: (err) => {
-          expect(err).toBe(
-            'Error while publishing notification to channel test_channel: Operation has failed',
-          )
-        },
-      },
-    })
-
-    await operation.invalidateCacheFor('key', 'group')
-  })
-
-  it('Handles connection error on delete', async () => {
-    expect.assertions(1)
-    const { publisher: notificationPublisher, consumer: notificationConsumer } =
-      createGroupNotificationPair({
-        channel: CHANNEL_ID,
-        consumerRedis: redisConsumer,
-        publisherRedis: redisPublisher,
-      })
-    await redisPublisher.quit()
-
-    const operation = new GroupLoader({
-      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
-      asyncCache: new DummyGroupedCache(userValues),
-      notificationConsumer: notificationConsumer,
-      notificationPublisher: notificationPublisher,
-      logger: {
-        error: (err) => {
-          expect(err).toBe(
-            'Error while publishing notification to channel test_channel: Connection is closed.',
-          )
-        },
-      },
-    })
-
-    await operation.invalidateCacheFor('key', 'group')
-
-    await setTimeout(1)
-    await setTimeout(1)
-  })
-})
+  },
+)
