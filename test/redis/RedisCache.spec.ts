@@ -2,18 +2,25 @@ import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { RedisCache } from '../../lib/redis/RedisCache'
-import { testServerConfigs } from '../fakes/TestRedisConfig'
+import type { RedisClientType } from '../../lib/redis/RedisClientAdapter'
+import { createRedisAdapter, isIoRedisClient } from '../../lib/redis/RedisClientAdapter'
+import { redisOptions, testServerConfigs } from '../fakes/TestRedisConfig'
 
 const TTL_IN_MSECS = 999
 
-describe.each(testServerConfigs)('RedisCache ($name)', ({ options }) => {
-  let redis: Redis
+describe.each(testServerConfigs)('RedisCache ($name)', ({ createClient, closeClient }) => {
+  let redis: RedisClientType
   beforeEach(async () => {
-    redis = new Redis(options)
-    await redis.flushall()
+    redis = await createClient()
+    // Flush all using adapter
+    const adapter = createRedisAdapter(redis)
+    const underlyingClient = adapter.getUnderlyingClient()
+    if ('flushall' in underlyingClient && typeof underlyingClient.flushall === 'function') {
+      await underlyingClient.flushall()
+    }
   })
   afterEach(async () => {
-    await redis.disconnect()
+    await closeClient(redis)
   })
 
   describe('constructor', () => {
@@ -225,10 +232,15 @@ describe.each(testServerConfigs)('RedisCache ($name)', ({ options }) => {
 
   describe('set', () => {
     it('respects redis connection prefix', async () => {
+      // This test only works with ioredis (keyPrefix option)
+      if (!isIoRedisClient(redis)) {
+        return
+      }
+
       const keyPrefix = 'prefix:'
       const cachePrefix = 'layered-loader:entity'
       const redisPrefix = new Redis({
-        ...options,
+        ...redisOptions,
         keyPrefix,
       })
 
@@ -241,7 +253,7 @@ describe.each(testServerConfigs)('RedisCache ($name)', ({ options }) => {
       await cache.set(key, value)
 
       const redisNoPrefix = new Redis({
-        ...options,
+        ...redisOptions,
         keyPrefix: undefined,
       })
       const storedValue = await redisNoPrefix.get(`${keyPrefix}${cachePrefix}:${key}`)
