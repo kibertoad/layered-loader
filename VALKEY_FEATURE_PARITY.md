@@ -19,6 +19,7 @@
 | Feature | ioredis | valkey-glide | Notes |
 |---------|---------|--------------|-------|
 | Basic KV Operations | ✅ | ✅ | get, set, mget, mset, del |
+| Increment Operations | ✅ | ✅ | incr (natively supported by both) |
 | Hash Operations | ✅ | ✅ | hget |
 | TTL Operations | ✅ | ✅ | pttl |
 | Scan Operations | ✅ | ✅ | scan with pattern matching |
@@ -31,8 +32,7 @@
 
 | Feature | ioredis | valkey-glide | Impact | Workaround |
 |---------|---------|--------------|--------|------------|
-| **Multi/Pipeline** | ✅ Native | ⚠️ Lua Script | Performance optimization only | Works via Lua scripts, slight perf hit |
-| **Incr Command** | ✅ Native | ⚠️ Lua Script | Used in deleteGroup() | Works via Lua scripts |
+| **Multi/Pipeline** | ✅ Native | ⚠️ Lua Script | Performance optimization only | Works via Lua scripts for atomic operations, slight perf hit |
 
 ### 📍 Current Implementation Details
 

@@ -229,8 +229,11 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     return [cursorStr, keys]
   }
 
-  // incr not implemented - would need to be added to interface if needed
-  // multi not supported by valkey-glide in the same way
+  async incr(key: string): Promise<number> {
+    return this.client.incr(key)
+  }
+
+  // multi not supported by valkey-glide in the same way as ioredis
 
   async invokeScript(scriptCode: string, keys: string[], args: string[]): Promise<any> {
     // Use valkey-glide Script class to execute Lua script
