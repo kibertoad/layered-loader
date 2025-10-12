@@ -53,9 +53,18 @@
     "ioredis": "^5.6.1",
     "toad-cache": "^3.7.0"
   },
+  "peerDependencies": {
+    "@valkey/valkey-glide": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@valkey/valkey-glide": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.15.29",
+    "@valkey/valkey-glide": "^2.1.1",
     "@vitest/coverage-v8": "^3.2.0",
     "del-cli": "^6.0.0",
     "rfdc": "^1.4.1",

@@ -191,7 +191,7 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
 
   async mget(keys: string[]): Promise<(string | null)[]> {
     const results = await this.client.mget(keys)
-    return results.map(r => {
+    return results.map((r: string | null) => {
       if (r === null) return null
       return typeof r === 'string' ? r : r.toString()
     })
