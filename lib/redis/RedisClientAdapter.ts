@@ -1,4 +1,4 @@
-import type { GlideClient } from '@valkey/valkey-glide'
+import { TimeUnit, type GlideClient } from '@valkey/valkey-glide'
 import type Redis from 'ioredis'
 
 /**
@@ -40,6 +40,9 @@ export interface RedisClientInterface {
   
   // Type identification
   readonly clientType: 'ioredis' | 'valkey-glide'
+  
+  // Access to underlying client for advanced operations
+  getUnderlyingClient(): any
 }
 
 /**
@@ -56,7 +59,8 @@ export class IoRedisClientAdapter implements RedisClientInterface {
 
   async set(key: string, value: string, expiryMode?: string, expiryValue?: number): Promise<string | null> {
     if (expiryMode && expiryValue !== undefined) {
-      return this.client.set(key, value, expiryMode, expiryValue)
+      // ioredis accepts string expiry modes like 'PX', 'EX'
+      return this.client.set(key, value, expiryMode as any, expiryValue)
     }
     return this.client.set(key, value)
   }
@@ -89,10 +93,8 @@ export class IoRedisClientAdapter implements RedisClientInterface {
     return this.client.pttl(key)
   }
 
-  async scan(cursor: string, matchKeywordOrPattern: string, matchPattern: string): Promise<[string, string[]]>
-  async scan(cursor: string): Promise<[string, string[]]>
-  async scan(cursor: string, matchKeywordOrPattern?: string, matchPattern?: string): Promise<[string, string[]]> {
-    if (matchPattern && matchKeywordOrPattern === 'MATCH') {
+  async scan(cursor: string, matchPattern?: string): Promise<[string, string[]]> {
+    if (matchPattern) {
       // @ts-ignore - ioredis scan signature
       return this.client.scan(cursor, 'MATCH', matchPattern)
     }
@@ -158,7 +160,7 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
       // valkey-glide uses options object
       const result = await this.client.set(key, value, {
         expiry: {
-          type: expiryMode === 'PX' ? 'Milliseconds' : 'Seconds',
+          type: expiryMode === 'PX' ? TimeUnit.Milliseconds : TimeUnit.Seconds,
           count: expiryValue,
         },
       })
@@ -200,8 +202,8 @@ export class ValkeyGlideClientAdapter implements RedisClientInterface {
     return this.client.pttl(key)
   }
 
-  async scan(cursor: string, matchKeyword?: string, matchPattern?: string): Promise<[string, string[]]> {
-    const options = (matchKeyword === 'MATCH' && matchPattern) ? { match: matchPattern } : undefined
+  async scan(cursor: string, matchPattern?: string): Promise<[string, string[]]> {
+    const options = matchPattern ? { match: matchPattern } : undefined
     const result = await this.client.scan(cursor, options)
     // Handle GlideString results (can be string or Buffer)
     const cursorStr = typeof result[0] === 'string' ? result[0] : result[0].toString()

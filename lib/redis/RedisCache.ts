@@ -87,31 +87,41 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     })
   }
 
-  setMany(entries: readonly CacheEntry<T>[]): Promise<unknown> {
+  async setMany(entries: readonly CacheEntry<T>[]): Promise<unknown> {
     if (this.config.ttlInMsecs) {
-      const setCommands = []
-      for (let i = 0; i < entries.length; i++) {
-        const entry = entries[i]
-        setCommands.push([
-          'set',
-          this.resolveKey(entry.key),
-          entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
-          'PX',
-          this.config.ttlInMsecs,
-        ])
+      // Use multi if available (ioredis), otherwise fall back to sequential sets
+      if (this.redis.multi) {
+        const setCommands = []
+        for (let i = 0; i < entries.length; i++) {
+          const entry = entries[i]
+          setCommands.push([
+            'set',
+            this.resolveKey(entry.key),
+            entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
+            'PX',
+            this.config.ttlInMsecs,
+          ])
+        }
+
+        return this.redis.multi(setCommands)
       }
-
-      return this.redis.multi(setCommands).exec()
+      
+      // Fallback for clients without multi support (e.g., valkey-glide)
+      const promises = []
+      for (const entry of entries) {
+        promises.push(this.set(entry.key, entry.value))
+      }
+      return Promise.all(promises)
     }
 
-    // No TTL set
-    const commandParam = []
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]
-      commandParam.push(this.resolveKey(entry.key))
-      commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
+    // No TTL set - use mset with Record format
+    const keyValueObj: Record<string, string> = {}
+    for (const entry of entries) {
+      const key = this.resolveKey(entry.key)
+      const value = entry.value && this.config.json ? JSON.stringify(entry.value) : (entry.value as unknown as string)
+      keyValueObj[key] = value
     }
-    return this.redis.mset(commandParam)
+    return this.redis.mset(keyValueObj)
   }
 
   async close() {

@@ -55,7 +55,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
     const pattern = this.resolveCachePattern()
     let cursor = '0'
     do {
-      const scanResults = await this.redis.scan(cursor, 'MATCH', pattern)
+      const scanResults = await this.redis.scan(cursor, pattern)
 
       cursor = scanResults[0]
       if (scanResults[1].length > 0) {
