@@ -55,14 +55,14 @@ export const testServerConfigs: ServerConfig[] = [
         if ('quit' in pair.publisher && typeof pair.publisher.quit === 'function') {
           await pair.publisher.quit()
         }
-      } catch (err) {
+      } catch {
         // Ignore - connection might already be closed
       }
       try {
         if ('quit' in pair.consumer && typeof pair.consumer.quit === 'function') {
           await pair.consumer.quit()
         }
-      } catch (err) {
+      } catch {
         // Ignore - connection might already be closed
       }
     },
