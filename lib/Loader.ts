@@ -143,16 +143,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       }
 
       // No cached value, we have to load instead
-      return this.loadFromLoaders(key, loadParams).then((finalValue) => {
-        if (finalValue !== undefined) {
-          return finalValue
-        }
-
-        if (this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}"`)
-        }
-        return undefined
-      })
+      return this.loadFromLoaders(key, loadParams)
     })
   }
 

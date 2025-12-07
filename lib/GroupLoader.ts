@@ -68,16 +68,7 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
         return cachedValue
       }
 
-      return this.loadFromLoaders(key, group, loadParams).then((finalValue) => {
-        if (finalValue !== undefined) {
-          return finalValue
-        }
-
-        if (this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
-        }
-        return undefined
-      })
+      return this.loadFromLoaders(key, group, loadParams)
     })
   }
 
