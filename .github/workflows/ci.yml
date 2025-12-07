@@ -16,12 +16,12 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Setup Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           always-auth: false
           node-version: ${{ matrix.node-version }}
@@ -40,6 +40,9 @@ jobs:
 
       - name: Stop Docker
         run: npm run docker:stop
+
+      - name: Run Linting
+        run: npm run lint
 
   automerge:
     needs: build
