@@ -12,12 +12,7 @@ describe.each(testServerConfigs)('RedisCache ($name)', ({ createClient, closeCli
   let redis: RedisClientType
   beforeEach(async () => {
     redis = await createClient()
-    // Flush all using adapter
-    const adapter = createRedisAdapter(redis)
-    const underlyingClient = adapter.getUnderlyingClient()
-    if ('flushall' in underlyingClient && typeof underlyingClient.flushall === 'function') {
-      await underlyingClient.flushall()
-    }
+    await createRedisAdapter(redis).flushall()
   })
   afterEach(async () => {
     await closeClient(redis)
