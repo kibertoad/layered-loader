@@ -381,6 +381,42 @@ describe('GroupLoader Main', () => {
       expect(value).toEqual(user1)
     })
 
+    it('does not update cache when all data sources return undefined', async () => {
+      const cache = new DummyGroupedCache(userValuesUndefined)
+      const setSpy = vitest.spyOn(cache, 'setForGroup')
+
+      const operation = new GroupLoader({
+        asyncCache: cache,
+        dataSources: [new DummyGroupedLoader(userValuesUndefined)],
+      })
+
+      const value = await operation.get(user1.userId, user1.companyId)
+
+      expect(value).toBeUndefined()
+      expect(setSpy).not.toHaveBeenCalled()
+    })
+
+    it('updates cache when data source returns null (explicit empty value)', async () => {
+      const cache = new DummyGroupedCache(userValuesUndefined)
+      const setSpy = vitest.spyOn(cache, 'setForGroup')
+
+      const userValuesNull = {
+        [user1.companyId]: {
+          [user1.userId]: null,
+        },
+      }
+
+      const operation = new GroupLoader({
+        asyncCache: cache,
+        dataSources: [new DummyGroupedLoader(userValuesNull as unknown as typeof userValues)],
+      })
+
+      const value = await operation.get(user1.userId, user1.companyId)
+
+      expect(value).toBeNull()
+      expect(setSpy).toHaveBeenCalledWith(user1.userId, null, user1.companyId)
+    })
+
     it('logs error during load', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new GroupLoader({
@@ -399,11 +435,12 @@ describe('GroupLoader Main', () => {
       const operation = new GroupLoader({ dataSources: [loader] })
 
       const value = await operation.get(user1.userId, user1.companyId)
-      expect(value).toBeNull()
+      expect(value).toBeUndefined()
 
+      // groupValues = null causes optional chaining to return undefined
       loader.groupValues = null
       const value2 = await operation.get(user1.userId, user1.companyId)
-      expect(value2).toBeNull()
+      expect(value2).toBeUndefined()
 
       loader.groupValues = userValues
       const value3 = await operation.get(user1.userId, user1.companyId)

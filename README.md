@@ -94,7 +94,9 @@ Loaders and caches are composed out of the following building blocks.
 3. **Data Source** - primary source of truth of data, that can be used for populating caches. Used in a strictly read-only mode.
 
 - `layered-loader` will try loading the data from the data source defined for the Loader, in the following order: InMemory, AsyncCache, DataSources. In case `undefined` value is the result of retrieval, next source in sequence will be used, until there is either a value, or there are no more sources available;
-- `null` is considered to be a value, and if the data source returns it, subsequent data source will not be queried for data;
+- `null` and `undefined` have different semantics:
+  - `null` means "value was successfully resolved, but it is empty" - this **will be cached** and subsequent data sources will not be queried;
+  - `undefined` means "value was not resolved" - this **will NOT be cached** and the next data source in the sequence will be queried. If all data sources return `undefined`, the Loader returns `undefined` without caching anything;
 - If non-last data source throws an error, it is handled using configured ErrorHandler. If the last data source throws an error, and there are no remaining fallback data sources, an error will be thrown by the Loader.
 - If any caches (InMemoryCache or AsyncCache) precede the source, that returned a value, all of them will be updated with that value;
 - If there is an ongoing retrieval operation for the given key, promise for that retrieval will be reused and returned as a result of `loader.get`, instead of starting a new retrieval.

@@ -130,21 +130,22 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
           throw err
         }
       })
-      if (resolvedValue !== undefined || index === this.dataSources.length - 1) {
-        if (resolvedValue === undefined && this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
-        }
-
-        const finalValue = resolvedValue ?? null
+      // null means "resolved to empty value" and should be cached
+      // undefined means "not resolved" and should not be cached
+      if (resolvedValue !== undefined) {
         if (this.asyncCache) {
-          await this.asyncCache.setForGroup(key, finalValue, group).catch((err) => {
+          await this.asyncCache.setForGroup(key, resolvedValue, group).catch((err) => {
             this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
           })
         }
-        return finalValue
+        return resolvedValue
       }
     }
 
+    // All data sources returned undefined - value not resolved
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}", group "${group}"`)
+    }
     return undefined
   }
 
