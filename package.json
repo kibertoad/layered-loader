@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build",
-    "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker compose -f docker-compose.yml up --build -d wait_for_redis",
+    "docker:start": "docker compose -f docker-compose.yml up --build -d --wait",
     "docker:stop": "docker compose -f docker-compose.yml down",
     "test": "vitest",
     "test:everything": "npm run lint && npm run test:coverage",
@@ -42,6 +42,7 @@
     "alternate",
     "source",
     "redis",
+    "valkey",
     "memory",
     "fifo",
     "lru",
@@ -50,17 +51,31 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "ioredis": "^5.6.1",
     "toad-cache": "^3.7.0"
+  },
+  "peerDependencies": {
+    "ioredis": ">=5.6.1",
+    "@valkey/valkey-glide": ">=2.0.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
-    "@types/node": "^22.15.29",
-    "@vitest/coverage-v8": "^3.2.0",
-    "del-cli": "^6.0.0",
+    "@types/node": "^22.19.1",
+    "@valkey/valkey-glide": "^2.2.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "del-cli": "^7.0.0",
+    "ioredis": "^5.8.2",
     "rfdc": "^1.4.1",
-    "vitest": "^3.2.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "@valkey/valkey-glide-win32-x64-msvc": "2.2.1",
+    "@valkey/valkey-glide-darwin-arm64": "2.2.1",
+    "@valkey/valkey-glide-darwin-x64": "2.2.1",
+    "@valkey/valkey-glide-linux-arm64-gnu": "2.2.1",
+    "@valkey/valkey-glide-linux-arm64-musl": "2.2.1",
+    "@valkey/valkey-glide-linux-x64-gnu": "2.2.1",
+    "@valkey/valkey-glide-linux-x64-musl": "2.2.1"
   },
   "files": ["README.md", "LICENSE", "dist/*"]
 }

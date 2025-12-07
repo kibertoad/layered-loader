@@ -1,23 +1,38 @@
 import { randomUUID } from 'node:crypto'
-import {Redis, RedisOptions} from 'ioredis'
+import type { GlideClientConfiguration } from '@valkey/valkey-glide'
+import { GlideClient } from '@valkey/valkey-glide'
+import Redis, { type RedisOptions } from 'ioredis'
 import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
+import type { RedisClientType } from './RedisClientAdapter'
 import { RedisNotificationConsumer } from './RedisNotificationConsumer'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher'
 
 export type RedisNotificationConfig = {
   channel: string
-  publisherRedis: Redis | RedisOptions
-  consumerRedis: Redis | RedisOptions
+  publisherRedis: RedisClientType | RedisOptions | GlideClientConfiguration
+  consumerRedis: RedisClientType | RedisOptions | GlideClientConfiguration
   errorHandler?: PublisherErrorHandler
 }
 
-export function isClient(maybeClient: unknown): maybeClient is Redis {
-  return 'status' in (maybeClient as Redis)
+export function isClient(maybeClient: unknown): maybeClient is RedisClientType {
+  return (
+    ('status' in (maybeClient as Redis)) ||
+    ('config' in (maybeClient as GlideClient))
+  )
 }
 
-export function createNotificationPair<T>(config: RedisNotificationConfig) {
-  const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(config.consumerRedis)
-  const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(config.publisherRedis)
+export async function createNotificationPair<T>(config: RedisNotificationConfig) {
+  const resolvedConsumer = isClient(config.consumerRedis) 
+    ? config.consumerRedis 
+    : 'addresses' in config.consumerRedis
+    ? await GlideClient.createClient(config.consumerRedis as GlideClientConfiguration)
+    : new Redis(config.consumerRedis as RedisOptions)
+  
+  const resolvedPublisher = isClient(config.publisherRedis) 
+    ? config.publisherRedis 
+    : 'addresses' in config.publisherRedis
+    ? await GlideClient.createClient(config.publisherRedis as GlideClientConfiguration)
+    : new Redis(config.publisherRedis as RedisOptions)
 
   const serverUuid = randomUUID()
   if (resolvedConsumer === resolvedPublisher) {

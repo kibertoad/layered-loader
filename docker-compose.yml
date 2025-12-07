@@ -10,14 +10,25 @@ services:
     environment:
       - REDIS_REPLICATION_MODE=master
 
-  wait_for_redis:
-    image: "redis:7-alpine"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "sOmE_sEcUrE_pAsS", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
-    depends_on:
-      - redis
-    command: sh -c "/wait && /sayhello"
+  valkey:
+    image: "valkey/valkey:8-alpine"
+
+    command: valkey-server --requirepass sOmE_sEcUrE_pAsS
+
+    ports:
+      - "6380:6379"
+
     environment:
-      - WAIT_HOSTS=redis:6379
-      - WAIT_HOSTS_TIMEOUT=300
-      - WAIT_SLEEP_INTERVAL=30
-      - WAIT_HOST_CONNECT_TIMEOUT=30
+      - VALKEY_REPLICATION_MODE=master
+
+    healthcheck:
+      test: ["CMD", "valkey-cli", "-a", "sOmE_sEcUrE_pAsS", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30

@@ -1,6 +1,6 @@
-import type { Redis } from 'ioredis'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type { SynchronousCache } from '../types/SyncDataSources'
+import { createRedisAdapter, type RedisClientInterface, type RedisClientType } from './RedisClientAdapter'
 import type {
   DeleteManyNotificationCommand,
   DeleteNotificationCommand,
@@ -17,52 +17,47 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   LoadedValue,
   SynchronousCache<LoadedValue>
 > {
-  private readonly redis: Redis
+  private readonly redis: RedisClientInterface
   private readonly channel: string
 
-  constructor(redis: Redis, config: RedisConsumerConfig) {
+  constructor(redis: RedisClientType, config: RedisConsumerConfig) {
     super(config.serverUuid)
-    this.redis = redis
+    this.redis = createRedisAdapter(redis)
     this.channel = config.channel
   }
 
   async close(): Promise<void> {
-    await this.redis.unsubscribe(this.channel)
-    return new Promise((resolve) => {
-        void this.redis.quit((_err, result) => {
-          return resolve()
-        })
-      })
-    }
+    // Only unsubscribe from the channel - don't close the underlying client
+    // The client lifecycle is managed by whoever created it
+    await this.redis.unsubscribe!(this.channel)
+  }
 
   subscribe(): Promise<void> {
-    return this.redis.subscribe(this.channel).then(() => {
-      this.redis.on('message', (channel, message) => {
-        const parsedMessage: NotificationCommand = JSON.parse(message)
-        // this is a local message, ignore
-        if (parsedMessage.originUuid === this.serverUuid) {
-          return
-        }
+    return this.redis.subscribe!(this.channel, (channel, message) => {
+      const parsedMessage: NotificationCommand = JSON.parse(message)
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
 
-        if (parsedMessage.actionId === 'DELETE') {
-          return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
-        }
+      if (parsedMessage.actionId === 'DELETE') {
+        return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
+      }
 
-        if (parsedMessage.actionId === 'DELETE_MANY') {
-          return this.targetCache.deleteMany((parsedMessage as DeleteManyNotificationCommand).keys)
-        }
+      if (parsedMessage.actionId === 'DELETE_MANY') {
+        return this.targetCache.deleteMany((parsedMessage as DeleteManyNotificationCommand).keys)
+      }
 
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
+      if (parsedMessage.actionId === 'CLEAR') {
+        return this.targetCache.clear()
+      }
 
-        if (parsedMessage.actionId === 'SET') {
-          return this.targetCache.set(
-            (parsedMessage as SetNotificationCommand<LoadedValue>).key,
-            (parsedMessage as SetNotificationCommand<LoadedValue>).value,
-          )
-        }
-      })
+      if (parsedMessage.actionId === 'SET') {
+        return this.targetCache.set(
+          (parsedMessage as SetNotificationCommand<LoadedValue>).key,
+          (parsedMessage as SetNotificationCommand<LoadedValue>).value,
+        )
+      }
     })
   }
 }

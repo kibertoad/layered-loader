@@ -1,6 +1,6 @@
-import type { Redis } from 'ioredis'
 import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
+import { createRedisAdapter, type RedisClientInterface, type RedisClientType } from './RedisClientAdapter'
 import type {
   DeleteFromGroupNotificationCommand,
   DeleteGroupNotificationCommand,
@@ -12,48 +12,43 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   LoadedValue,
   InMemoryGroupCache<LoadedValue>
 > {
-  private readonly redis: Redis
+  private readonly redis: RedisClientInterface
   private readonly channel: string
 
-  constructor(redis: Redis, config: RedisConsumerConfig) {
+  constructor(redis: RedisClientType, config: RedisConsumerConfig) {
     super(config.serverUuid)
-    this.redis = redis
+    this.redis = createRedisAdapter(redis)
     this.channel = config.channel
   }
 
   async close(): Promise<void> {
-    await this.redis.unsubscribe(this.channel)
-    return new Promise((resolve) => {
-      void this.redis.quit((_err, result) => {
-        return resolve()
-      })
-    })
+    // Only unsubscribe from the channel - don't close the underlying client
+    // The client lifecycle is managed by whoever created it
+    await this.redis.unsubscribe!(this.channel)
   }
 
   subscribe(): Promise<void> {
-    return this.redis.subscribe(this.channel).then(() => {
-      this.redis.on('message', (channel, message) => {
-        const parsedMessage: GroupNotificationCommand = JSON.parse(message)
-        // this is a local message, ignore
-        if (parsedMessage.originUuid === this.serverUuid) {
-          return
-        }
+    return this.redis.subscribe!(this.channel, (channel, message) => {
+      const parsedMessage: GroupNotificationCommand = JSON.parse(message)
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
 
-        if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
-          return this.targetCache.deleteFromGroup(
-            (parsedMessage as DeleteFromGroupNotificationCommand).key,
-            (parsedMessage as DeleteFromGroupNotificationCommand).group,
-          )
-        }
+      if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
+        return this.targetCache.deleteFromGroup(
+          (parsedMessage as DeleteFromGroupNotificationCommand).key,
+          (parsedMessage as DeleteFromGroupNotificationCommand).group,
+        )
+      }
 
-        if (parsedMessage.actionId === 'DELETE_GROUP') {
-          return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
-        }
+      if (parsedMessage.actionId === 'DELETE_GROUP') {
+        return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
+      }
 
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
-      })
+      if (parsedMessage.actionId === 'CLEAR') {
+        return this.targetCache.clear()
+      }
     })
   }
 }

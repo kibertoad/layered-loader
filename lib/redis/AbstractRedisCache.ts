@@ -1,5 +1,6 @@
-import type { Redis } from 'ioredis'
 import type { CommonCacheConfiguration } from '../types/DataSources'
+import type { RedisClientInterface, RedisClientType } from './RedisClientAdapter'
+import { createRedisAdapter } from './RedisClientAdapter'
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
   prefix: string
@@ -16,11 +17,11 @@ export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
 }
 
 export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfiguration, LoadedValue> {
-  protected readonly redis: Redis
+  protected readonly redis: RedisClientInterface
   protected readonly config: ConfigType
 
-  constructor(redis: Redis, config: Partial<ConfigType>) {
-    this.redis = redis
+  constructor(redis: RedisClientType, config: Partial<ConfigType>) {
+    this.redis = createRedisAdapter(redis)
     // @ts-ignore
     this.config = {
       ...DEFAULT_REDIS_CACHE_CONFIGURATION,
@@ -29,7 +30,19 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   }
 
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
-    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
+    // Handle value serialization
+    let resolvedValue: string
+    if (this.config.json) {
+      // JSON mode: always stringify
+      resolvedValue = JSON.stringify(value)
+    } else if (typeof value === 'string') {
+      // Already a string
+      resolvedValue = value
+    } else {
+      // Convert primitives (boolean, number, etc.) to string
+      resolvedValue = String(value)
+    }
+    
     if (this.config.ttlInMsecs) {
       return this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs)
     }
@@ -54,7 +67,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
     const pattern = this.resolveCachePattern()
     let cursor = '0'
     do {
-      const scanResults = await this.redis.scan(cursor, 'MATCH', pattern)
+      const scanResults = await this.redis.scan(cursor, pattern)
 
       cursor = scanResults[0]
       if (scanResults[1].length > 0) {

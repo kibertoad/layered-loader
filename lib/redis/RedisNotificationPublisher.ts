@@ -1,7 +1,7 @@
-import type { Redis } from 'ioredis'
 import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
 import type { Logger } from '../util/Logger'
+import { createRedisAdapter, type RedisClientInterface, type RedisClientType } from './RedisClientAdapter'
 
 export type RedisPublisherConfig = {
   serverUuid: string
@@ -37,11 +37,11 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
   public readonly channel: string
   public readonly errorHandler: PublisherErrorHandler
 
-  private readonly redis: Redis
+  private readonly redis: RedisClientInterface
   private readonly serverUuid: string
 
-  constructor(redis: Redis, config: RedisPublisherConfig) {
-    this.redis = redis
+  constructor(redis: RedisClientType, config: RedisPublisherConfig) {
+    this.redis = createRedisAdapter(redis)
     this.channel = config.channel
     this.serverUuid = config.serverUuid
     this.errorHandler = config.errorHandler ?? DEFAULT_NOTIFICATION_ERROR_HANDLER
@@ -91,12 +91,9 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
     )
   }
 
-  close(): Promise<void> {
-      return new Promise((resolve) => {
-          void this.redis.quit((_err, result) => {
-              return resolve()
-          })
-      })
+  async close(): Promise<void> {
+    // Don't close the underlying client - its lifecycle is managed by whoever created it
+    // The publisher doesn't hold subscriptions that need cleanup
   }
 
   async subscribe() {}
