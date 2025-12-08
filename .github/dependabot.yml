@@ -5,12 +5,26 @@ updates:
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+
   - package-ecosystem: npm
     directory: "/"
     schedule:
       interval: daily
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
     ignore:
-      - dependency-name: "@typescript-eslint/eslint-plugin"
-      - dependency-name: "@typescript-eslint/parser"
       - dependency-name: "@types/node"
+    groups:
+      lint:
+        patterns:
+          - '@biomejs/*'
+      types:
+        patterns:
+          - '@types/*'
+      vitest:
+        patterns:
+          - 'vitest'
+          - '@vitest/*'
