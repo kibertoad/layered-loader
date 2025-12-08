@@ -52,8 +52,16 @@ jobs:
           fi
 
       - name: Bump version
+        run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
+
+      - name: Fix formatting
+        run: npm run lint:fix
+
+      - name: Commit and push
         run: |
-          npm version ${{ steps.version.outputs.bump }} -m "chore: release v%s"
+          git add .
+          git commit -m "chore: release v$(node -p "require('./package.json').version")"
+          git tag "v$(node -p "require('./package.json').version")"
           git push
           git push --tags
 

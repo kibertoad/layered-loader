@@ -62,9 +62,5 @@
     "vitest": "^4.0.15",
     "typescript": "^5.9.3"
   },
-  "files": [
-    "README.md",
-    "LICENSE",
-    "dist/*"
-  ]
+  "files": ["README.md", "LICENSE", "dist/*"]
 }
