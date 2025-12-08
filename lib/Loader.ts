@@ -71,19 +71,19 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
   public async forceSetValue(key: string, newValue: LoadedValue | null) {
     this.inMemoryCache.set(key, newValue)
-    /* v8 ignore next 3 */
+    /* v8 ignore next -- @preserve */
     if (this.runningLoads.has(key)) {
       this.runningLoads.delete(key)
     }
 
     if (this.asyncCache) {
       await this.asyncCache.set(key, newValue).catch((err) => {
-        /* v8 ignore next 1 */
+        /* v8 ignore next -- @preserve */
         this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
       })
     }
 
-    /* v8 ignore next 5 */
+    /* v8 ignore next -- @preserve */
     if (this.notificationPublisher) {
       this.notificationPublisher.set(key, newValue).catch((err) => {
         this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
@@ -97,14 +97,14 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       if (finalValue !== undefined) {
         this.inMemoryCache.set(key, finalValue)
 
-        /* v8 ignore next 3 */
+        /* v8 ignore next -- @preserve */
         if (this.runningLoads.has(key)) {
           this.runningLoads.delete(key)
         }
       }
 
       // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too
-      /* v8 ignore next 5 */
+      /* v8 ignore next -- @preserve */
       if (this.notificationPublisher) {
         this.notificationPublisher.delete(key).catch((err) => {
           this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)

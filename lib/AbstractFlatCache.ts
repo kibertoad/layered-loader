@@ -149,7 +149,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   public async invalidateCacheForMany(keys: string[]) {
     if (this.asyncCache) {
       await this.asyncCache.deleteMany(keys).catch((err) => {
-        /* c8 ignore next 1 */
+        /* v8 ignore next -- @preserve */
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
       })
     }
@@ -161,7 +161,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
     if (this.notificationPublisher) {
       this.notificationPublisher.deleteMany(keys).catch((err) => {
-        /* c8 ignore next 1 */
+        /* v8 ignore next -- @preserve */
         this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
       })
     }

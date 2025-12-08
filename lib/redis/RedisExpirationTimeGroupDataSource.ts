@@ -12,7 +12,7 @@ export class RedisExpirationTimeGroupDataSource implements GroupDataSource<numbe
     return this.parentAsyncCache.getExpirationTimeFromGroup(key, group)
   }
 
-  /* c8 ignore next 3 */
+  /* v8 ignore next -- @preserve */
   getManyFromGroup(): Promise<number[]> {
     throw new Error('Not supported')
   }

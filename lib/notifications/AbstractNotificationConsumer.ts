@@ -3,7 +3,7 @@ import type { Logger } from '../util/Logger'
 
 export type ConsumerErrorHandler = (err: Error, channel: string, logger: Logger) => void
 
-/* c8 ignore next 3 */
+/* v8 ignore next -- @preserve */
 export const DEFAULT_NOTIFICATION_ERROR_HANDLER: ConsumerErrorHandler = (err, serverUuid, logger) => {
   logger.error(`Notification consumer error for server UUID ${serverUuid}: ${err.message}`)
 }

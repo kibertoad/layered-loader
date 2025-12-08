@@ -368,6 +368,45 @@ describe('RedisGroupNotificationPublisher', () => {
     await operation.invalidateCacheForGroup('group')
   })
 
+  it('Ignores unknown action IDs', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createGroupNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+    await operation.init()
+
+    await operation.getAsyncOnly('key', 'group')
+    const resultPre = operation.getInMemoryOnly('key', 'group')
+    expect(resultPre).toEqual(user1)
+
+    // Publish unknown action ID directly
+    await redisPublisher.publish(
+      CHANNEL_ID,
+      JSON.stringify({
+        actionId: 'UNKNOWN_ACTION',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    await setTimeout(50)
+
+    // Cache should remain unchanged
+    const resultPost = operation.getInMemoryOnly('key', 'group')
+    expect(resultPost).toEqual(user1)
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Handles error by default', async () => {
     expect.assertions(1)
     const { publisher: notificationPublisher, consumer: notificationConsumer } =
