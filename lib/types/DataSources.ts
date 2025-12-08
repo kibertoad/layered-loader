@@ -53,6 +53,15 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
 }
 
+/**
+ * Data source interface for retrieving values.
+ *
+ * Return value semantics:
+ * - Return the actual value when found
+ * - Return `null` to indicate "value was resolved but is empty" - this WILL be cached
+ * - Return `undefined` to indicate "value was not resolved" - this will NOT be cached,
+ *   and the next data source in the sequence will be queried
+ */
 export interface DataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> {
   get: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
 
@@ -62,6 +71,15 @@ export interface DataSource<LoadedValue, LoadParams = string, LoadManyParams = L
   name: string
 }
 
+/**
+ * Group data source interface for retrieving values within groups.
+ *
+ * Return value semantics:
+ * - Return the actual value when found
+ * - Return `null` to indicate "value was resolved but is empty" - this WILL be cached
+ * - Return `undefined` to indicate "value was not resolved" - this will NOT be cached,
+ *   and the next data source in the sequence will be queried
+ */
 export interface GroupDataSource<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> {
   getFromGroup: (loadParams: LoadParams, group: string) => Promise<LoadedValue | undefined | null>
   getManyFromGroup: (keys: string[], group: string, loadParams?: LoadManyParams) => Promise<LoadedValue[]>

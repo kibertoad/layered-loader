@@ -431,6 +431,36 @@ describe('Loader Main', () => {
       expect(value).toBe('value')
     })
 
+    it('does not update cache when all data sources return undefined', async () => {
+      const cache = new DummyCache(undefined)
+      const setSpy = vitest.spyOn(cache, 'set')
+
+      const operation = new Loader({
+        asyncCache: cache,
+        dataSources: [new DummyDataSource(undefined)],
+      })
+
+      const value = await operation.get('key')
+
+      expect(value).toBeUndefined()
+      expect(setSpy).not.toHaveBeenCalled()
+    })
+
+    it('updates cache when data source returns null (explicit empty value)', async () => {
+      const cache = new DummyCache(undefined)
+      const setSpy = vitest.spyOn(cache, 'set')
+
+      const operation = new Loader({
+        asyncCache: cache,
+        dataSources: [new DummyDataSource(null as unknown as undefined)],
+      })
+
+      const value = await operation.get('key')
+
+      expect(value).toBeNull()
+      expect(setSpy).toHaveBeenCalledWith('key', null)
+    })
+
     it('logs error during load', async () => {
       const consoleSpy = vitest.spyOn(console, 'error')
       const operation = new Loader({ dataSources: [new ThrowingLoader()], throwIfLoadError: true })
@@ -446,7 +476,7 @@ describe('Loader Main', () => {
       const operation = new Loader({ dataSources: [loader] })
 
       const value = await operation.get('value')
-      expect(value).toBeNull()
+      expect(value).toBeUndefined()
 
       loader.value = null
       const value2 = await operation.get('value')

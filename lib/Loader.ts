@@ -143,16 +143,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       }
 
       // No cached value, we have to load instead
-      return this.loadFromLoaders(key, loadParams).then((finalValue) => {
-        if (finalValue !== undefined) {
-          return finalValue
-        }
-
-        if (this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}"`)
-        }
-        return undefined
-      })
+      return this.loadFromLoaders(key, loadParams)
     })
   }
 
@@ -164,21 +155,22 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
           throw err
         }
       })
-      if (resolvedValue !== undefined || index === this.dataSources.length - 1) {
-        if (resolvedValue === undefined && this.throwIfUnresolved) {
-          throw new Error(`Failed to resolve value for key "${key}"`)
-        }
-
-        const finalValue = resolvedValue ?? null
+      // null means "resolved to empty value" and should be cached
+      // undefined means "not resolved" and should not be cached
+      if (resolvedValue !== undefined) {
         if (this.asyncCache) {
-          await this.asyncCache.set(key, finalValue).catch((err) => {
+          await this.asyncCache.set(key, resolvedValue).catch((err) => {
             this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
           })
         }
-        return finalValue
+        return resolvedValue
       }
     }
 
+    // All data sources returned undefined - value not resolved
+    if (this.throwIfUnresolved) {
+      throw new Error(`Failed to resolve value for key "${key}"`)
+    }
     return undefined
   }
 
