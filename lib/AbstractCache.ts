@@ -138,7 +138,7 @@ export abstract class AbstractCache<
       this.notificationConsumer.setTargetCache(this.inMemoryCache)
       this.initPromises.push(
         this.notificationConsumer.subscribe().catch((err) => {
-          /* c8 ignore next 1 */
+          /* v8 ignore next -- @preserve */
           this.notificationConsumer!.errorHandler(err, this.notificationConsumer!.serverUuid, this.logger)
         }),
       )
@@ -148,7 +148,7 @@ export abstract class AbstractCache<
       this.notificationPublisher = config.notificationPublisher
       this.initPromises.push(
         this.notificationPublisher.subscribe().catch((err) => {
-          /* c8 ignore next 1 */
+          /* v8 ignore next -- @preserve */
           this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
         }),
       )
@@ -184,7 +184,7 @@ export abstract class AbstractCache<
       await this.asyncCache.close()
     }
 
-    /* c8 ignore start */
+    /* v8 ignore next -- @preserve */
     if (this.notificationConsumer) {
       try {
         await this.notificationConsumer.close()
@@ -193,6 +193,7 @@ export abstract class AbstractCache<
         this.logger.error(`Failed to close notification consumer: ${err.message}`)
       }
     }
+    /* v8 ignore next -- @preserve */
     if (this.notificationPublisher) {
       try {
         await this.notificationPublisher.close()
@@ -201,6 +202,5 @@ export abstract class AbstractCache<
         this.logger.error(`Failed to close notification publisher: ${err.message}`)
       }
     }
-    /* c8 ignore stop */
   }
 }

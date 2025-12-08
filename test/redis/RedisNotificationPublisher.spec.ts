@@ -408,6 +408,44 @@ describe('RedisNotificationPublisher', () => {
     await setTimeout(1)
   })
 
+  it('Ignores unknown action IDs', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+    await operation.init()
+
+    const resultPre = await operation.get('key')
+    expect(resultPre).toBe('value')
+
+    // Publish unknown action ID directly
+    await redisPublisher.publish(
+      CHANNEL_ID,
+      JSON.stringify({
+        actionId: 'UNKNOWN_ACTION',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    await setTimeout(50)
+
+    // Cache should remain unchanged
+    const resultPost = await operation.get('key')
+    expect(resultPost).toBe('value')
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Handles error by default', async () => {
     expect.assertions(1)
     const { publisher: notificationPublisher, consumer: notificationConsumer } =
@@ -432,5 +470,9 @@ describe('RedisNotificationPublisher', () => {
     })
 
     await operation.invalidateCacheFor('key')
+
+    await operation.close()
+    await notificationConsumer.close()
+    await notificationPublisher.close()
   })
 })
