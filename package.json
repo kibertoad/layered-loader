@@ -1,6 +1,6 @@
 {
   "name": "layered-loader",
-  "version": "14.2.0",
+  "version": "14.2.1",
   "description": "Data loader with support for caching and fallback data sources ",
   "license": "MIT",
   "maintainers": [
@@ -62,5 +62,9 @@
     "vitest": "^4.0.15",
     "typescript": "^5.9.3"
   },
-  "files": ["README.md", "LICENSE", "dist/*"]
+  "files": [
+    "README.md",
+    "LICENSE",
+    "dist/*"
+  ]
 }
