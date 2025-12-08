@@ -432,5 +432,9 @@ describe('RedisNotificationPublisher', () => {
     })
 
     await operation.invalidateCacheFor('key')
+
+    await operation.close()
+    await notificationConsumer.close()
+    await notificationPublisher.close()
   })
 })

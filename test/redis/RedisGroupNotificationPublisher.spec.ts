@@ -392,6 +392,10 @@ describe('RedisGroupNotificationPublisher', () => {
     })
 
     await operation.invalidateCacheFor('key', 'group')
+
+    await operation.close()
+    await notificationConsumer.close()
+    await notificationPublisher.close()
   })
 
   it('Handles connection error on delete', async () => {
@@ -422,5 +426,9 @@ describe('RedisGroupNotificationPublisher', () => {
 
     await setTimeout(1)
     await setTimeout(1)
+
+    await operation.close()
+    await notificationConsumer.close()
+    await notificationPublisher.close()
   })
 })
