@@ -214,6 +214,34 @@ describe('GroupLoader Async Refresh', () => {
       expect(expirationTimePost! > expirationTimePre!).toBe(true)
     })
 
+    it('cleans up groupRefreshFlags after background refresh completes', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+      const asyncCache = new RedisGroupCache<User>(redis, {
+        ttlInMsecs: 150,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 75,
+      })
+
+      const operation = new GroupLoader<User>({
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      expect(loader.counter).toBe(1)
+
+      await setTimeout(100)
+      // kick off the refresh
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      await setTimeout(5)
+      expect(loader.counter).toBe(2)
+
+      // @ts-ignore
+      const groupRefreshFlags: Map<string, Set<string>> = operation.groupRefreshFlags
+      // The empty Set for the group should have been cleaned up
+      expect(groupRefreshFlags.has(user1.companyId)).toBe(false)
+    })
+
     it('async background refresh errors do not crash app', async () => {
       const loader = new CountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {

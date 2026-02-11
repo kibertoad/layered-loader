@@ -71,10 +71,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
   public async forceSetValue(key: string, newValue: LoadedValue | null) {
     this.inMemoryCache.set(key, newValue)
-    /* v8 ignore next -- @preserve */
-    if (this.runningLoads.has(key)) {
-      this.runningLoads.delete(key)
-    }
+    this.runningLoads.delete(key)
 
     if (this.asyncCache) {
       await this.asyncCache.set(key, newValue).catch((err) => {
@@ -96,11 +93,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     return this.loadFromLoaders(key, loadParams).then((finalValue) => {
       if (finalValue !== undefined) {
         this.inMemoryCache.set(key, finalValue)
-
-        /* v8 ignore next -- @preserve */
-        if (this.runningLoads.has(key)) {
-          this.runningLoads.delete(key)
-        }
+        this.runningLoads.delete(key)
       }
 
       // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too

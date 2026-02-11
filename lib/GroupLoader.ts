@@ -59,6 +59,9 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                     })
                     .finally(() => {
                       groupSet!.delete(key)
+                      if (groupSet!.size === 0) {
+                        this.groupRefreshFlags.delete(group)
+                      }
                     })
                 }
               }

@@ -14,6 +14,7 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
 > {
   private readonly redis: Redis
   private readonly channel: string
+  private messageHandler?: (channel: string, message: string) => void
 
   constructor(redis: Redis, config: RedisConsumerConfig) {
     super(config.serverUuid)
@@ -22,6 +23,9 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   }
 
   async close(): Promise<void> {
+    if (this.messageHandler) {
+      this.redis.removeListener('message', this.messageHandler)
+    }
     try {
       await this.redis.unsubscribe(this.channel)
     } catch {
@@ -36,7 +40,7 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
 
   subscribe(): Promise<void> {
     return this.redis.subscribe(this.channel).then(() => {
-      this.redis.on('message', (channel, message) => {
+      this.messageHandler = (channel, message) => {
         const parsedMessage: GroupNotificationCommand = JSON.parse(message)
         // this is a local message, ignore
         if (parsedMessage.originUuid === this.serverUuid) {
@@ -57,7 +61,8 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
         if (parsedMessage.actionId === 'CLEAR') {
           return this.targetCache.clear()
         }
-      })
+      }
+      this.redis.on('message', this.messageHandler)
     })
   }
 }

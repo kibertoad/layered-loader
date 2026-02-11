@@ -84,9 +84,10 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   getManyFromGroup(keys: string[], group: string): GetManyResult<T> {
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
+    const groupCache = this.resolveGroup(group)
 
     for (let i = 0; i < keys.length; i++) {
-      const resolvedValue = this.getFromGroup(keys[i], group)
+      const resolvedValue = groupCache.get(keys[i])
       if (resolvedValue) {
         resolvedValues.push(resolvedValue)
       } else {

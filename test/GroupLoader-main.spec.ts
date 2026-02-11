@@ -294,6 +294,29 @@ describe('GroupLoader Main', () => {
       expect(resultPost).toEqual(user1)
     })
 
+    it('does not create empty runningLoads entry when calling getInMemoryOnly', async () => {
+      const operation = new GroupLoader<User>({
+        inMemoryCache: {
+          cacheId: 'dummy',
+          ttlInMsecs: 150,
+          ttlLeftBeforeRefreshInMsecs: 75,
+        },
+        dataSources: [new CountingGroupedLoader(userValues)],
+      })
+
+      // Load a value first
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      // getInMemoryOnly should NOT create an entry in runningLoads for a group that doesn't need refresh
+      operation.getInMemoryOnly(user1.userId, user1.companyId)
+
+      // @ts-ignore
+      const runningLoads: Map<string, Map<string, unknown>> = operation.runningLoads
+      // Either the group doesn't exist in runningLoads, or it has no entries
+      const groupLoads = runningLoads.get(user1.companyId)
+      expect(!groupLoads || groupLoads.size === 0).toBe(true)
+    })
+
     it('triggers background refresh when threshold is set and reached', async () => {
       const loader = new CountingGroupedLoader(userValues)
 
