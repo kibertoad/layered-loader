@@ -19,6 +19,7 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 > {
   private readonly redis: Redis
   private readonly channel: string
+  private messageHandler?: (channel: string, message: string) => void
 
   constructor(redis: Redis, config: RedisConsumerConfig) {
     super(config.serverUuid)
@@ -27,6 +28,9 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   }
 
   async close(): Promise<void> {
+    if (this.messageHandler) {
+      this.redis.removeListener('message', this.messageHandler)
+    }
     try {
       await this.redis.unsubscribe(this.channel)
     } catch {
@@ -41,7 +45,7 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
 
   subscribe(): Promise<void> {
     return this.redis.subscribe(this.channel).then(() => {
-      this.redis.on('message', (channel, message) => {
+      this.messageHandler = (channel, message) => {
         const parsedMessage: NotificationCommand = JSON.parse(message)
         // this is a local message, ignore
         if (parsedMessage.originUuid === this.serverUuid) {
@@ -66,7 +70,8 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
             (parsedMessage as SetNotificationCommand<LoadedValue>).value,
           )
         }
-      })
+      }
+      this.redis.on('message', this.messageHandler)
     })
   }
 }

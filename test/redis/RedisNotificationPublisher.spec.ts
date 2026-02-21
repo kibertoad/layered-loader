@@ -446,6 +446,30 @@ describe('RedisNotificationPublisher', () => {
     await notificationPublisher1.close()
   })
 
+  it('Removes message listeners on close', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+    await operation.init()
+
+    expect(redisConsumer.listenerCount('message')).toBeGreaterThan(0)
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+
+    expect(redisConsumer.listenerCount('message')).toBe(0)
+  })
+
   it('Handles error by default', async () => {
     expect.assertions(1)
     const { publisher: notificationPublisher, consumer: notificationConsumer } =

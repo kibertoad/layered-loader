@@ -38,8 +38,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   public getInMemoryOnly(loadParams: LoadParams, group: string): LoadedValue | undefined | null {
     const key = this.cacheKeyFromLoadParamsResolver(loadParams)
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-      const groupLoads = this.resolveGroupLoads(group)
-      if (!groupLoads.has(key)) {
+      if (!this.runningLoads.get(group)?.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
         if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
           void this.getAsyncOnly(loadParams, group)
