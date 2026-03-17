@@ -520,3 +520,49 @@ It has following configuration options:
 - `timeoutInMsecs?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 - `separator?: number` - What text should be used between different parts of the key prefix. Default is `':'`
 - `ttlLeftBeforeRefreshInMsecs?: number` - if set within a Loader or GroupLoader, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening.
+
+## Redis connection safety
+
+### Automatic READONLY reconnection
+
+When using `createNotificationPair` or `createGroupNotificationPair` with `RedisOptions` (rather than pre-instantiated Redis clients), the library automatically enriches the Redis configuration with a `reconnectOnError` handler that triggers reconnection when a `READONLY` error is detected. This addresses a common issue during **blue-green deployments** or managed Redis failovers, where the current master is demoted to a replica and starts rejecting write commands with `READONLY` errors.
+
+If you provide your own `reconnectOnError` in the `RedisOptions`, it will be preserved and the default handler will not be applied.
+
+### Using `enrichRedisConfig` for your own connections
+
+When creating Redis instances manually (e.g. for `RedisCache`), you can use the exported `enrichRedisConfig` utility to apply the same safety logic:
+
+```ts
+import Redis from 'ioredis'
+import { enrichRedisConfig, RedisCache } from 'layered-loader'
+
+const redisOptions = {
+  host: 'localhost',
+  port: 6379,
+  password: 'sOmE_sEcUrE_pAsS',
+}
+
+const redis = new Redis(enrichRedisConfig(redisOptions))
+
+const cache = new RedisCache<string>(redis, {
+  json: true,
+  ttlInMsecs: 1000 * 60 * 10,
+})
+```
+
+### Cloud-optimized configuration
+
+For managed Redis cluster services (AWS ElastiCache, GCP Memorystore, etc.), use `enrichRedisConfigOptimizedForCloud` instead. It accepts `ClusterOptions` and, in addition to the `READONLY` reconnection handler (set via `redisOptions`), forces IPv4 DNS resolution so that after a failover the DNS record resolves to the new master instead of using a cached or stale address:
+
+```ts
+import Redis from 'ioredis'
+import { enrichRedisConfigOptimizedForCloud } from 'layered-loader'
+
+const cluster = new Redis.Cluster(
+  [{ host: 'my-cluster.cache.amazonaws.com', port: 6379 }],
+  enrichRedisConfigOptimizedForCloud({})
+)
+```
+
+Both `enrichRedisConfig` and `enrichRedisConfigOptimizedForCloud` preserve any user-provided `reconnectOnError` or `dnsLookup` handlers.
