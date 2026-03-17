@@ -553,16 +553,16 @@ const cache = new RedisCache<string>(redis, {
 
 ### Cloud-optimized configuration
 
-For managed Redis services (AWS ElastiCache, GCP Memorystore, etc.), use `enrichRedisConfigOptimizedForCloud` instead. In addition to the `READONLY` reconnection handler, it forces IPv4 DNS resolution so that after a failover the DNS record resolves to the new master instead of using a cached or stale address:
+For managed Redis cluster services (AWS ElastiCache, GCP Memorystore, etc.), use `enrichRedisConfigOptimizedForCloud` instead. It accepts `ClusterOptions` and, in addition to the `READONLY` reconnection handler (set via `redisOptions`), forces IPv4 DNS resolution so that after a failover the DNS record resolves to the new master instead of using a cached or stale address:
 
 ```ts
 import Redis from 'ioredis'
-import { enrichRedisConfigOptimizedForCloud, RedisCache } from 'layered-loader'
+import { enrichRedisConfigOptimizedForCloud } from 'layered-loader'
 
-const redis = new Redis(enrichRedisConfigOptimizedForCloud({
-  host: 'my-cluster.cache.amazonaws.com',
-  port: 6379,
-}))
+const cluster = new Redis.Cluster(
+  [{ host: 'my-cluster.cache.amazonaws.com', port: 6379 }],
+  enrichRedisConfigOptimizedForCloud({})
+)
 ```
 
 Both `enrichRedisConfig` and `enrichRedisConfigOptimizedForCloud` preserve any user-provided `reconnectOnError` or `dnsLookup` handlers.
