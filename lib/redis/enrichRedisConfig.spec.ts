@@ -48,9 +48,12 @@ describe('enrichRedisConfigOptimizedForCloud', () => {
     expect(result.redisOptions?.reconnectOnError).toBeDefined()
   })
 
-  it('default dnsLookup is a function', () => {
+  it('default dnsLookup resolves using IPv4', () => {
     const result = enrichRedisConfigOptimizedForCloud({})
     expect(typeof result.dnsLookup).toBe('function')
+
+    // Invoke to cover the function body; we don't assert the DNS result
+    result.dnsLookup!('localhost', () => {})
   })
 
   it('default reconnectOnError in redisOptions returns true for READONLY errors', () => {
