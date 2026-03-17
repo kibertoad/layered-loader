@@ -3,6 +3,7 @@ import {Redis, RedisOptions} from 'ioredis'
 import type { PublisherErrorHandler } from '../notifications/NotificationPublisher'
 import { RedisNotificationConsumer } from './RedisNotificationConsumer'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher'
+import { enrichRedisConfig } from './enrichRedisConfig'
 
 export type RedisNotificationConfig = {
   channel: string
@@ -16,8 +17,8 @@ export function isClient(maybeClient: unknown): maybeClient is Redis {
 }
 
 export function createNotificationPair<T>(config: RedisNotificationConfig) {
-  const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(config.consumerRedis)
-  const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(config.publisherRedis)
+  const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(enrichRedisConfig(config.consumerRedis))
+  const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(enrichRedisConfig(config.publisherRedis))
 
   const serverUuid = randomUUID()
   if (resolvedConsumer === resolvedPublisher) {
