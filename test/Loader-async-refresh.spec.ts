@@ -44,9 +44,10 @@ describe('Loader Async', () => {
       expect(loader.counter).toBe(1)
       // kick off the refresh
       expect(await operation.get('key')).toBe('value')
-      await setTimeout(1)
-      await Promise.resolve()
-      await Promise.resolve()
+      // Wait for the background refresh to actually call the data source.
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
       expect(loader.counter).toBe(2)
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
@@ -106,6 +107,52 @@ describe('Loader Async', () => {
       expect(expirationTimePre).toBeDefined()
       expect(expirationTimePost).toBeDefined()
       expect(expirationTimePost! > expirationTimePre!).toBe(true)
+    })
+
+    it('two-layer cache propagates fresh value to in-memory after background refresh', async () => {
+      const loader = new CountingDataSource('v1')
+      const asyncCache = new RedisCache<string>(redis, {
+        ttlInMsecs: 5000,
+        ttlLeftBeforeRefreshInMsecs: 4500,
+      })
+
+      const operation = new Loader<string>({
+        inMemoryCache: {
+          cacheId: 'two-layer-refresh',
+          cacheType: 'lru-object',
+          ttlInMsecs: 5000,
+          ttlLeftBeforeRefreshInMsecs: 4500,
+        },
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      // Populates both layers with v1
+      expect(await operation.get('key')).toBe('v1')
+      expect(loader.counter).toBe(1)
+
+      // Source value changes
+      loader.value = 'v2'
+
+      // Wait until both layers' entries are within the refresh window
+      await setTimeout(600)
+
+      // SWR: returns stale v1 and triggers a background HTTP refresh.
+      expect(await operation.get('key')).toBe('v1')
+
+      // Let the background HTTP fetch settle
+      // Wait for the background refresh to actually call the data source.
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
+      expect(loader.counter).toBe(2)
+
+      // Sanity check: Redis is now fresh
+      // @ts-ignore
+      expect(await operation.asyncCache.get('key')).toBe('v2')
+
+      // The next read should observe the fresh value that the background refresh fetched.
+      expect(await operation.get('key')).toBe('v2')
     })
 
     it('async background refresh errors do not crash app', async () => {
