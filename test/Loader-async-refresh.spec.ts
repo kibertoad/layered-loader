@@ -137,28 +137,17 @@ describe('Loader Async', () => {
       await setTimeout(600)
 
       // SWR: returns stale v1 and triggers a background HTTP refresh.
-      // The HTTP refresh writes v2 to Redis, but the bg path in Loader.resolveValue
-      // does not propagate the fresh value back; meanwhile getAsyncOnly overwrites
-      // the in-memory entry with the stale Redis value (v1) read before the HTTP
-      // fetch started, with the TTL reset to the full ttlInMsecs (1000ms).
       expect(await operation.get('key')).toBe('v1')
 
       // Let the background HTTP fetch settle
       await setTimeout(50)
-      await Promise.resolve()
-      await Promise.resolve()
       expect(loader.counter).toBe(2)
 
       // Sanity check: Redis is now fresh
       // @ts-ignore
       expect(await operation.asyncCache.get('key')).toBe('v2')
 
-      // Expectation: the next read should observe the fresh value that the
-      // background refresh fetched.
-      // Actual on current code: still 'v1', because the in-memory entry was
-      // re-pinned to the stale Redis value with a freshly-reset TTL, so
-      // getInMemoryOnly's (remaining < ttlLeftBeforeRefreshInMsecs) check
-      // is false and no further refresh runs.
+      // The next read should observe the fresh value that the background refresh fetched.
       expect(await operation.get('key')).toBe('v2')
     })
 
