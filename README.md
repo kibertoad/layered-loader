@@ -11,7 +11,7 @@
 [![](https://img.shields.io/npm/dm/layered-loader.svg)](https://npmjs.org/package/layered-loader)
 ![](https://github.com/kibertoad/layered-loader/workflows/ci/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/kibertoad/layered-loader/badge.svg?branch=main)](https://coveralls.io/r/kibertoad/layered-loader?branch=main)
-
+ 
 Data source agnostic data loader with support for tiered in-memory and async caching, fetch deduplication and fallback data sources. Implements Cache-Aside, Read-Through and Refresh-Ahead patterns.
 
 Special thanks to Diana Baužytė for creating the project logo.
