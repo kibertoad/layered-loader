@@ -44,9 +44,10 @@ describe('Loader Async', () => {
       expect(loader.counter).toBe(1)
       // kick off the refresh
       expect(await operation.get('key')).toBe('value')
-      await setTimeout(1)
-      await Promise.resolve()
-      await Promise.resolve()
+      // Wait for the background refresh to actually call the data source.
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
       expect(loader.counter).toBe(2)
       // @ts-ignore
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
@@ -140,7 +141,10 @@ describe('Loader Async', () => {
       expect(await operation.get('key')).toBe('v1')
 
       // Let the background HTTP fetch settle
-      await setTimeout(50)
+      // Wait for the background refresh to actually call the data source.
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
       expect(loader.counter).toBe(2)
 
       // Sanity check: Redis is now fresh
