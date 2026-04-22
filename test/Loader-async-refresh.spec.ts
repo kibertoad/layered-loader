@@ -111,16 +111,16 @@ describe('Loader Async', () => {
     it('two-layer cache propagates fresh value to in-memory after background refresh', async () => {
       const loader = new CountingDataSource('v1')
       const asyncCache = new RedisCache<string>(redis, {
-        ttlInMsecs: 1000,
-        ttlLeftBeforeRefreshInMsecs: 500,
+        ttlInMsecs: 5000,
+        ttlLeftBeforeRefreshInMsecs: 4500,
       })
 
       const operation = new Loader<string>({
         inMemoryCache: {
           cacheId: 'two-layer-refresh',
           cacheType: 'lru-object',
-          ttlInMsecs: 1000,
-          ttlLeftBeforeRefreshInMsecs: 500,
+          ttlInMsecs: 5000,
+          ttlLeftBeforeRefreshInMsecs: 4500,
         },
         asyncCache,
         dataSources: [loader],
