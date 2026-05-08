@@ -22,12 +22,7 @@ export type GroupInvalidationAction =
   | { kind: 'deleteGroup'; group: string }
   | { kind: 'clear' }
 
-export type ResolverOutput<TAction> =
-  | TAction
-  | readonly TAction[]
-  | null
-  | undefined
-  | void
+export type ResolverOutput<TAction> = TAction | readonly TAction[] | null | undefined
 
 /**
  * Pure function turning a parsed upstream message into invalidation
@@ -39,7 +34,7 @@ export type InvalidationResolver<TMessage, TAction> = (
 
 /** Lifecycle contract every trigger implementation honours. */
 export interface InvalidationTrigger {
-  /** Begin consuming messages from the upstream source. */
+  /** Begin consuming messages from the upstream source. Idempotent. */
   start(): Promise<void>
   /** Stop consuming and release resources. Idempotent. */
   stop(): Promise<void>

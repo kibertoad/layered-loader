@@ -7,8 +7,10 @@ import type {
 } from './types.js'
 
 function toArray<T>(output: ResolverOutput<T>): readonly T[] {
-  if (output === undefined || output === null) return []
-  return Array.isArray(output) ? output : [output as T]
+  if (output == null) return []
+  // T is a discriminated-union object type, never an array, so narrowing via
+  // Array.isArray is safe — but TS can't prove that for an arbitrary T.
+  return Array.isArray(output) ? output : ([output] as readonly T[])
 }
 
 /**

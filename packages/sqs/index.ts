@@ -63,10 +63,14 @@ export {
   runGroupPipeline,
 } from './lib/triggers/dispatch.js'
 export {
+  AbstractSqsTrigger,
+  deriveTriggerChannelName,
+  type SqsTriggerSource,
+} from './lib/triggers/AbstractSqsTrigger.js'
+export {
   SqsInvalidationTrigger,
   type SqsInvalidationTriggerParams,
   type SqsTriggerSourceConfig,
-  type TriggerSubscriptionOptions,
 } from './lib/triggers/SqsInvalidationTrigger.js'
 export {
   SqsGroupInvalidationTrigger,

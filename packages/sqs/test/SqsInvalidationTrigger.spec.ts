@@ -457,6 +457,65 @@ describe('SqsInvalidationTrigger', () => {
     })
   })
 
+  describe('lifecycle', () => {
+    it('start and stop are idempotent and safe to call concurrently', async () => {
+      const suffix = Math.random().toString(36).slice(2, 8)
+      const upstreamQueueName = `lifecycle-q-${suffix}`
+      await clients.sqsClient.send(new CreateQueueCommand({ QueueName: upstreamQueueName }))
+      const queueUrl = (
+        await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: upstreamQueueName }))
+      ).QueueUrl!
+
+      const peer = createNotificationPair<string>({
+        publisher: {
+          dependencies: buildPublisherDeps(clients),
+          creationConfig: { topic: { Name: `lifecycle-topic-${suffix}` } },
+        },
+        consumer: {
+          dependencies: buildConsumerDeps(clients),
+          creationConfig: {
+            topic: { Name: `lifecycle-topic-${suffix}` },
+            queue: { QueueName: `lifecycle-peer-q-${suffix}` },
+          },
+        },
+      })
+
+      const triggerPublisher = new SqsNotificationPublisher<string>({
+        serverUuid: randomUUID(),
+        dependencies: buildPublisherDeps(clients),
+        locatorConfig: { topicName: `lifecycle-topic-${suffix}` },
+      })
+
+      const trigger = new SqsInvalidationTrigger<UpstreamEvent>({
+        sourceType: 'sqs-queue',
+        dependencies: buildConsumerDeps(clients),
+        locatorConfig: { queueUrl },
+        messageSchema: UPSTREAM_EVENT_SCHEMA,
+        publisher: triggerPublisher,
+        resolver: () => null,
+      })
+
+      try {
+        // Concurrent starts must produce a single underlying consumer.
+        await Promise.all([trigger.start(), trigger.start(), trigger.start()])
+        // Repeated starts after success must be no-ops.
+        await trigger.start()
+        // Stop is idempotent.
+        await trigger.stop()
+        await trigger.stop()
+        // Restart is allowed.
+        await trigger.start()
+      } finally {
+        await Promise.allSettled([
+          trigger.stop(),
+          triggerPublisher.close(),
+          peer.consumer.close(),
+          peer.publisher.close(),
+        ])
+      }
+    })
+  })
+
   describe('error handling', () => {
     it('invokes errorHandler when resolver throws', async () => {
       const suffix = Math.random().toString(36).slice(2, 8)
