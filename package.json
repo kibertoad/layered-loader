@@ -13,20 +13,21 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "build:release": "del-cli dist && del-cli coverage && npm run lint && npm run build",
+    "build:release": "del-cli dist && del-cli coverage && pnpm run lint && pnpm run build",
     "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker compose -f docker-compose.yml up --build -d wait_for_redis",
     "docker:stop": "docker compose -f docker-compose.yml down",
     "test": "vitest",
-    "test:everything": "npm run lint && npm run test:coverage",
+    "test:everything": "pnpm run lint && pnpm run test:coverage",
     "test:coverage": "vitest --coverage",
     "lint": "biome check && tsc --noEmit",
     "lint:fix": "biome check --write",
-    "prepublishOnly": "npm run build:release",
+    "prepublishOnly": "pnpm run build:release",
     "update:dependencies": "npx npm-check-updates -u"
   },
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@10.33.0",
   "repository": {
     "type": "git",
     "url": "git://github.com/kibertoad/layered-loader.git"
@@ -62,5 +63,8 @@
     "vitest": "^4.1.0",
     "typescript": "^5.9.3"
   },
-  "files": ["README.md", "LICENSE", "dist/*"]
+  "files": ["README.md", "LICENSE", "dist/*"],
+  "pnpm": {
+    "onlyBuiltDependencies": ["@biomejs/biome"]
+  }
 }
