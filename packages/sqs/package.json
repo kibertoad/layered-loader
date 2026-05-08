@@ -47,7 +47,7 @@
     "@message-queue-toolkit/sns": ">=24.0.0",
     "@message-queue-toolkit/sqs": ">=23.0.0",
     "layered-loader": "workspace:^",
-    "zod": ">=3.25.76 <5.0.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@aws-sdk/client-sns": "^3.926.0",

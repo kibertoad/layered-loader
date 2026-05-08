@@ -17,9 +17,9 @@ export {
 }
 
 const NOTIFICATION_BASE_SHAPE = {
-  id: z.string(),
-  timestamp: z.string(),
-  originUuid: z.string(),
+  id: z.string().uuid(),
+  timestamp: z.string().datetime(),
+  originUuid: z.string().uuid(),
 }
 
 export const CLEAR_GROUP_NOTIFICATION_SCHEMA = z.object({

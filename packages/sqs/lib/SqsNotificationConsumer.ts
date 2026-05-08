@@ -75,6 +75,7 @@ class SnsSqsInvalidationConsumer<LoadedValue> extends AbstractSnsSqsConsumer<
 export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<LoadedValue> {
   private readonly params: SqsNotificationConsumerParams
   private internalConsumer?: SnsSqsInvalidationConsumer<LoadedValue>
+  private subscribePromise?: Promise<SnsSqsInvalidationConsumer<LoadedValue>>
 
   constructor(params: SqsNotificationConsumerParams) {
     super(params.serverUuid, params.errorHandler)
@@ -84,6 +85,9 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
   async subscribe(): Promise<unknown> {
     if (this.internalConsumer) {
       return this.internalConsumer
+    }
+    if (this.subscribePromise) {
+      return this.subscribePromise
     }
 
     if (!this.targetCache) {
@@ -133,18 +137,35 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
         : { locatorConfig: this.params.locatorConfig }),
     } as SNSSQSConsumerOptions<NotificationCommand, ConsumerContext<LoadedValue>, undefined>
 
-    this.internalConsumer = new SnsSqsInvalidationConsumer<LoadedValue>(
+    const consumer = new SnsSqsInvalidationConsumer<LoadedValue>(
       this.params.dependencies,
       options,
       { serverUuid: this.serverUuid, targetCache: this.targetCache },
     )
 
-    await this.internalConsumer.init()
-    await this.internalConsumer.start()
-    return this.internalConsumer
+    // Single-flight: concurrent subscribe() calls share one init/start; the
+    // internal consumer is only assigned once both succeed, so a partial
+    // failure leaves the instance in a re-tryable state.
+    this.subscribePromise = (async () => {
+      try {
+        await consumer.init()
+        await consumer.start()
+        this.internalConsumer = consumer
+        return consumer
+      } catch (err) {
+        await consumer.close().catch(() => undefined)
+        throw err
+      } finally {
+        this.subscribePromise = undefined
+      }
+    })()
+    return this.subscribePromise
   }
 
   async close(): Promise<void> {
+    if (this.subscribePromise) {
+      await this.subscribePromise.catch(() => undefined)
+    }
     if (!this.internalConsumer) return
     const consumer = this.internalConsumer
     this.internalConsumer = undefined

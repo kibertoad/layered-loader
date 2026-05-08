@@ -7,6 +7,7 @@ import {
   type SNSTopicLocatorType,
 } from '@message-queue-toolkit/sns'
 import type { GroupNotificationPublisher, PublisherErrorHandler } from 'layered-loader'
+import { resolveChannelName } from './channelNameResolver.js'
 import {
   CLEAR_COMMAND,
   DELETE_FROM_GROUP_COMMAND,
@@ -50,31 +51,36 @@ export class SqsGroupNotificationPublisher<LoadedValue>
   private readonly serverUuid: string
   private readonly publisher: SnsGroupInvalidationPublisher
   private initPromise?: Promise<void>
+  private initialized = false
 
   constructor(params: SqsGroupNotificationPublisherParams) {
     this.serverUuid = params.serverUuid
     this.errorHandler = params.errorHandler ?? DEFAULT_PUBLISHER_ERROR_HANDLER
     this.channel = resolveChannelName(params)
 
-    const options: SNSPublisherOptions<GroupNotificationCommand> = {
-      messageSchemas: GROUP_NOTIFICATION_SCHEMAS as unknown as ReadonlyArray<
-        // biome-ignore lint/suspicious/noExplicitAny: schema array is heterogeneous
-        any
-      >,
+    // mqt's `messageSchemas` is `readonly ZodSchema<UnionType>[]`. Our schemas
+    // are narrower (one per command type) and `ZodSchema` is invariant in T,
+    // so the array of narrow schemas does not satisfy the broad type at the
+    // type level — even though mqt resolves them correctly at runtime via the
+    // configured `messageTypeResolver`.
+    const options = {
+      messageSchemas: GROUP_NOTIFICATION_SCHEMAS,
       messageTypeResolver: { messageTypePath: NOTIFICATION_TYPE_FIELD },
       messageIdField: NOTIFICATION_ID_FIELD,
       messageTimestampField: NOTIFICATION_TIMESTAMP_FIELD,
       ...(params.creationConfig
         ? { creationConfig: params.creationConfig }
         : { locatorConfig: params.locatorConfig }),
-    } as SNSPublisherOptions<GroupNotificationCommand>
+    } as unknown as SNSPublisherOptions<GroupNotificationCommand>
 
     this.publisher = new SnsGroupInvalidationPublisher(params.dependencies, options)
   }
 
   async subscribe(): Promise<unknown> {
     if (!this.initPromise) {
-      this.initPromise = this.publisher.init()
+      this.initPromise = this.publisher.init().then(() => {
+        this.initialized = true
+      })
     }
     return this.initPromise
   }
@@ -107,13 +113,18 @@ export class SqsGroupNotificationPublisher<LoadedValue>
     await this.publisher.close()
   }
 
+  /**
+   * Returns the resolved topic ARN. Available only after `subscribe()` (or the
+   * first publish) has fully completed; returns `undefined` while init is in
+   * flight or before it has been triggered.
+   */
   get topicArn(): string | undefined {
-    return this.initPromise ? this.publisher.publicTopicArn : undefined
+    return this.initialized ? this.publisher.publicTopicArn : undefined
   }
 
   private async publishCommand(command: GroupNotificationCommand): Promise<void> {
     await this.subscribe()
-    await this.publisher.publish(command as GroupNotificationCommand)
+    await this.publisher.publish(command)
   }
 
   private buildEnvelope() {
@@ -123,24 +134,4 @@ export class SqsGroupNotificationPublisher<LoadedValue>
       originUuid: this.serverUuid,
     }
   }
-}
-
-function resolveChannelName(params: SqsGroupNotificationPublisherParams): string {
-  if (params.channel) {
-    return params.channel
-  }
-
-  if (params.creationConfig?.topic?.Name) {
-    return params.creationConfig.topic.Name
-  }
-
-  if (params.locatorConfig?.topicName) {
-    return params.locatorConfig.topicName
-  }
-
-  if (params.locatorConfig?.topicArn) {
-    return params.locatorConfig.topicArn
-  }
-
-  return 'sqs-notification-channel'
 }

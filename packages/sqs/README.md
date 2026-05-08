@@ -375,24 +375,34 @@ await trigger.start() // restart is supported
 
 ## Testing with fauxqs
 
-For local development and tests, swap the AWS SDK endpoint for [fauxqs](https://github.com/kibertoad/fauxqs):
+For local development and tests, swap the AWS SDK endpoint for [fauxqs](https://github.com/kibertoad/fauxqs). Two modes are useful in practice:
+
+### In-process (recommended for tests)
+
+Sub-second startup, no daemon required, isolated per test process. This package's own integration tests run this way — see `packages/sqs/test/globalSetup.ts`.
 
 ```ts
 import { startFauxqs } from 'fauxqs'
-import { SNSClient } from '@aws-sdk/client-sns'
 import { SQSClient } from '@aws-sdk/client-sqs'
-import { STSClient } from '@aws-sdk/client-sts'
 
 const server = await startFauxqs({ port: 0, logger: false })
 const credentials = { accessKeyId: 'test', secretAccessKey: 'test' }
 const region = 'us-east-1'
 
-const snsClient = new SQSClient({ endpoint: server.address, region, credentials })
+const sqsClient = new SQSClient({ endpoint: server.address, region, credentials })
 // ...
 await server.stop()
 ```
 
-This package's own integration tests run entirely against fauxqs in-process — see `packages/sqs/test`.
+### Docker-compose (for app smoke testing)
+
+The repository root's `docker-compose.yml` includes a `fauxqs` service on port `4566` for local app runs against a stable endpoint:
+
+```bash
+docker compose up fauxqs
+```
+
+Then point your AWS SDK clients at `http://localhost:4566`.
 
 ## API reference
 

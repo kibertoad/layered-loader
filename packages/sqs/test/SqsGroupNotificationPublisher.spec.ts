@@ -3,46 +3,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createGroupNotificationPair } from '../lib/SqsGroupNotificationFactory.js'
 import { type AwsClientBundle, buildAwsClients } from './fakes/awsClients.js'
 import { buildConsumerDeps, buildPublisherDeps } from './fakes/dependencies.js'
+import { StubGroupedAsyncCache, waitFor } from './utils/testHelpers.js'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
-
-class StubGroupedAsyncCache {
-  public name = 'StubGroupedAsyncCache'
-  constructor(private readonly value: string) {}
-  getFromGroup() {
-    return Promise.resolve(this.value)
-  }
-  getManyFromGroup(keys: string[]) {
-    return Promise.resolve({ resolvedValues: keys.map(() => this.value), unresolvedKeys: [] })
-  }
-  setForGroup(): Promise<void> {
-    return Promise.resolve()
-  }
-  deleteFromGroup(): Promise<void> {
-    return Promise.resolve()
-  }
-  deleteGroup(): Promise<void> {
-    return Promise.resolve()
-  }
-  clear(): Promise<void> {
-    return Promise.resolve()
-  }
-  close(): Promise<void> {
-    return Promise.resolve()
-  }
-  getExpirationTimeFromGroup() {
-    return Promise.resolve(undefined)
-  }
-}
-
-async function waitFor(predicate: () => boolean, timeoutMs = 5000, intervalMs = 50): Promise<void> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    if (predicate()) return
-    await new Promise((resolve) => setTimeout(resolve, intervalMs))
-  }
-  throw new Error('Timed out waiting for predicate')
-}
 
 describe('SqsGroupNotificationPublisher', () => {
   let clients: AwsClientBundle

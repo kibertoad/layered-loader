@@ -10,9 +10,9 @@ export const NOTIFICATION_ID_FIELD = 'id'
 export const NOTIFICATION_TIMESTAMP_FIELD = 'timestamp'
 
 const NOTIFICATION_BASE_SHAPE = {
-  id: z.string(),
-  timestamp: z.string(),
-  originUuid: z.string(),
+  id: z.string().uuid(),
+  timestamp: z.string().datetime(),
+  originUuid: z.string().uuid(),
 }
 
 export const CLEAR_NOTIFICATION_SCHEMA = z.object({

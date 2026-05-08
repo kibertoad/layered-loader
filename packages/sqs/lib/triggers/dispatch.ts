@@ -13,6 +13,10 @@ function toArray<T>(output: ResolverOutput<T>): readonly T[] {
   return Array.isArray(output) ? output : ([output] as readonly T[])
 }
 
+function assertNever(value: never, label: string): never {
+  throw new Error(`Unhandled ${label} kind: ${JSON.stringify(value)}`)
+}
+
 /**
  * Apply a resolved {@link InvalidationAction} to a flat
  * {@link NotificationPublisher}.
@@ -34,6 +38,8 @@ export async function applyFlatAction(
     case 'clear':
       await publisher.clear()
       return
+    default:
+      assertNever(action, 'InvalidationAction')
   }
 }
 
@@ -55,6 +61,8 @@ export async function applyGroupAction(
     case 'clear':
       await publisher.clear()
       return
+    default:
+      assertNever(action, 'GroupInvalidationAction')
   }
 }
 

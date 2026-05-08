@@ -359,7 +359,7 @@ await userLoader.invalidateCacheFor('key', 'group') // this will transparently i
 
 ### Flexible invalidation triggers
 
-In real-world systems most invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster used to require bespoke glue per service.
+In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
 
 Layered-loader ships transport-agnostic primitives for this:
 

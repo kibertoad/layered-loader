@@ -7,6 +7,7 @@ import {
   type SNSTopicLocatorType,
 } from '@message-queue-toolkit/sns'
 import type { NotificationPublisher, PublisherErrorHandler } from 'layered-loader'
+import { resolveChannelName } from './channelNameResolver.js'
 import {
   CLEAR_COMMAND,
   DELETE_COMMAND,
@@ -49,12 +50,18 @@ export class SqsNotificationPublisher<LoadedValue>
   private readonly serverUuid: string
   private readonly publisher: SnsInvalidationPublisher
   private initPromise?: Promise<void>
+  private initialized = false
 
   constructor(params: SqsNotificationPublisherParams) {
     this.serverUuid = params.serverUuid
     this.errorHandler = params.errorHandler ?? DEFAULT_PUBLISHER_ERROR_HANDLER
     this.channel = resolveChannelName(params)
 
+    // mqt's `messageSchemas` is `readonly ZodSchema<UnionType>[]`. Our schemas
+    // are narrower (one per command type) and `ZodSchema` is invariant in T,
+    // so the array of narrow schemas does not satisfy the broad type at the
+    // type level — even though mqt resolves them correctly at runtime via the
+    // configured `messageTypeResolver`.
     const options = {
       messageSchemas: NOTIFICATION_SCHEMAS,
       messageTypeResolver: { messageTypePath: NOTIFICATION_TYPE_FIELD },
@@ -70,7 +77,9 @@ export class SqsNotificationPublisher<LoadedValue>
 
   async subscribe(): Promise<unknown> {
     if (!this.initPromise) {
-      this.initPromise = this.publisher.init()
+      this.initPromise = this.publisher.init().then(() => {
+        this.initialized = true
+      })
     }
     return this.initPromise
   }
@@ -112,10 +121,12 @@ export class SqsNotificationPublisher<LoadedValue>
   }
 
   /**
-   * Returns the resolved topic ARN. Available only after subscribe() (or the first publish) has completed.
+   * Returns the resolved topic ARN. Available only after `subscribe()` (or the
+   * first publish) has fully completed; returns `undefined` while init is in
+   * flight or before it has been triggered.
    */
   get topicArn(): string | undefined {
-    return this.initPromise ? this.publisher.publicTopicArn : undefined
+    return this.initialized ? this.publisher.publicTopicArn : undefined
   }
 
   private async publishCommand(command: NotificationCommand): Promise<void> {
@@ -132,22 +143,3 @@ export class SqsNotificationPublisher<LoadedValue>
   }
 }
 
-function resolveChannelName(params: SqsNotificationPublisherParams): string {
-  if (params.channel) {
-    return params.channel
-  }
-
-  if (params.creationConfig?.topic?.Name) {
-    return params.creationConfig.topic.Name
-  }
-
-  if (params.locatorConfig?.topicName) {
-    return params.locatorConfig.topicName
-  }
-
-  if (params.locatorConfig?.topicArn) {
-    return params.locatorConfig.topicArn
-  }
-
-  return 'sqs-notification-channel'
-}

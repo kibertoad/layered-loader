@@ -70,6 +70,7 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
 > {
   private readonly params: SqsGroupNotificationConsumerParams
   private internalConsumer?: SnsSqsGroupInvalidationConsumer<LoadedValue>
+  private subscribePromise?: Promise<SnsSqsGroupInvalidationConsumer<LoadedValue>>
 
   constructor(params: SqsGroupNotificationConsumerParams) {
     super(params.serverUuid, params.errorHandler)
@@ -79,6 +80,9 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
   async subscribe(): Promise<unknown> {
     if (this.internalConsumer) {
       return this.internalConsumer
+    }
+    if (this.subscribePromise) {
+      return this.subscribePromise
     }
 
     if (!this.targetCache) {
@@ -126,18 +130,34 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
         : { locatorConfig: this.params.locatorConfig }),
     }
 
-    this.internalConsumer = new SnsSqsGroupInvalidationConsumer<LoadedValue>(
+    const consumer = new SnsSqsGroupInvalidationConsumer<LoadedValue>(
       this.params.dependencies,
       options,
       { serverUuid: this.serverUuid, targetCache: this.targetCache },
     )
 
-    await this.internalConsumer.init()
-    await this.internalConsumer.start()
-    return this.internalConsumer
+    // Single-flight: concurrent subscribe() calls share one init/start; the
+    // internal consumer is only assigned once both succeed.
+    this.subscribePromise = (async () => {
+      try {
+        await consumer.init()
+        await consumer.start()
+        this.internalConsumer = consumer
+        return consumer
+      } catch (err) {
+        await consumer.close().catch(() => undefined)
+        throw err
+      } finally {
+        this.subscribePromise = undefined
+      }
+    })()
+    return this.subscribePromise
   }
 
   async close(): Promise<void> {
+    if (this.subscribePromise) {
+      await this.subscribePromise.catch(() => undefined)
+    }
     if (!this.internalConsumer) return
     const consumer = this.internalConsumer
     this.internalConsumer = undefined

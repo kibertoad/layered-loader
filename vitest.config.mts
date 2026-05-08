@@ -10,7 +10,7 @@ export default defineConfig({
     environment: 'node',
     fileParallelism: false,
     reporters: ['verbose'],
-    exclude: ['**/node_modules/**', '**/dist/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'packages/**'],
     coverage: {
       include: ['lib/**/*.ts'],
       exclude: [
