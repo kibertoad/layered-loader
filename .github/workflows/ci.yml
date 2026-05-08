@@ -20,29 +20,33 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v6.4.0
         with:
           always-auth: false
           node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Start Docker
-        run: npm run docker:start
+        run: pnpm run docker:start
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       - name: Run Tests
-        run: npm run test:coverage
+        run: pnpm run test:coverage
 
       - name: Stop Docker
-        run: npm run docker:stop
+        run: pnpm run docker:stop
 
       - name: Run Linting
-        run: npm run lint
+        run: pnpm run lint
 
   automerge:
     needs: build

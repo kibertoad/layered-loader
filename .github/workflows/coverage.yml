@@ -22,23 +22,27 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node ${{ matrix.node-version }}
         uses: actions/setup-node@v6.4.0
         with:
           always-auth: false
           node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Start Docker
-        run: npm run docker:start
+        run: pnpm run docker:start
 
       - name: Run Tests
-        run: npm run test:coverage
+        run: pnpm run test:coverage
 
       - name: Stop Docker
-        run: npm run docker:stop
+        run: pnpm run docker:stop
 
       - name: Coveralls
         uses: coverallsapp/github-action@v2
