@@ -20,6 +20,9 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
         with:
+          # Full history so we can diff between the PR's base SHA and the
+          # merge commit SHA regardless of how the PR was merged
+          # (merge commit / squash / rebase).
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -38,12 +41,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm run build:release
-
       - name: Determine version bump
         id: version
         run: |
@@ -55,19 +52,111 @@ jobs:
             echo "bump=patch" >> $GITHUB_OUTPUT
           fi
 
-      - name: Bump version
+      # Diff between the PR's base SHA and merge commit SHA to find which
+      # workspace packages received source-level changes. Only those packages
+      # are bumped, tagged, and published.
+      - name: Detect changed packages
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+          echo "Diffing $BASE_SHA..$MERGE_SHA"
+          changed_files=$(git diff --name-only "$BASE_SHA" "$MERGE_SHA")
+          echo "Changed files:"
+          echo "$changed_files"
+
+          root=false
+          sqs=false
+
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              packages/sqs/lib/*|packages/sqs/index.ts|packages/sqs/package.json|packages/sqs/README.md|packages/sqs/LICENSE|packages/sqs/tsconfig.json)
+                sqs=true
+                ;;
+              packages/*)
+                # Other workspace packages — currently no other publishable
+                # packages exist but this prevents future packages from
+                # accidentally triggering a root release.
+                ;;
+              lib/*|index.ts|package.json|README.md|LICENSE|tsconfig.json)
+                root=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          echo "root=$root" >> $GITHUB_OUTPUT
+          echo "sqs=$sqs" >> $GITHUB_OUTPUT
+          echo "Detected: root=$root, @layered-loader/sqs=$sqs"
+
+      - name: Skip — no publishable changes
+        if: steps.changes.outputs.root != 'true' && steps.changes.outputs.sqs != 'true'
+        run: |
+          echo "::warning::PR is labelled for release but contains no source changes in any publishable package. Nothing to publish."
+          exit 0
+
+      - name: Install dependencies
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        run: pnpm -r --include-workspace-root run lint
+
+      - name: Build
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        run: pnpm -r --include-workspace-root run build
+
+      - name: Bump root version
+        if: steps.changes.outputs.root == 'true'
+        run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
+
+      - name: Bump @layered-loader/sqs version
+        if: steps.changes.outputs.sqs == 'true'
+        working-directory: packages/sqs
         run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
 
       - name: Fix formatting
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: pnpm run lint:fix
 
-      - name: Commit and push
+      - name: Commit and tag releases
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: |
+          set -euo pipefail
           git add .
-          git commit -m "chore: release v$(node -p "require('./package.json').version")"
-          git tag "v$(node -p "require('./package.json').version")"
+
+          message="chore: release"
+          tags=()
+
+          if [ "${{ steps.changes.outputs.root }}" = "true" ]; then
+            v=$(node -p "require('./package.json').version")
+            message="$message layered-loader@$v"
+            tags+=("v$v")
+          fi
+          if [ "${{ steps.changes.outputs.sqs }}" = "true" ]; then
+            v=$(node -p "require('./packages/sqs/package.json').version")
+            message="$message @layered-loader/sqs@$v"
+            tags+=("@layered-loader/sqs@$v")
+          fi
+
+          git commit -m "$message"
+          for t in "${tags[@]}"; do
+            git tag "$t"
+          done
           git push
           git push --tags
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      # Publish layered-loader BEFORE @layered-loader/sqs: the child package
+      # declares a peer dependency on the new layered-loader version, so the
+      # parent must be visible on the registry first.
+      - name: Publish layered-loader
+        if: steps.changes.outputs.root == 'true'
+        run: pnpm publish --provenance --access public --no-git-checks
+
+      - name: Publish @layered-loader/sqs
+        if: steps.changes.outputs.sqs == 'true'
+        working-directory: packages/sqs
+        run: pnpm publish --provenance --access public --no-git-checks
