@@ -34,7 +34,7 @@
       "./biome.json",
       "./package.json"
     ],
-    "ignore": ["./dist", "./coverage", "./node_modules"]
+    "ignore": ["./dist", "./coverage", "./node_modules", "./packages"]
   },
   "formatter": {
     "enabled": true,

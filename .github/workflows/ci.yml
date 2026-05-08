@@ -37,16 +37,19 @@ jobs:
         run: pnpm run docker:start
 
       - name: Build
-        run: pnpm run build
+        run: pnpm -r --include-workspace-root run build
 
       - name: Run Tests
         run: pnpm run test:coverage
+
+      - name: Run @layered-loader/sqs Tests
+        run: pnpm --filter @layered-loader/sqs test
 
       - name: Stop Docker
         run: pnpm run docker:stop
 
       - name: Run Linting
-        run: pnpm run lint
+        run: pnpm -r --include-workspace-root run lint
 
   automerge:
     needs: build

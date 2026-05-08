@@ -1,7 +1,9 @@
 {
   "compilerOptions": {
     "outDir": "dist",
-    "module": "CommonJS",
+    "rootDir": ".",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "target": "ES2022",
     "lib": ["ES2022"],
     "sourceMap": true,
@@ -10,7 +12,6 @@
     "types": ["node"],
     "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
@@ -18,13 +19,11 @@
     "noImplicitAny": true,
     "noImplicitThis": true,
     "strictNullChecks": true,
-    "importHelpers": false,
-    "baseUrl": ".",
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": false,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
   },
-  "exclude": ["node_modules", "dist", "test", "packages",
-    "vitest.config.mts"
-  ]
+  "include": ["index.ts", "lib/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test", "vitest.config.mts"]
 }
