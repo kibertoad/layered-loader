@@ -46,3 +46,30 @@ export {
   type DeleteGroupNotificationCommand,
   type GroupNotificationCommand,
 } from './lib/groupNotificationSchemas.js'
+
+// Flexible invalidation triggers
+export type {
+  GroupInvalidationAction,
+  InvalidationAction,
+  InvalidationResolver,
+  InvalidationTrigger,
+  ResolverOutput,
+  TriggerErrorHandler,
+} from './lib/triggers/types.js'
+export {
+  applyFlatAction,
+  applyGroupAction,
+  runFlatPipeline,
+  runGroupPipeline,
+} from './lib/triggers/dispatch.js'
+export {
+  SqsInvalidationTrigger,
+  type SqsInvalidationTriggerParams,
+  type SqsTriggerSourceConfig,
+  type TriggerSubscriptionOptions,
+} from './lib/triggers/SqsInvalidationTrigger.js'
+export {
+  SqsGroupInvalidationTrigger,
+  type SqsGroupInvalidationTriggerParams,
+  type SqsGroupTriggerSourceConfig,
+} from './lib/triggers/SqsGroupInvalidationTrigger.js'
