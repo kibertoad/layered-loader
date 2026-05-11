@@ -21,3 +21,9 @@ services:
       - WAIT_HOSTS_TIMEOUT=300
       - WAIT_SLEEP_INTERVAL=30
       - WAIT_HOST_CONNECT_TIMEOUT=30
+
+  fauxqs:
+    image: "kibertoad/fauxqs:latest"
+
+    ports:
+      - "4566:4566"

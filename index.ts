@@ -16,8 +16,19 @@ export { RedisGroupNotificationPublisher } from './lib/redis/RedisGroupNotificat
 export type { RedisNotificationConfig } from './lib/redis/RedisNotificationFactory'
 export type { RedisPublisherConfig } from './lib/redis/RedisNotificationPublisher'
 export type { RedisConsumerConfig } from './lib/redis/RedisNotificationConsumer'
-export type { NotificationPublisher } from './lib/notifications/NotificationPublisher'
+export type {
+  NotificationPublisher,
+  PublisherErrorHandler,
+} from './lib/notifications/NotificationPublisher'
 export type { GroupNotificationPublisher } from './lib/notifications/GroupNotificationPublisher'
+export type { ConsumerErrorHandler } from './lib/notifications/AbstractNotificationConsumer'
+export type {
+  SynchronousCache,
+  SynchronousGroupCache,
+  SynchronousWriteCache,
+  SynchronousWriteGroupCache,
+  GetManyResult,
+} from './lib/types/SyncDataSources'
 export type { InMemoryCacheConfiguration } from './lib/memory/InMemoryCache'
 export type { RedisCacheConfiguration } from './lib/redis/AbstractRedisCache'
 export type { RedisGroupCacheConfiguration } from './lib/redis/RedisGroupCache'

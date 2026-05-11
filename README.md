@@ -266,6 +266,15 @@ await operation.get({ jwtToken: 'someTokenValue', entityId: 'key' })
 It is possible to mostly rely on fast in-memory caches and still keep data in sync across multiple nodes in a distributed system. In order to achieve this, you need to use Notification Publisher/Consumer pair.
 The way it works - whenever there is an invalidation event within the loader (`invalidate`, `invalidateFor` or `invalidatForGroup` methods are invoked), publisher sends a fanout notification to all subscribed consumers, and they invalidate their own caches as well.
 
+### Available notification adapters
+
+| Transport | Package | When to pick it |
+| --- | --- | --- |
+| Redis pub/sub | Built-in (`createNotificationPair` from `layered-loader`) | Default choice; you already run Redis. Lowest latency, no per-instance queue setup. |
+| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native deployments; lets you also drive invalidations from upstream domain-event topics via [flexible triggers](#flexible-invalidation-triggers). |
+
+The Redis example below uses the built-in adapter. For AWS deployments see the [`@layered-loader/sqs` README](packages/sqs/README.md), which keeps the same `notificationPublisher` / `notificationConsumer` contract.
+
 Here is an example:
 
 ```ts
@@ -347,6 +356,64 @@ await userLoader.init() // this will ensure that consumers have definitely finis
 
 await userLoader.invalidateCacheFor('key', 'group') // this will transparently invalidate cache across all instances of your application
 ```
+
+### Flexible invalidation triggers
+
+In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
+
+Layered-loader ships transport-agnostic primitives for this:
+
+- `InvalidationAction` / `GroupInvalidationAction` — the invalidation operations a resolver may emit.
+- `InvalidationResolver<TMessage, TAction>` — a pure function `(message) => action | action[] | null` that maps an upstream message to invalidations.
+- `InvalidationTrigger` — `start()` / `stop()` lifecycle interface implemented by every adapter.
+
+A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through any `NotificationPublisher` (the same kind you build with `createNotificationPair`). The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
+
+The first concrete adapter ships in [`@layered-loader/sqs`](packages/sqs/README.md) and supports both:
+
+- Subscribing to an **existing SNS topic** (the trigger creates an SQS queue subscribed to it), and
+- Consuming from an **existing SQS queue** directly.
+
+Sketch with the SQS adapter:
+
+```ts
+import { z } from 'zod'
+import { randomUUID } from 'node:crypto'
+import { Loader } from 'layered-loader'
+import {
+  createNotificationPair,
+  SqsNotificationPublisher,
+  SqsInvalidationTrigger,
+} from '@layered-loader/sqs'
+
+const USER_EVENT = z.object({ type: z.literal('user.updated'), userId: z.string() })
+
+// Cache cluster's invalidation pair
+const { publisher, consumer } = createNotificationPair<User>({ /* ... */ })
+
+// Trigger publisher needs a fresh serverUuid so the LOCAL cache also reacts
+const triggerPublisher = new SqsNotificationPublisher<User>({
+  serverUuid: randomUUID(),
+  dependencies,
+  locatorConfig: { topicName: 'user-cache-invalidations' },
+})
+
+const trigger = new SqsInvalidationTrigger({
+  sourceType: 'sns-topic',
+  dependencies: consumerDeps,
+  creationConfig: {
+    topic: { Name: 'domain-events.users' }, // upstream service's topic
+    queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
+  },
+  messageSchema: USER_EVENT,
+  publisher: triggerPublisher,
+  resolver: (msg) => ({ kind: 'delete', key: msg.userId }),
+})
+
+await trigger.start()
+```
+
+Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, the `serverUuid` rule, and error handling.
 
 ## Cache statistics
 

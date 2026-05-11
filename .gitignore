@@ -106,3 +106,4 @@ dist
 package-lock.json
 yarn.lock
 dist
+*.rdb

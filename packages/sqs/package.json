@@ -1,0 +1,68 @@
+{
+  "name": "@layered-loader/sqs",
+  "version": "0.1.0",
+  "description": "SNS/SQS remote invalidation adapter for layered-loader",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/kibertoad/layered-loader.git",
+    "directory": "packages/sqs"
+  },
+  "files": ["dist/*", "README.md", "LICENSE"],
+  "keywords": [
+    "layered-loader",
+    "sqs",
+    "sns",
+    "aws",
+    "cache",
+    "invalidation",
+    "notification",
+    "pub-sub"
+  ],
+  "peerDependencies": {
+    "@aws-sdk/client-sns": "^3.632.0",
+    "@aws-sdk/client-sqs": "^3.632.0",
+    "@aws-sdk/client-sts": "^3.632.0",
+    "@lokalise/node-core": "^14.0.0",
+    "@message-queue-toolkit/core": ">=24.0.0",
+    "@message-queue-toolkit/sns": ">=24.0.0",
+    "@message-queue-toolkit/sqs": ">=23.0.0",
+    "layered-loader": "workspace:^",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-sns": "^3.926.0",
+    "@aws-sdk/client-sqs": "^3.926.0",
+    "@aws-sdk/client-sts": "^3.926.0",
+    "@lokalise/node-core": "^14.8.1",
+    "@message-queue-toolkit/core": "^25.4.0",
+    "@message-queue-toolkit/sns": "^24.6.1",
+    "@message-queue-toolkit/sqs": "^24.2.1",
+    "@types/node": "^22.19.15",
+    "@vitest/coverage-v8": "^4.1.0",
+    "fauxqs": "^2.5.0",
+    "layered-loader": "workspace:^",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
+    "zod": "^4.4.3"
+  }
+}
