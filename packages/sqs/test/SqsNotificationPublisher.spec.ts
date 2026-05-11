@@ -363,6 +363,46 @@ describe('SqsNotificationPublisher', () => {
       })
       expect(publisher.channel).toBe('derived-channel')
     })
+
+    it('retries subscribe after a previous init attempt failed', async () => {
+      const suffix = Math.random().toString(36).slice(2, 8)
+      const { publisher } = createNotificationPair<string>({
+        publisher: {
+          dependencies: buildPublisherDeps(clients),
+          creationConfig: { topic: { Name: `retry-test-${suffix}` } },
+        },
+        consumer: {
+          dependencies: buildConsumerDeps(clients),
+          creationConfig: {
+            topic: { Name: 'irrelevant' },
+            queue: { QueueName: 'irrelevant-q' },
+          },
+        },
+      })
+
+      // Reach into the private inner publisher to make the first init() reject,
+      // then fall through to the real implementation on retry.
+      const inner = (publisher as unknown as { publisher: { init: () => Promise<unknown> } })
+        .publisher
+      const realInit = inner.init.bind(inner)
+      let calls = 0
+      inner.init = () => {
+        calls += 1
+        if (calls === 1) return Promise.reject(new Error('transient AWS error'))
+        return realInit()
+      }
+
+      try {
+        await expect(publisher.subscribe()).rejects.toThrow('transient AWS error')
+        expect(publisher.topicArn).toBeUndefined()
+
+        await publisher.subscribe()
+        expect(calls).toBe(2)
+        expect(publisher.topicArn).toBeTruthy()
+      } finally {
+        await publisher.close().catch(() => undefined)
+      }
+    })
   })
 
   describe('serverUuid filtering', () => {

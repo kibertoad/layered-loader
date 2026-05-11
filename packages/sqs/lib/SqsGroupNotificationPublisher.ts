@@ -76,13 +76,23 @@ export class SqsGroupNotificationPublisher<LoadedValue>
     this.publisher = new SnsGroupInvalidationPublisher(params.dependencies, options)
   }
 
-  async subscribe(): Promise<unknown> {
+  async subscribe(): Promise<void> {
+    if (this.initialized) return
+
     if (!this.initPromise) {
-      this.initPromise = this.publisher.init().then(() => {
-        this.initialized = true
-      })
+      this.initPromise = this.initializePublisher()
     }
     return this.initPromise
+  }
+
+  private async initializePublisher(): Promise<void> {
+    try {
+      await this.publisher.init()
+      this.initialized = true
+    } catch (err) {
+      this.initPromise = undefined
+      throw err
+    }
   }
 
   deleteFromGroup(key: string, group: string): Promise<unknown> {
