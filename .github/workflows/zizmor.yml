@@ -1,0 +1,41 @@
+---
+name: zizmor
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run zizmor
+        run: uvx zizmor --format=sarif . > results.sarif
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: zizmor
