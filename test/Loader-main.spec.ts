@@ -11,11 +11,11 @@ import { CountingTimedCache } from './fakes/CountingTimedCache'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
 import {
+  DummyDataSourceWithParams,
   type DummyLoaderManyParams,
   type DummyLoaderParams,
   DummyParamKeyResolver,
 } from './fakes/DummyDataSourceWithParams'
-import { DummyDataSourceWithParams } from './fakes/DummyDataSourceWithParams'
 import { DummyNotificationConsumer } from './fakes/DummyNotificationConsumer'
 import { DummyNotificationConsumerMultiplexer } from './fakes/DummyNotificationConsumerMultiplexer'
 import { DummyNotificationPublisher } from './fakes/DummyNotificationPublisher'
@@ -293,7 +293,7 @@ describe('Loader Main', () => {
       expect(loader.counter).toBe(0)
       expect(await operation.get('key')).toBe('value')
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = operation.inMemoryCache.getExpirationTime('key')
 
       await setTimeout(100)
@@ -309,7 +309,7 @@ describe('Loader Main', () => {
       await Promise.resolve()
       await Promise.resolve()
       await Promise.resolve()
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = operation.inMemoryCache.getExpirationTime('key')
 
       expect(operation.getInMemoryOnly('key')).toBe('value')
@@ -513,7 +513,7 @@ describe('Loader Main', () => {
 
     it('returns value when resolved via single loader', async () => {
       const operation = new Loader<string>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
-      // @ts-ignore
+      // @ts-expect-error
       operation.inMemoryCache.set('key', 'value')
 
       const result = await operation.get('key')
@@ -572,7 +572,7 @@ describe('Loader Main', () => {
         asyncCache: cache2,
         dataSources: [new DummyDataSource(undefined), new DummyDataSource('value')],
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
@@ -593,7 +593,7 @@ describe('Loader Main', () => {
         dataSources: [new DummyDataSourceWithParams('value')],
         cacheKeyFromLoadParamsResolver: DummyParamKeyResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
@@ -614,7 +614,7 @@ describe('Loader Main', () => {
         dataSources: [new DummyDataSourceWithParams('value')],
         cacheKeyFromLoadParamsResolver: DEFAULT_FROM_ID_RESOLVER,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')
@@ -822,7 +822,7 @@ describe('Loader Main', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       operation.inMemoryCache.set('key', 'value')
 
       const result = await operation.getMany(['key'])
@@ -894,7 +894,7 @@ describe('Loader Main', () => {
         ],
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const inMemoryCache = operation.inMemoryCache
 
       const valuePre = inMemoryCache.getMany(['key'])
@@ -924,7 +924,7 @@ describe('Loader Main', () => {
         dataSources: [new DummyDataSourceWithParams('value')],
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = cache1.getMany(['key'])

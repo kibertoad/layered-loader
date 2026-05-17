@@ -14,7 +14,7 @@ export class DummyNotificationConsumerMultiplexer extends AbstractNotificationCo
 
   setTargetCache(targetCache: SynchronousCache<string>) {
     for (var consumer of this.notificationConsumers) {
-      // @ts-ignore
+      // @ts-expect-error
       if (!consumer.targetCache) {
         consumer.setTargetCache(targetCache)
       }

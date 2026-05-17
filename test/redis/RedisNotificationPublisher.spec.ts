@@ -1,13 +1,12 @@
 import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Loader } from '../../lib/Loader'
 import type { InMemoryCacheConfiguration } from '../../lib/memory/InMemoryCache'
-import { redisOptions } from '../fakes/TestRedisConfig'
-
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createNotificationPair } from '../../lib/redis/RedisNotificationFactory'
 import { DummyCache } from '../fakes/DummyCache'
 import { FakeThrowingRedis } from '../fakes/FakeThrowingRedis'
+import { redisOptions } from '../fakes/TestRedisConfig'
 import { waitAndRetry } from '../utils/waitUtils'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration

@@ -94,7 +94,7 @@ describe('ManualCache', () => {
       const operation = new ManualCache<string>({
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache = operation.inMemoryCache
       await cache.set('key', 'value')
 
@@ -124,7 +124,7 @@ describe('ManualCache', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.get('key')

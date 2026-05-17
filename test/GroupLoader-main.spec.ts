@@ -5,12 +5,12 @@ import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import type { DummyLoaderManyParams, DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
-import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
-import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
-import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { DummyGroupedDataSourceWithParams } from './fakes/DummyGroupedDataSourceWithParams'
 import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
+import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
+import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
+import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
 import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
 import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
@@ -310,7 +310,7 @@ describe('GroupLoader Main', () => {
       // getInMemoryOnly should NOT create an entry in runningLoads for a group that doesn't need refresh
       operation.getInMemoryOnly(user1.userId, user1.companyId)
 
-      // @ts-ignore
+      // @ts-expect-error
       const runningLoads: Map<string, Map<string, unknown>> = operation.runningLoads
       // Either the group doesn't exist in runningLoads, or it has no entries
       const groupLoads = runningLoads.get(user1.companyId)
@@ -332,7 +332,7 @@ describe('GroupLoader Main', () => {
       expect(loader.counter).toBe(0)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = operation.inMemoryCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -345,7 +345,7 @@ describe('GroupLoader Main', () => {
       await setTimeout(1)
       expect(loader.counter).toBe(2)
       await Promise.resolve()
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = operation.inMemoryCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -498,7 +498,7 @@ describe('GroupLoader Main', () => {
 
     it('returns value when resolved via single loader', async () => {
       const operation = new GroupLoader<User>({ inMemoryCache: IN_MEMORY_CACHE_CONFIG })
-      // @ts-ignore
+      // @ts-expect-error
       operation.inMemoryCache.setForGroup(user1.userId, user1, user1.companyId)
 
       const result = await operation.get(user1.userId, user1.companyId)
@@ -530,7 +530,7 @@ describe('GroupLoader Main', () => {
           new DummyGroupedLoader(userValues),
         ],
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = cache1.getFromGroup(user1.userId, user1.companyId)
@@ -551,7 +551,7 @@ describe('GroupLoader Main', () => {
         dataSources: [new DummyGroupedDataSourceWithParams(userValues)],
         cacheKeyFromLoadParamsResolver: (value) => value.id,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
@@ -729,7 +729,7 @@ describe('GroupLoader Main', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       operation.inMemoryCache.setForGroup(user1.userId, user1, user1.companyId)
 
       const result = await operation.getMany([user1.userId], user1.companyId)
@@ -763,7 +763,7 @@ describe('GroupLoader Main', () => {
         ],
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = cache1.getFromGroup(user1.userId, user1.companyId)
@@ -784,7 +784,7 @@ describe('GroupLoader Main', () => {
         dataSources: [new DummyGroupedDataSourceWithParams(userValues)],
         cacheKeyFromValueResolver: idResolver,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)
