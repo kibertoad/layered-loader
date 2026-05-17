@@ -54,19 +54,19 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-sns": "^3.926.0",
-    "@aws-sdk/client-sqs": "^3.926.0",
-    "@aws-sdk/client-sts": "^3.926.0",
+    "@aws-sdk/client-sns": "^3.1048.0",
+    "@aws-sdk/client-sqs": "^3.1048.0",
+    "@aws-sdk/client-sts": "^3.1047.0",
     "@lokalise/node-core": "^14.8.1",
-    "@message-queue-toolkit/core": "^25.4.0",
+    "@message-queue-toolkit/core": "^25.5.0",
     "@message-queue-toolkit/sns": "^24.6.1",
     "@message-queue-toolkit/sqs": "^24.2.1",
-    "@types/node": "^22.19.15",
-    "@vitest/coverage-v8": "^4.1.0",
+    "@types/node": "^25.8.0",
+    "@vitest/coverage-v8": "^4.1.6",
     "fauxqs": "^2.5.0",
     "layered-loader": "workspace:^",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6",
     "zod": "^4.4.3"
   }
 }

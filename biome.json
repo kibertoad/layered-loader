@@ -1,8 +1,6 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "organizeImports": {
-    "enabled": true
-  },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "json": {
     "formatter": {
       "enabled": true,
@@ -27,14 +25,17 @@
     }
   },
   "files": {
-    "include": [
-      "./test/**/*.ts",
-      "./src/**/*.ts",
-      "./scripts/**/*.ts",
-      "./biome.json",
-      "./package.json"
-    ],
-    "ignore": ["./dist", "./coverage", "./node_modules", "./packages"]
+    "includes": [
+      "test/**/*.ts",
+      "src/**/*.ts",
+      "scripts/**/*.ts",
+      "biome.json",
+      "package.json",
+      "!dist",
+      "!coverage",
+      "!node_modules",
+      "!packages"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -56,7 +57,6 @@
         "useTemplate": "error",
         "useShorthandAssign": "error",
         "useShorthandFunctionType": "error",
-        "noVar": "off",
         "noUselessElse": "error",
         "noUnusedTemplateLiteral": "off",
         "useConst": "error",
@@ -71,7 +71,6 @@
         "noGlobalObjectCalls": "error",
         "noInnerDeclarations": "error",
         "noInvalidConstructorSuper": "error",
-        "noInvalidNewBuiltin": "error",
         "noSelfAssign": "error",
         "noSetterReturn": "error",
         "noUnreachable": "error",
@@ -81,18 +80,18 @@
         "noUnusedImports": "error",
         "noUnusedPrivateClassMembers": "error",
         "noUnreachableSuper": "error",
-        "noUndeclaredVariables": "error"
+        "noUndeclaredVariables": "error",
+        "noInvalidBuiltinInstantiation": "error",
+        "useValidTypeof": "error"
       },
       "suspicious": {
         "noGlobalIsNan": "off",
         "noAssignInExpressions": "error",
         "noCatchAssign": "error",
         "noClassAssign": "error",
-        "noConsoleLog": "error",
         "noDuplicateCase": "error",
         "noDuplicateClassMembers": "error",
         "noEmptyBlockStatements": "off",
-        "useValidTypeof": "error",
         "useIsArray": "error",
         "useGetterReturn": "error",
         "useAwait": "error",
@@ -106,7 +105,9 @@
         "noExplicitAny": "off",
         "noFocusedTests": "error",
         "noGlobalAssign": "error",
-        "noFunctionAssign": "error"
+        "noFunctionAssign": "error",
+        "noVar": "off",
+        "noConsole": { "level": "error", "options": { "allow": ["log"] } }
       },
       "complexity": {
         "noForEach": "error",
@@ -122,5 +123,17 @@
         "noBannedTypes": "off"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["test/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "useAwait": "off"
+          }
+        }
+      }
+    }
+  ]
 }

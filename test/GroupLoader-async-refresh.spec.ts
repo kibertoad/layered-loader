@@ -68,12 +68,12 @@ describe('GroupLoader Async Refresh', () => {
         dataSources: [loader],
       })
 
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -85,7 +85,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       await setTimeout(5)
       expect(loader.counter).toBe(2)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -114,7 +114,7 @@ describe('GroupLoader Async Refresh', () => {
         dataSources: [loader],
       })
 
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       const promise0 = operation.get(user1.userId, user1.companyId)
@@ -122,7 +122,7 @@ describe('GroupLoader Async Refresh', () => {
       await loader.finishLoading()
       expect(await promise0).toEqual(user1)
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -141,7 +141,7 @@ describe('GroupLoader Async Refresh', () => {
 
       expect(loader.counter).toBe(2)
       await setTimeout(5)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -171,7 +171,7 @@ describe('GroupLoader Async Refresh', () => {
         dataSources: [loader],
       })
 
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       const promise0 = operation.get(user1.userId, user1.companyId)
@@ -179,7 +179,7 @@ describe('GroupLoader Async Refresh', () => {
       await loader.finishLoading()
       expect(await promise0).toEqual(user1)
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -199,7 +199,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await promise2).toEqual(user1)
       expect(loader.counter).toBe(2)
       await setTimeout(5)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = await operation.asyncCache.getExpirationTimeFromGroup(
         user1.userId,
         user1.companyId,
@@ -236,7 +236,7 @@ describe('GroupLoader Async Refresh', () => {
       await setTimeout(5)
       expect(loader.counter).toBe(2)
 
-      // @ts-ignore
+      // @ts-expect-error
       const groupRefreshFlags: Map<string, Set<string>> = operation.groupRefreshFlags
       // The empty Set for the group should have been cleaned up
       expect(groupRefreshFlags.has(user1.companyId)).toBe(false)
@@ -256,7 +256,7 @@ describe('GroupLoader Async Refresh', () => {
         throwIfUnresolved: true,
       })
 
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)

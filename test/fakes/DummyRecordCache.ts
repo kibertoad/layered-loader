@@ -25,7 +25,7 @@ export class DummyRecordCache implements Cache<string> {
       .map((entry) => entry[1])
 
     const unresolvedKeys = keys.filter((key) => {
-      return !Object.prototype.hasOwnProperty.call(this.values, key)
+      return !Object.hasOwn(this.values, key)
     })
 
     return Promise.resolve({

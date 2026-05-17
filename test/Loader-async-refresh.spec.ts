@@ -32,12 +32,12 @@ describe('Loader Async', () => {
         asyncCache,
         dataSources: [loader],
       })
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.get('key')).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get('key')).toBe('value')
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = await operation.asyncCache.getExpirationTime('key')
 
       await setTimeout(100)
@@ -49,7 +49,7 @@ describe('Loader Async', () => {
         await setTimeout(10)
       }
       expect(loader.counter).toBe(2)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
 
       expect(await operation.get('key')).toBe('value')
@@ -74,7 +74,7 @@ describe('Loader Async', () => {
         dataSources: [loader],
       })
 
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.get('key')).toBeUndefined()
       expect(loader.counter).toBe(0)
       const promise0 = operation.get('key')
@@ -82,7 +82,7 @@ describe('Loader Async', () => {
       await loader.finishLoading()
       expect(await promise0).toBe('value')
       expect(loader.counter).toBe(1)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePre = await operation.asyncCache.getExpirationTime('key')
 
       expect(await operation.get('key')).toBe('value')
@@ -98,7 +98,7 @@ describe('Loader Async', () => {
 
       expect(loader.counter).toBe(2)
       await setTimeout(5)
-      // @ts-ignore
+      // @ts-expect-error
       const expirationTimePost = await operation.asyncCache.getExpirationTime('key')
 
       expect(await operation.get('key')).toBe('value')
@@ -148,7 +148,7 @@ describe('Loader Async', () => {
       expect(loader.counter).toBe(2)
 
       // Sanity check: Redis is now fresh
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.get('key')).toBe('v2')
 
       // The next read should observe the fresh value that the background refresh fetched.
@@ -167,7 +167,7 @@ describe('Loader Async', () => {
         dataSources: [loader],
         throwIfUnresolved: true,
       })
-      // @ts-ignore
+      // @ts-expect-error
       expect(await operation.asyncCache.get('key')).toBeUndefined()
       expect(loader.counter).toBe(0)
       expect(await operation.get('key')).toBe('value')

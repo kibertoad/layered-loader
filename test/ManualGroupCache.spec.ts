@@ -203,7 +203,7 @@ describe('ManualGroupCache', () => {
         inMemoryCache: IN_MEMORY_CACHE_CONFIG,
         asyncCache: cache2,
       })
-      // @ts-ignore
+      // @ts-expect-error
       const cache1 = operation.inMemoryCache
 
       const valuePre = await cache1.getFromGroup(user1.userId, user1.companyId)

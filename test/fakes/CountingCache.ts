@@ -7,7 +7,7 @@ export class CountingCache implements Cache<string> {
   public counter = 0
   name = 'Counting cache'
   readonly ttlLeftBeforeRefreshInMsecs = 999999
-  // @ts-ignore
+  // @ts-expect-error
   readonly expirationTimeLoadingOperation = null
 
   constructor(returnedValue: string | undefined) {
