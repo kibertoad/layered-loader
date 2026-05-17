@@ -7,6 +7,8 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   publish:
     if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'patch') || contains(github.event.pull_request.labels.*.name, 'minor') || contains(github.event.pull_request.labels.*.name, 'major'))
@@ -18,19 +20,19 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Full history so we can diff between the PR's base SHA and the
           # merge commit SHA regardless of how the PR was merged
           # (merge commit / squash / rebase).
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6.0.5
+        uses: pnpm/action-setup@a0ea98b2dc7d387a59324835f7421c1d5f8357b4 # v6.0.5
 
       - name: Setup Node
-        uses: actions/setup-node@v6.4.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
@@ -43,13 +45,16 @@ jobs:
 
       - name: Determine version bump
         id: version
+        env:
+          IS_MAJOR: ${{ contains(github.event.pull_request.labels.*.name, 'major') }}
+          IS_MINOR: ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}
         run: |
-          if ${{ contains(github.event.pull_request.labels.*.name, 'major') }}; then
-            echo "bump=major" >> $GITHUB_OUTPUT
-          elif ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}; then
-            echo "bump=minor" >> $GITHUB_OUTPUT
+          if [ "$IS_MAJOR" = "true" ]; then
+            echo "bump=major" >> "$GITHUB_OUTPUT"
+          elif [ "$IS_MINOR" = "true" ]; then
+            echo "bump=minor" >> "$GITHUB_OUTPUT"
           else
-            echo "bump=patch" >> $GITHUB_OUTPUT
+            echo "bump=patch" >> "$GITHUB_OUTPUT"
           fi
 
       # Diff between the PR's base SHA and merge commit SHA to find which
@@ -111,12 +116,16 @@ jobs:
 
       - name: Bump root version
         if: steps.changes.outputs.root == 'true'
-        run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
+        env:
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: npm version "$BUMP" --no-git-tag-version
 
       - name: Bump @layered-loader/sqs version
         if: steps.changes.outputs.sqs == 'true'
         working-directory: packages/sqs
-        run: npm version ${{ steps.version.outputs.bump }} --no-git-tag-version
+        env:
+          BUMP: ${{ steps.version.outputs.bump }}
+        run: npm version "$BUMP" --no-git-tag-version
 
       - name: Fix formatting
         if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
@@ -124,6 +133,10 @@ jobs:
 
       - name: Commit and tag releases
         if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        env:
+          ROOT_CHANGED: ${{ steps.changes.outputs.root }}
+          SQS_CHANGED: ${{ steps.changes.outputs.sqs }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git add .
@@ -131,12 +144,12 @@ jobs:
           message="chore: release"
           tags=()
 
-          if [ "${{ steps.changes.outputs.root }}" = "true" ]; then
+          if [ "$ROOT_CHANGED" = "true" ]; then
             v=$(node -p "require('./package.json').version")
             message="$message layered-loader@$v"
             tags+=("v$v")
           fi
-          if [ "${{ steps.changes.outputs.sqs }}" = "true" ]; then
+          if [ "$SQS_CHANGED" = "true" ]; then
             v=$(node -p "require('./packages/sqs/package.json').version")
             message="$message @layered-loader/sqs@$v"
             tags+=("@layered-loader/sqs@$v")
@@ -146,6 +159,10 @@ jobs:
           for t in "${tags[@]}"; do
             git tag "$t"
           done
+
+          # Auth for push: checkout used persist-credentials: false, so we
+          # configure the remote with the workflow token explicitly here.
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push
           git push --tags
 
