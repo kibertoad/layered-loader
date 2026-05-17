@@ -9,15 +9,15 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   zizmor:
     name: zizmor
     runs-on: ubuntu-latest
 
     permissions:
-      security-events: write
       contents: read
-      actions: read
 
     steps:
       - name: Checkout Repository
@@ -26,17 +26,8 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
-
       - name: Run zizmor
-        run: uvx zizmor --format=sarif . > results.sarif
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload SARIF file
-        if: always()
-        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+        uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
         with:
-          sarif_file: results.sarif
-          category: zizmor
+          advanced-security: false
+          annotations: true
