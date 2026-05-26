@@ -95,7 +95,7 @@ export abstract class AbstractSqsTrigger implements InvalidationTrigger {
     const consumers = this.internalConsumers
     if (consumers.length === 0) return
     this.internalConsumers = []
-    await Promise.all(consumers.map((c) => c.close()))
+    await Promise.allSettled(consumers.map((c) => c.close()))
   }
 }
 
@@ -113,7 +113,7 @@ export function composeTriggers(
       await Promise.all(triggers.map((t) => t.start()))
     },
     async stop() {
-      await Promise.all(triggers.map((t) => t.stop()))
+      await Promise.allSettled(triggers.map((t) => t.stop()))
     },
   }
 }

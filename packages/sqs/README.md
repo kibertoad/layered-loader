@@ -526,7 +526,7 @@ For schema-violation errors, the message is failed by `message-queue-toolkit` be
 ### Lifecycle
 
 ```ts
-const trigger = new SqsInvalidationTrigger({ ... })
+const trigger = new SnsTopicInvalidationTrigger({ ... }) // or SqsQueueInvalidationTrigger, plus the group variants
 
 await trigger.start() // idempotent; concurrent calls share one start
 await trigger.stop()  // idempotent; awaits any in-flight start
@@ -572,7 +572,7 @@ Then point your AWS SDK clients at `http://localhost:4566`.
 | --- | --- |
 | `createNotificationPair<T>(config)` | Returns `{ publisher, consumer }` for flat-cache invalidation. |
 | `createGroupNotificationPair<T>(config)` | Same, but for group caches. |
-| `SqsNotificationPublisher<T>` | Lower-level constructor; useful for trigger publishers (independent UUID). |
+| `SqsNotificationPublisher<T>` | Lower-level constructor for direct notification publishing when not using `createNotificationPair`. |
 | `SqsNotificationConsumer<T>` | Lower-level constructor; rarely used directly. |
 | `SqsGroupNotificationPublisher<T>` / `SqsGroupNotificationConsumer<T>` | Group-cache equivalents. |
 | `SqsSubscriptionOptions` | Type for `subscriptionConfig` overrides. |
