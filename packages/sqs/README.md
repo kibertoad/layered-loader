@@ -44,7 +44,7 @@ npm install \
   zod
 ```
 
-Node 20+ is required.
+Node 22+ is required.
 
 ## Picking your shape
 
