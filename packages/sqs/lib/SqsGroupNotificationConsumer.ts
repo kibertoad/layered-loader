@@ -195,7 +195,15 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
     const unsubscribeOnClose = this.params.lifecycle?.unsubscribeOnClose ?? false
     const deleteQueueOnClose = this.params.lifecycle?.deleteQueueOnClose ?? false
 
-    await consumer.close()
+    // Capture any close() failure but still run opt-in cleanup so the user
+    // gets best-effort resource removal regardless. The original close error
+    // is re-thrown at the end so callers can still detect it.
+    let closeError: Error | undefined
+    try {
+      await consumer.close()
+    } catch (err) {
+      closeError = err as Error
+    }
 
     // Cleanup is best-effort: already-gone resources (deleted by the reaper,
     // never confirmed by SNS) are treated as success per the QueueLifecycleOptions
@@ -226,6 +234,8 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
         }
       }
     }
+
+    if (closeError) throw closeError
   }
 
   get topicArn(): string | undefined {

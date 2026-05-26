@@ -321,7 +321,7 @@ log.info({ deleted: result.deleted.length, skipped: result.skipped.length }, 're
 
 ### Strategy 5: EventBridge + Lambda
 
-For large ECS/Fargate deployments where containers should not hold queue-management permissions, the canonical AWS-blessed pattern is to drive lifecycle from outside the application: an EventBridge rule on ECS `RUNNING` events triggers a Lambda that creates the queue, and a rule on `STOPPED` triggers a cleanup Lambda. See the AWS Compute Blog: [Building dynamic Amazon SNS subscriptions for auto scaling container workloads](https://aws.amazon.com/blogs/compute/building-dynamic-amazon-sns-subscriptions-for-auto-scaling-container-workloads/).
+For large ECS/Fargate deployments where containers should not hold queue-management permissions, the canonical AWS-blessed pattern is to drive lifecycle from outside the application: an EventBridge rule on ECS `RUNNING` events triggers a Lambda that creates the queue, and a rule on `STOPPED` triggers a cleanup Lambda. See the AWS Compute Blog: [Building dynamic Amazon SNS subscriptions for auto-scaling container workloads](https://aws.amazon.com/blogs/compute/building-dynamic-amazon-sns-subscriptions-for-auto-scaling-container-workloads/).
 
 This is the most robust option but lives entirely outside the library — beyond the helpers above, the package does not orchestrate it.
 

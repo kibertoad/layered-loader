@@ -429,7 +429,12 @@ export async function reapStaleQueues(
                     new UnsubscribeCommand({ SubscriptionArn: sub.SubscriptionArn }),
                   )
                 } catch (err) {
-                  if (!isSubscriptionNotFound(err)) throw err
+                  // Isolate per-subscription failures so one bad unsubscribe
+                  // does not abort the rest of the topic scan.
+                  if (!isSubscriptionNotFound(err)) {
+                    result.errors.push({ error: err as Error })
+                    continue
+                  }
                 }
               }
               result.unsubscribed.push(sub.SubscriptionArn)

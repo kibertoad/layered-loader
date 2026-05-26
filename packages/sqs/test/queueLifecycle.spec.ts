@@ -54,6 +54,24 @@ async function subscriptionExists(
   return (resp.Subscriptions ?? []).some((s) => s.SubscriptionArn === subscriptionArn)
 }
 
+/**
+ * Best-effort delete-by-name. Resolves the URL and issues the delete with
+ * independent .catch handlers so neither call can throw out of test cleanup.
+ */
+async function safeDeleteQueueByName(
+  clients: AwsClientBundle,
+  queueName: string,
+): Promise<void> {
+  const queueUrl = await clients.sqsClient
+    .send(new GetQueueUrlCommand({ QueueName: queueName }))
+    .then((r) => r.QueueUrl)
+    .catch(() => undefined)
+  if (!queueUrl) return
+  await clients.sqsClient
+    .send(new DeleteQueueCommand({ QueueUrl: queueUrl }))
+    .catch(() => undefined)
+}
+
 describe('queue lifecycle helpers', () => {
   let clients: AwsClientBundle
 
@@ -149,15 +167,7 @@ describe('queue lifecycle helpers', () => {
         expect(await queueExists(clients, queueName)).toBe(true)
       } finally {
         // Manual cleanup so we don't leak fauxqs state across tests.
-        await clients.sqsClient
-          .send(
-            new (await import('@aws-sdk/client-sqs')).DeleteQueueCommand({
-              QueueUrl: (
-                await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
-              ).QueueUrl,
-            }),
-          )
-          .catch(() => undefined)
+        await safeDeleteQueueByName(clients, queueName)
       }
     })
   })
@@ -385,6 +395,9 @@ describe('queue lifecycle helpers', () => {
       } finally {
         await pair.consumer.close()
         await pair.publisher.close()
+        // dryRun left the queue behind; remove it so fauxqs state doesn't
+        // leak into other tests.
+        await safeDeleteQueueByName(clients, `${prefix}old`)
       }
     })
 
@@ -467,15 +480,7 @@ describe('queue lifecycle helpers', () => {
           expect.arrayContaining([queueName]),
         )
       } finally {
-        await clients.sqsClient
-          .send(
-            new DeleteQueueCommand({
-              QueueUrl: (
-                await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
-              ).QueueUrl,
-            }),
-          )
-          .catch(() => undefined)
+        await safeDeleteQueueByName(clients, queueName)
       }
     })
   })
@@ -522,15 +527,7 @@ describe('queue lifecycle helpers', () => {
         expect(await queueExists(clients, queueName)).toBe(true)
       } finally {
         // Manual queue cleanup so we don't leak fauxqs state.
-        await clients.sqsClient
-          .send(
-            new DeleteQueueCommand({
-              QueueUrl: (
-                await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
-              ).QueueUrl,
-            }),
-          )
-          .catch(() => undefined)
+        await safeDeleteQueueByName(clients, queueName)
       }
     })
 
