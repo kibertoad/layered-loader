@@ -1,52 +1,14 @@
-import type { MessageHandlerConfig } from '@message-queue-toolkit/core'
 import {
   AbstractSnsSqsConsumer,
   type SNSSQSConsumerDependencies,
   type SNSSQSConsumerOptions,
-  type SNSSQSCreationConfig,
-  type SNSSQSQueueLocatorType,
 } from '@message-queue-toolkit/sns'
 import {
   AbstractSqsConsumer,
   type SQSConsumerDependencies,
   type SQSConsumerOptions,
-  type SQSCreationConfig,
-  type SQSQueueLocatorType,
 } from '@message-queue-toolkit/sqs'
-import type { SqsSubscriptionOptions } from '../SqsNotificationConsumer.js'
 import type { InvalidationTrigger } from './types.js'
-
-/**
- * Discriminated source config shared by every SQS-based trigger
- * (flat or group, current and future variants).
- */
-export type SqsTriggerSource =
-  | {
-      sourceType: 'sqs-queue'
-      dependencies: SQSConsumerDependencies
-      creationConfig: SQSCreationConfig
-      locatorConfig?: never
-    }
-  | {
-      sourceType: 'sqs-queue'
-      dependencies: SQSConsumerDependencies
-      creationConfig?: never
-      locatorConfig: SQSQueueLocatorType
-    }
-  | {
-      sourceType: 'sns-topic'
-      dependencies: SNSSQSConsumerDependencies
-      creationConfig: SNSSQSCreationConfig
-      locatorConfig?: never
-      subscriptionConfig?: SqsSubscriptionOptions
-    }
-  | {
-      sourceType: 'sns-topic'
-      dependencies: SNSSQSConsumerDependencies
-      creationConfig?: never
-      locatorConfig: SNSSQSQueueLocatorType
-      subscriptionConfig?: SqsSubscriptionOptions
-    }
 
 /** Minimal lifecycle slice we need from the underlying message-queue-toolkit consumer. */
 export interface InternalConsumerHandle {
@@ -56,11 +18,10 @@ export interface InternalConsumerHandle {
 }
 
 /**
- * Concrete subclasses of `AbstractSnsSqsConsumer` / `AbstractSqsConsumer` are
- * needed because the upstream classes are abstract. They add no behaviour;
- * they just expose the constructor.
+ * Concrete subclass of `AbstractSqsConsumer` — the upstream class is abstract,
+ * but we just need its constructor.
  */
-class SqsQueueTriggerConsumer<TMessage extends object, TContext> extends AbstractSqsConsumer<
+export class SqsQueueTriggerConsumer<TMessage extends object, TContext> extends AbstractSqsConsumer<
   TMessage,
   TContext
 > {
@@ -73,10 +34,14 @@ class SqsQueueTriggerConsumer<TMessage extends object, TContext> extends Abstrac
   }
 }
 
-class SnsTopicTriggerConsumer<TMessage extends object, TContext> extends AbstractSnsSqsConsumer<
-  TMessage,
-  TContext
-> {
+/**
+ * Concrete subclass of `AbstractSnsSqsConsumer` — the upstream class is
+ * abstract, but we just need its constructor.
+ */
+export class SnsTopicTriggerConsumer<
+  TMessage extends object,
+  TContext,
+> extends AbstractSnsSqsConsumer<TMessage, TContext> {
   constructor(
     dependencies: SNSSQSConsumerDependencies,
     options: SNSSQSConsumerOptions<TMessage, TContext, undefined>,
@@ -87,35 +52,35 @@ class SnsTopicTriggerConsumer<TMessage extends object, TContext> extends Abstrac
 }
 
 /**
- * Shared lifecycle (start/stop with idempotency + concurrent-call protection)
- * and consumer construction logic for SQS-based triggers. Subclasses provide
- * the concrete handler configuration via {@link buildHandlers}.
+ * Shared lifecycle for SQS-based triggers: starts and stops a set of
+ * underlying message-queue-toolkit consumers as a single unit. Subclasses
+ * decide how those consumers are built (which AWS deps, which source config,
+ * which handlers); the abstract only manages their lifetime.
  */
-export abstract class AbstractSqsTrigger<TMessage extends object, TContext>
-  implements InvalidationTrigger
-{
-  private internalConsumer?: InternalConsumerHandle
+export abstract class AbstractSqsTrigger implements InvalidationTrigger {
+  private internalConsumers: InternalConsumerHandle[] = []
   private startPromise?: Promise<void>
 
-  protected abstract readonly source: SqsTriggerSource
-  protected abstract readonly messageType: string
-  protected abstract readonly channel: string
-
-  /** Build the handler configuration for the underlying consumer. */
-  protected abstract buildHandlers(): MessageHandlerConfig<TMessage, TContext, undefined>[]
-
-  /** Construct the per-trigger execution context that handlers receive. */
-  protected abstract buildContext(): TContext
+  /**
+   * Build one underlying consumer per upstream source the trigger should
+   * subscribe to. Called once per `start()`; subclasses are free to do
+   * arbitrary work (validation, channel-name derivation, etc.).
+   */
+  protected abstract createConsumers(): readonly InternalConsumerHandle[]
 
   async start(): Promise<void> {
     if (this.startPromise) return this.startPromise
-    if (this.internalConsumer) return
+    if (this.internalConsumers.length > 0) return
     this.startPromise = (async () => {
-      const consumer = this.createConsumer()
+      const consumers = this.createConsumers()
+      if (consumers.length === 0) return
       try {
-        await consumer.init()
-        await consumer.start()
-        this.internalConsumer = consumer
+        await Promise.all(consumers.map((c) => c.init()))
+        await Promise.all(consumers.map((c) => c.start()))
+        this.internalConsumers = [...consumers]
+      } catch (err) {
+        await Promise.allSettled(consumers.map((c) => c.close().catch(() => undefined)))
+        throw err
       } finally {
         this.startPromise = undefined
       }
@@ -124,66 +89,31 @@ export abstract class AbstractSqsTrigger<TMessage extends object, TContext>
   }
 
   async stop(): Promise<void> {
-    // Wait for any in-flight start to settle so we don't leak a consumer.
     if (this.startPromise) {
       await this.startPromise.catch(() => undefined)
     }
-    const consumer = this.internalConsumer
-    if (!consumer) return
-    this.internalConsumer = undefined
-    await consumer.close()
-  }
-
-  private createConsumer(): InternalConsumerHandle {
-    const handlers = this.buildHandlers()
-    const context = this.buildContext()
-    const messageTypeResolver = { literal: this.messageType }
-
-    if (this.source.sourceType === 'sqs-queue') {
-      const base = {
-        handlers,
-        messageTypeResolver,
-      }
-      const options: SQSConsumerOptions<TMessage, TContext, undefined> = this.source.creationConfig
-        ? { ...base, creationConfig: this.source.creationConfig }
-        : { ...base, locatorConfig: this.source.locatorConfig }
-      return new SqsQueueTriggerConsumer<TMessage, TContext>(
-        this.source.dependencies,
-        options,
-        context,
-      )
-    }
-
-    const base = {
-      handlers,
-      messageTypeResolver,
-      subscriptionConfig: this.source.subscriptionConfig ?? { updateAttributesIfExists: false },
-    }
-    const options: SNSSQSConsumerOptions<TMessage, TContext, undefined> = this.source.creationConfig
-      ? { ...base, creationConfig: this.source.creationConfig }
-      : { ...base, locatorConfig: this.source.locatorConfig }
-    return new SnsTopicTriggerConsumer<TMessage, TContext>(
-      this.source.dependencies,
-      options,
-      context,
-    )
+    const consumers = this.internalConsumers
+    if (consumers.length === 0) return
+    this.internalConsumers = []
+    await Promise.all(consumers.map((c) => c.close()))
   }
 }
 
 /**
- * Derive a human-readable channel name from any {@link SqsTriggerSource} for
- * use in error messages and logging.
+ * Combines several {@link InvalidationTrigger}s into one. Useful when a single
+ * deployment needs to react to events from heterogeneous source types (e.g.
+ * one SNS-topic trigger plus one SQS-queue trigger) and wants to manage them
+ * as a single start/stop unit.
  */
-export function deriveTriggerChannelName(source: SqsTriggerSource): string {
-  if (source.sourceType === 'sqs-queue') {
-    if (source.creationConfig?.queue?.QueueName) return source.creationConfig.queue.QueueName
-    if (source.locatorConfig?.queueName) return source.locatorConfig.queueName
-    if (source.locatorConfig?.queueUrl) return source.locatorConfig.queueUrl
-    return 'sqs-invalidation-trigger'
+export function composeTriggers(
+  ...triggers: readonly InvalidationTrigger[]
+): InvalidationTrigger {
+  return {
+    async start() {
+      await Promise.all(triggers.map((t) => t.start()))
+    },
+    async stop() {
+      await Promise.all(triggers.map((t) => t.stop()))
+    },
   }
-  if (source.creationConfig?.topic?.Name) return source.creationConfig.topic.Name
-  if (source.locatorConfig?.topicName) return source.locatorConfig.topicName
-  if (source.locatorConfig?.topicArn) return source.locatorConfig.topicArn
-  if (source.locatorConfig?.queueUrl) return source.locatorConfig.queueUrl
-  return 'sns-invalidation-trigger'
 }
