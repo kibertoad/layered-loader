@@ -28,6 +28,19 @@ export {
   type SqsGroupNotificationConfig,
 } from './lib/SqsGroupNotificationFactory.js'
 export {
+  DEFAULT_HEARTBEAT_INTERVAL_MS,
+  DEFAULT_REAPER_IDLE_THRESHOLD_MS,
+  HEARTBEAT_TAG_KEY,
+  reapStaleQueues,
+  resolveQueueUrl,
+  startQueueHeartbeat,
+  type HeartbeatOptions,
+  type HeartbeatRunner,
+  type QueueLifecycleOptions,
+  type ReapStaleQueuesParams,
+  type ReapStaleQueuesResult,
+} from './lib/queueLifecycle.js'
+export {
   CLEAR_COMMAND,
   DELETE_COMMAND,
   DELETE_MANY_COMMAND,

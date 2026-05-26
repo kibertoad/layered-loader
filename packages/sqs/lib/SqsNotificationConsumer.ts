@@ -1,4 +1,5 @@
-import type { SubscribeCommandInput } from '@aws-sdk/client-sns'
+import { type SubscribeCommandInput, UnsubscribeCommand } from '@aws-sdk/client-sns'
+import { DeleteQueueCommand } from '@aws-sdk/client-sqs'
 import { MessageHandlerConfigBuilder } from '@message-queue-toolkit/core'
 import {
   AbstractSnsSqsConsumer,
@@ -9,6 +10,11 @@ import {
 } from '@message-queue-toolkit/sns'
 import type { ConsumerErrorHandler, SynchronousCache } from 'layered-loader'
 import { AbstractNotificationConsumer } from 'layered-loader'
+import {
+  type HeartbeatRunner,
+  type QueueLifecycleOptions,
+  startQueueHeartbeat,
+} from './queueLifecycle.js'
 import {
   CLEAR_NOTIFICATION_SCHEMA,
   DELETE_MANY_NOTIFICATION_SCHEMA,
@@ -40,6 +46,12 @@ export type SqsNotificationConsumerParams = {
   errorHandler?: ConsumerErrorHandler
   dependencies: SNSSQSConsumerDependencies
   subscriptionConfig?: SqsSubscriptionOptions
+  /**
+   * Optional queue-lifecycle behaviour. When set, controls automatic queue
+   * cleanup on close and/or periodic heartbeat tagging used by
+   * {@link reapStaleQueues}. See {@link QueueLifecycleOptions}.
+   */
+  lifecycle?: QueueLifecycleOptions
 } & SqsNotificationConsumerConfig
 
 type ConsumerContext<LoadedValue> = {
@@ -76,6 +88,7 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
   private readonly params: SqsNotificationConsumerParams
   private internalConsumer?: SnsSqsInvalidationConsumer<LoadedValue>
   private subscribePromise?: Promise<SnsSqsInvalidationConsumer<LoadedValue>>
+  private heartbeat?: HeartbeatRunner
 
   constructor(params: SqsNotificationConsumerParams) {
     super(params.serverUuid, params.errorHandler)
@@ -151,6 +164,14 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
         await consumer.init()
         await consumer.start()
         this.internalConsumer = consumer
+        if (this.params.lifecycle?.heartbeat) {
+          this.heartbeat = startQueueHeartbeat({
+            sqsClient: this.params.dependencies.sqsClient,
+            queueUrl: consumer.publicQueueUrl,
+            intervalMs: this.params.lifecycle.heartbeat.intervalMs,
+            errorHandler: this.params.lifecycle.heartbeat.errorHandler,
+          })
+        }
         return consumer
       } catch (err) {
         await consumer.close().catch(() => undefined)
@@ -169,7 +190,38 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
     if (!this.internalConsumer) return
     const consumer = this.internalConsumer
     this.internalConsumer = undefined
+
+    this.heartbeat?.stop()
+    this.heartbeat = undefined
+
+    const queueUrl = consumer.publicQueueUrl
+    const subscriptionArn = consumer.publicSubscriptionArn
+    const unsubscribeOnClose = this.params.lifecycle?.unsubscribeOnClose ?? false
+    const deleteQueueOnClose = this.params.lifecycle?.deleteQueueOnClose ?? false
+
     await consumer.close()
+
+    // Cleanup is best-effort: missing resources (already deleted, never created)
+    // must not break shutdown. The user opts in to this behaviour, so swallowing
+    // errors is the right default — they can re-run reapStaleQueues if needed.
+    if (unsubscribeOnClose && subscriptionArn) {
+      try {
+        await this.params.dependencies.snsClient.send(
+          new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }),
+        )
+      } catch (err) {
+        this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+      }
+    }
+    if (deleteQueueOnClose && queueUrl) {
+      try {
+        await this.params.dependencies.sqsClient.send(
+          new DeleteQueueCommand({ QueueUrl: queueUrl }),
+        )
+      } catch (err) {
+        this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+      }
+    }
   }
 
   /**

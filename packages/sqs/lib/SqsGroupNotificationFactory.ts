@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { SNSDependencies, SNSSQSConsumerDependencies } from '@message-queue-toolkit/sns'
 import type { ConsumerErrorHandler, PublisherErrorHandler } from 'layered-loader'
+import type { QueueLifecycleOptions } from './queueLifecycle.js'
 import {
   SqsGroupNotificationConsumer,
   type SqsGroupNotificationConsumerConfig,
@@ -22,6 +23,13 @@ export type SqsGroupNotificationConfig = {
   consumer: {
     dependencies: SNSSQSConsumerDependencies
     subscriptionConfig?: SqsSubscriptionOptions
+    /**
+     * Optional queue-lifecycle behaviour. Only relevant when each instance owns
+     * its own SQS queue (the default shape for full SNS/SQS fanout). Setups
+     * that pair this consumer with a Redis publisher and a shared queue do not
+     * need any of these knobs.
+     */
+    lifecycle?: QueueLifecycleOptions
   } & SqsGroupNotificationConsumerConfig
 }
 
@@ -59,6 +67,7 @@ export function createGroupNotificationPair<LoadedValue>(config: SqsGroupNotific
           errorHandler: config.consumerErrorHandler,
           dependencies: consumerConfig.dependencies,
           subscriptionConfig: consumerConfig.subscriptionConfig,
+          lifecycle: consumerConfig.lifecycle,
           creationConfig: consumerConfig.creationConfig,
         }
       : {
@@ -66,6 +75,7 @@ export function createGroupNotificationPair<LoadedValue>(config: SqsGroupNotific
           errorHandler: config.consumerErrorHandler,
           dependencies: consumerConfig.dependencies,
           subscriptionConfig: consumerConfig.subscriptionConfig,
+          lifecycle: consumerConfig.lifecycle,
           locatorConfig: consumerConfig.locatorConfig,
         },
   )

@@ -1,3 +1,5 @@
+import { UnsubscribeCommand } from '@aws-sdk/client-sns'
+import { DeleteQueueCommand } from '@aws-sdk/client-sqs'
 import { MessageHandlerConfigBuilder } from '@message-queue-toolkit/core'
 import {
   AbstractSnsSqsConsumer,
@@ -8,6 +10,11 @@ import {
 } from '@message-queue-toolkit/sns'
 import type { ConsumerErrorHandler, SynchronousGroupCache } from 'layered-loader'
 import { AbstractNotificationConsumer } from 'layered-loader'
+import {
+  type HeartbeatRunner,
+  type QueueLifecycleOptions,
+  startQueueHeartbeat,
+} from './queueLifecycle.js'
 import type { SqsSubscriptionOptions } from './SqsNotificationConsumer.js'
 import {
   CLEAR_GROUP_NOTIFICATION_SCHEMA,
@@ -28,6 +35,12 @@ export type SqsGroupNotificationConsumerParams = {
   errorHandler?: ConsumerErrorHandler
   dependencies: SNSSQSConsumerDependencies
   subscriptionConfig?: SqsSubscriptionOptions
+  /**
+   * Optional queue-lifecycle behaviour. When set, controls automatic queue
+   * cleanup on close and/or periodic heartbeat tagging used by
+   * `reapStaleQueues`. See {@link QueueLifecycleOptions}.
+   */
+  lifecycle?: QueueLifecycleOptions
 } & SqsGroupNotificationConsumerConfig
 
 type ConsumerContext<LoadedValue> = {
@@ -71,6 +84,7 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
   private readonly params: SqsGroupNotificationConsumerParams
   private internalConsumer?: SnsSqsGroupInvalidationConsumer<LoadedValue>
   private subscribePromise?: Promise<SnsSqsGroupInvalidationConsumer<LoadedValue>>
+  private heartbeat?: HeartbeatRunner
 
   constructor(params: SqsGroupNotificationConsumerParams) {
     super(params.serverUuid, params.errorHandler)
@@ -143,6 +157,14 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
         await consumer.init()
         await consumer.start()
         this.internalConsumer = consumer
+        if (this.params.lifecycle?.heartbeat) {
+          this.heartbeat = startQueueHeartbeat({
+            sqsClient: this.params.dependencies.sqsClient,
+            queueUrl: consumer.publicQueueUrl,
+            intervalMs: this.params.lifecycle.heartbeat.intervalMs,
+            errorHandler: this.params.lifecycle.heartbeat.errorHandler,
+          })
+        }
         return consumer
       } catch (err) {
         await consumer.close().catch(() => undefined)
@@ -161,7 +183,35 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
     if (!this.internalConsumer) return
     const consumer = this.internalConsumer
     this.internalConsumer = undefined
+
+    this.heartbeat?.stop()
+    this.heartbeat = undefined
+
+    const queueUrl = consumer.publicQueueUrl
+    const subscriptionArn = consumer.publicSubscriptionArn
+    const unsubscribeOnClose = this.params.lifecycle?.unsubscribeOnClose ?? false
+    const deleteQueueOnClose = this.params.lifecycle?.deleteQueueOnClose ?? false
+
     await consumer.close()
+
+    if (unsubscribeOnClose && subscriptionArn) {
+      try {
+        await this.params.dependencies.snsClient.send(
+          new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }),
+        )
+      } catch (err) {
+        this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+      }
+    }
+    if (deleteQueueOnClose && queueUrl) {
+      try {
+        await this.params.dependencies.sqsClient.send(
+          new DeleteQueueCommand({ QueueUrl: queueUrl }),
+        )
+      } catch (err) {
+        this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+      }
+    }
   }
 
   get topicArn(): string | undefined {
