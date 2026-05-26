@@ -87,10 +87,20 @@ export function startQueueHeartbeat(params: {
   errorHandler?: (err: Error) => void
 }): HeartbeatRunner {
   const intervalMs = params.intervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    throw new Error(
+      `startQueueHeartbeat: intervalMs must be a positive number (got ${intervalMs})`,
+    )
+  }
   let stopped = false
+  // Reentrancy guard: TagQueue calls can exceed intervalMs under throttling
+  // or cold-start TLS; we skip overlapping ticks rather than piling up
+  // unbounded in-flight requests against the SQS client.
+  let inFlight = false
 
   const tick = async () => {
-    if (stopped) return
+    if (stopped || inFlight) return
+    inFlight = true
     try {
       await params.sqsClient.send(
         new TagQueueCommand({
@@ -99,7 +109,14 @@ export function startQueueHeartbeat(params: {
         }),
       )
     } catch (err) {
-      params.errorHandler?.(err as Error)
+      try {
+        params.errorHandler?.(err as Error)
+      } catch {
+        // Swallow handler-thrown errors — they would otherwise surface as
+        // unhandledRejection from the fire-and-forget tick path.
+      }
+    } finally {
+      inFlight = false
     }
   }
 
@@ -199,6 +216,29 @@ export async function reapStaleQueues(
   params: ReapStaleQueuesParams,
 ): Promise<ReapStaleQueuesResult> {
   const idleThresholdMs = params.idleThresholdMs ?? DEFAULT_REAPER_IDLE_THRESHOLD_MS
+  if (!Number.isFinite(idleThresholdMs) || idleThresholdMs <= 0) {
+    throw new Error(
+      `reapStaleQueues: idleThresholdMs must be a positive number (got ${idleThresholdMs})`,
+    )
+  }
+
+  // Dedupe topics up front: callers commonly pass the same ARN via topicArn
+  // *and* topicArns out of copy-paste convenience; we should not scan twice.
+  const topicArns =
+    params.snsClient !== undefined
+      ? Array.from(
+          new Set<string>([
+            ...(params.topicArn ? [params.topicArn] : []),
+            ...(params.topicArns ?? []),
+          ]),
+        )
+      : []
+  if (params.snsClient && topicArns.length === 0) {
+    throw new Error(
+      'reapStaleQueues: snsClient was supplied without topicArn / topicArns; the reaper would silently skip orphan-subscription cleanup. Pass at least one topic ARN, or omit snsClient if SNS cleanup is not desired.',
+    )
+  }
+
   const now = Date.now()
   const result: ReapStaleQueuesResult = {
     deleted: [],
@@ -225,70 +265,45 @@ export async function reapStaleQueues(
 
   // 2. For each candidate, fetch heartbeat tag + creation timestamp.
   const deletedQueueArns = new Set<string>()
+  // Queues we reaped but for which we could not learn the ARN (e.g.
+  // GetQueueAttributes throttled). The SNS cleanup step exposes this so the
+  // caller knows orphan-subscription cleanup may be incomplete and can re-run.
+  let reapedWithoutArn = 0
   for (const queueUrl of queueUrls) {
     const queueName = queueUrl.split('/').pop() ?? queueUrl
-    try {
-      const [tagsResp, attrsResp] = await Promise.all([
-        params.sqsClient.send(new ListQueueTagsCommand({ QueueUrl: queueUrl })),
-        params.sqsClient.send(
-          new GetQueueAttributesCommand({
-            QueueUrl: queueUrl,
-            AttributeNames: ['CreatedTimestamp', 'QueueArn'],
-          }),
-        ),
-      ])
+    // Fetch tags and attributes independently so a transient failure in one
+    // does not eliminate the other's signal (and so a queue that disappears
+    // mid-scan can be reported as 'keep' instead of 'error', per the
+    // documented idempotency contract).
+    const [tagsResult, attrsResult] = await Promise.allSettled([
+      params.sqsClient.send(new ListQueueTagsCommand({ QueueUrl: queueUrl })),
+      params.sqsClient.send(
+        new GetQueueAttributesCommand({
+          QueueUrl: queueUrl,
+          AttributeNames: ['CreatedTimestamp', 'QueueArn'],
+        }),
+      ),
+    ])
 
-      const heartbeatRaw = tagsResp.Tags?.[HEARTBEAT_TAG_KEY]
-      const heartbeatMs = heartbeatRaw ? Number.parseInt(heartbeatRaw, 10) : Number.NaN
-      const createdSecRaw = attrsResp.Attributes?.CreatedTimestamp
-      const createdMs = createdSecRaw ? Number.parseInt(createdSecRaw, 10) * 1000 : Number.NaN
-      const queueArn = attrsResp.Attributes?.QueueArn
+    // A queue that disappeared between ListQueues and the per-queue fetch is
+    // not an error — treat it as already-reaped by someone else.
+    if (
+      (tagsResult.status === 'rejected' && isQueueNotFound(tagsResult.reason)) ||
+      (attrsResult.status === 'rejected' && isQueueNotFound(attrsResult.reason))
+    ) {
+      params.onDecision?.({
+        queueUrl,
+        queueName,
+        decision: 'keep',
+        reason: 'queue disappeared between ListQueues and inspection',
+      })
+      continue
+    }
 
-      let shouldReap = false
-      let reason = ''
-      let heartbeatAge: number | undefined
-
-      if (Number.isFinite(heartbeatMs)) {
-        heartbeatAge = now - heartbeatMs
-        if (heartbeatAge > idleThresholdMs) {
-          shouldReap = true
-          reason = `heartbeat ${heartbeatAge}ms old > ${idleThresholdMs}ms threshold`
-        } else {
-          reason = `heartbeat ${heartbeatAge}ms old <= ${idleThresholdMs}ms threshold`
-        }
-      } else if (Number.isFinite(createdMs)) {
-        // No heartbeat tag: only reap if the queue is old enough that a live
-        // consumer would have written at least one beat by now.
-        const ageMs = now - createdMs
-        if (ageMs > idleThresholdMs) {
-          shouldReap = true
-          reason = `no heartbeat tag, queue ${ageMs}ms old > ${idleThresholdMs}ms threshold`
-        } else {
-          reason = `no heartbeat tag, queue only ${ageMs}ms old`
-        }
-      } else {
-        reason = 'no heartbeat tag and no creation timestamp; skipping conservatively'
-      }
-
-      if (shouldReap) {
-        params.onDecision?.({ queueUrl, queueName, decision: 'reap', reason, heartbeatAge })
-        if (!params.dryRun) {
-          try {
-            await params.sqsClient.send(new DeleteQueueCommand({ QueueUrl: queueUrl }))
-          } catch (err) {
-            // DeleteQueue is idempotent for our purposes: if the queue is
-            // already gone, treat as success.
-            if (!isQueueNotFound(err)) throw err
-          }
-        }
-        result.deleted.push(queueUrl)
-        if (queueArn) deletedQueueArns.add(queueArn)
-      } else {
-        params.onDecision?.({ queueUrl, queueName, decision: 'keep', reason, heartbeatAge })
-        result.skipped.push(queueUrl)
-      }
-    } catch (err) {
-      const error = err as Error
+    // Any other failure is recorded and we move to the next queue rather than
+    // aborting the whole sweep.
+    if (tagsResult.status === 'rejected') {
+      const error = tagsResult.reason as Error
       params.onDecision?.({
         queueUrl,
         queueName,
@@ -296,16 +311,99 @@ export async function reapStaleQueues(
         reason: error.message,
       })
       result.errors.push({ queueUrl, error })
+      continue
+    }
+    if (attrsResult.status === 'rejected') {
+      const error = attrsResult.reason as Error
+      params.onDecision?.({
+        queueUrl,
+        queueName,
+        decision: 'error',
+        reason: error.message,
+      })
+      result.errors.push({ queueUrl, error })
+      continue
+    }
+
+    const tagsResp = tagsResult.value
+    const attrsResp = attrsResult.value
+
+    const heartbeatRaw = tagsResp.Tags?.[HEARTBEAT_TAG_KEY]
+    // Require an explicit non-empty string AND a strictly positive parse —
+    // values like '', '0', or 'abc' must NOT be treated as ancient
+    // timestamps (which would always exceed any threshold and reap a live
+    // queue).
+    const heartbeatMs =
+      typeof heartbeatRaw === 'string' && heartbeatRaw.length > 0
+        ? Number.parseInt(heartbeatRaw, 10)
+        : Number.NaN
+    const heartbeatValid = Number.isFinite(heartbeatMs) && heartbeatMs > 0
+    const createdSecRaw = attrsResp.Attributes?.CreatedTimestamp
+    const createdMs = createdSecRaw ? Number.parseInt(createdSecRaw, 10) * 1000 : Number.NaN
+    const queueArn = attrsResp.Attributes?.QueueArn
+
+    let shouldReap = false
+    let reason = ''
+    let heartbeatAge: number | undefined
+
+    if (heartbeatValid) {
+      heartbeatAge = now - heartbeatMs
+      if (heartbeatAge > idleThresholdMs) {
+        shouldReap = true
+        reason = `heartbeat ${heartbeatAge}ms old > ${idleThresholdMs}ms threshold`
+      } else {
+        reason = `heartbeat ${heartbeatAge}ms old <= ${idleThresholdMs}ms threshold`
+      }
+    } else if (Number.isFinite(createdMs)) {
+      // No (usable) heartbeat tag: only reap if the queue is old enough that
+      // a live consumer would have written at least one beat by now.
+      const ageMs = now - createdMs
+      if (ageMs > idleThresholdMs) {
+        shouldReap = true
+        reason = `no heartbeat tag, queue ${ageMs}ms old > ${idleThresholdMs}ms threshold`
+      } else {
+        reason = `no heartbeat tag, queue only ${ageMs}ms old`
+      }
+    } else {
+      reason = 'no heartbeat tag and no creation timestamp; skipping conservatively'
+    }
+
+    if (shouldReap) {
+      params.onDecision?.({ queueUrl, queueName, decision: 'reap', reason, heartbeatAge })
+      if (!params.dryRun) {
+        try {
+          await params.sqsClient.send(new DeleteQueueCommand({ QueueUrl: queueUrl }))
+        } catch (err) {
+          // DeleteQueue is idempotent for our purposes: if the queue is
+          // already gone, treat as success.
+          if (!isQueueNotFound(err)) {
+            const error = err as Error
+            params.onDecision?.({
+              queueUrl,
+              queueName,
+              decision: 'error',
+              reason: error.message,
+            })
+            result.errors.push({ queueUrl, error })
+            continue
+          }
+        }
+      }
+      result.deleted.push(queueUrl)
+      if (queueArn) {
+        deletedQueueArns.add(queueArn)
+      } else {
+        reapedWithoutArn += 1
+      }
+    } else {
+      params.onDecision?.({ queueUrl, queueName, decision: 'keep', reason, heartbeatAge })
+      result.skipped.push(queueUrl)
     }
   }
 
   // 3. Optional SNS subscription cleanup. We only know which subscriptions to
-  // touch if the caller tells us which topic(s) to scan.
+  // touch when we have the ARN of at least one deleted queue.
   if (params.snsClient && deletedQueueArns.size > 0) {
-    const topicArns = [
-      ...(params.topicArn ? [params.topicArn] : []),
-      ...(params.topicArns ?? []),
-    ]
     for (const topicArn of topicArns) {
       try {
         let snsNext: string | undefined
@@ -322,13 +420,17 @@ export async function reapStaleQueues(
               sub.Endpoint &&
               sub.SubscriptionArn &&
               // PendingConfirmation entries can't be unsubscribed by ARN
-              sub.SubscriptionArn !== 'PendingConfirmation' &&
+              sub.SubscriptionArn !== PENDING_CONFIRMATION_ARN &&
               deletedQueueArns.has(sub.Endpoint)
             ) {
               if (!params.dryRun) {
-                await params.snsClient.send(
-                  new UnsubscribeCommand({ SubscriptionArn: sub.SubscriptionArn }),
-                )
+                try {
+                  await params.snsClient.send(
+                    new UnsubscribeCommand({ SubscriptionArn: sub.SubscriptionArn }),
+                  )
+                } catch (err) {
+                  if (!isSubscriptionNotFound(err)) throw err
+                }
               }
               result.unsubscribed.push(sub.SubscriptionArn)
             }
@@ -339,6 +441,17 @@ export async function reapStaleQueues(
         result.errors.push({ error: err as Error })
       }
     }
+  }
+
+  // If we deleted queues but never learned their ARNs, surface that as a
+  // non-fatal error so the caller knows orphan-subscription cleanup may be
+  // incomplete (rather than silently skipping it).
+  if (params.snsClient && reapedWithoutArn > 0) {
+    result.errors.push({
+      error: new Error(
+        `reapStaleQueues: ${reapedWithoutArn} queue(s) deleted without a known QueueArn (likely GetQueueAttributes returned no QueueArn); their SNS subscriptions could not be cleaned up. Re-run after retrying GetQueueAttributes, or clean them up via another mechanism.`,
+      ),
+    })
   }
 
   return result
@@ -361,7 +474,12 @@ export async function resolveQueueUrl(
   }
 }
 
-function isQueueNotFound(err: unknown): boolean {
+/**
+ * Returns true when the SDK error indicates the queue no longer exists.
+ * Exported so consumer cleanup paths can apply the same idempotency the
+ * reaper does.
+ */
+export function isQueueNotFound(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
   const name = (err as { name?: string }).name
   return (
@@ -370,3 +488,24 @@ function isQueueNotFound(err: unknown): boolean {
     name === 'NonExistentQueue'
   )
 }
+
+/**
+ * Returns true when the SDK error indicates the SNS subscription no longer
+ * exists (typical when the subscription has already been removed by another
+ * actor — e.g. the reaper — or was never confirmed).
+ */
+export function isSubscriptionNotFound(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const name = (err as { name?: string }).name
+  // SNS surfaces missing subscriptions as NotFound; some legacy paths return
+  // InvalidParameter when the ARN is malformed (e.g. literal
+  // "PendingConfirmation"). Both are non-actionable on shutdown.
+  return name === 'NotFound' || name === 'NotFoundException'
+}
+
+/**
+ * Literal value SNS returns for `SubscriptionArn` when the subscription has
+ * not yet been confirmed by the endpoint. UnsubscribeCommand cannot accept it,
+ * so callers must skip the call entirely.
+ */
+export const PENDING_CONFIRMATION_ARN = 'PendingConfirmation'

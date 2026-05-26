@@ -274,7 +274,7 @@ Cleanup is **best-effort**. Missing queues / subscriptions are treated as succes
 
 Robust against any termination mode, at the cost of one background tag write per minute and a scheduled cleanup job. Each live consumer tags its own queue with `layered-loader:heartbeat=<unix-ms>` on a timer; a periodic reaper deletes queues whose tag is older than the threshold.
 
-This is the same algorithm AWS uses inside their Java [Temporary Queue Client](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-temporary-queues.html). Well-validated in production.
+This is a classic lease/heartbeat-and-sweep pattern — the consumer continuously asserts liveness via a per-queue tag, and an out-of-band reaper deletes anything whose lease has expired. (For comparison, the AWS Java [Temporary Queue Client](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-temporary-queues.html) addresses the same problem differently — virtual queues multiplexed onto a single host queue — but the failure modes the heartbeat-and-sweep approach guards against are well-understood.)
 
 **1) Enable the heartbeat on each consumer:**
 
@@ -344,7 +344,7 @@ This is shape **C** from [Picking your shape](#picking-your-shape) and the recom
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
-import { createNotificationPair, Loader } from 'layered-loader'
+import { createNotificationPair, Loader, RedisNotificationPublisher } from 'layered-loader'
 import { SqsInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT_SCHEMA = z.object({
@@ -370,14 +370,15 @@ const userLoader = new Loader<User>({
 })
 await userLoader.init()
 
-// 2. A SECOND Redis publisher dedicated to trigger output, with a distinct
-//    serverUuid so the local consumer treats trigger messages as foreign.
-const { publisher: triggerPublisher } = createNotificationPair<User>({
-  channel: 'user-cache-invalidations',
-  serverUuid: randomUUID(),
-  publisherRedis: new Redis(redisOptions),
-  consumerRedis: new Redis(redisOptions), // unused, but createNotificationPair returns a pair
-})
+// 2. A dedicated Redis publisher for the trigger output, with a distinct
+//    serverUuid so the local consumer treats trigger messages as foreign
+//    (it skips messages whose originUuid matches its own). Constructed
+//    directly rather than via createNotificationPair to avoid spinning up
+//    a second, unused Redis subscriber connection.
+const triggerPublisher = new RedisNotificationPublisher<User>(
+  new Redis(redisOptions),
+  { channel: 'user-cache-invalidations', serverUuid: randomUUID() },
+)
 
 // 3. The trigger, subscribed to an upstream domain-event topic via a SHARED
 //    SQS queue (note: no ${HOSTNAME} suffix — SQS competing-consumer semantics

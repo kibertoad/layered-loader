@@ -9,7 +9,7 @@ export function createGroupNotificationPair<T>(config: RedisNotificationConfig) 
   const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(enrichRedisConfig(config.consumerRedis))
   const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(enrichRedisConfig(config.publisherRedis))
 
-  const serverUuid = randomUUID()
+  const serverUuid = config.serverUuid ?? randomUUID()
   if (resolvedPublisher === resolvedConsumer) {
     throw new Error(
       'Same Redis client instance cannot be used both for publisher and for consumer, please create a separate connection',

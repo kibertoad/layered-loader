@@ -1,19 +1,33 @@
 import {
+  CreateQueueCommand,
+  DeleteQueueCommand,
   GetQueueUrlCommand,
   ListQueueTagsCommand,
   ListQueuesCommand,
+  type SQSClient,
 } from '@aws-sdk/client-sqs'
 import { ListSubscriptionsByTopicCommand } from '@aws-sdk/client-sns'
-import { Loader, type InMemoryCacheConfiguration } from 'layered-loader'
+import {
+  GroupLoader,
+  Loader,
+  type InMemoryCacheConfiguration,
+} from 'layered-loader'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   HEARTBEAT_TAG_KEY,
   reapStaleQueues,
+  startQueueHeartbeat,
 } from '../lib/queueLifecycle.js'
+import { createGroupNotificationPair } from '../lib/SqsGroupNotificationFactory.js'
 import { createNotificationPair } from '../lib/SqsNotificationFactory.js'
 import { type AwsClientBundle, buildAwsClients } from './fakes/awsClients.js'
 import { buildConsumerDeps, buildPublisherDeps } from './fakes/dependencies.js'
-import { StubAsyncCache, uniqueSuffix, waitFor } from './utils/testHelpers.js'
+import {
+  StubAsyncCache,
+  StubGroupedAsyncCache,
+  uniqueSuffix,
+  waitFor,
+} from './utils/testHelpers.js'
 
 const IN_MEMORY_CACHE_CONFIG = { ttlInMsecs: 99999 } satisfies InMemoryCacheConfiguration
 
@@ -299,12 +313,14 @@ describe('queue lifecycle helpers', () => {
       })
 
       try {
-        expect(result.deleted.map((u) => u.split('/').pop())).toEqual([
-          `${prefix}stale`,
-        ])
-        expect(result.skipped.map((u) => u.split('/').pop())).toEqual([
-          `${prefix}fresh`,
-        ])
+        // ListQueues does not guarantee ordering; assert membership + length
+        // rather than positional equality.
+        const deletedNames = result.deleted.map((u) => u.split('/').pop())
+        const skippedNames = result.skipped.map((u) => u.split('/').pop())
+        expect(deletedNames).toEqual(expect.arrayContaining([`${prefix}stale`]))
+        expect(deletedNames).not.toContain(`${prefix}fresh`)
+        expect(skippedNames).toEqual(expect.arrayContaining([`${prefix}fresh`]))
+        expect(skippedNames).not.toContain(`${prefix}stale`)
         expect(result.unsubscribed).toContain(staleSubscriptionArn)
         // The reaper should not touch the fresh consumer's queue or subscription.
         expect(await queueExists(clients, `${prefix}fresh`)).toBe(true)
@@ -370,6 +386,291 @@ describe('queue lifecycle helpers', () => {
         await pair.consumer.close()
         await pair.publisher.close()
       }
+    })
+
+    it('reaps an orphan queue with no heartbeat tag once it is older than the threshold', async () => {
+      const suffix = uniqueSuffix()
+      const prefix = `orphan-${suffix}-`
+      const queueName = `${prefix}untagged`
+
+      // Create a queue directly — no consumer, no heartbeat tag at all.
+      await clients.sqsClient.send(new CreateQueueCommand({ QueueName: queueName }))
+
+      // CreatedTimestamp is in seconds; sleep briefly then use a tiny
+      // threshold so the orphan-queue branch is exercised.
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+
+      const result = await reapStaleQueues({
+        sqsClient: clients.sqsClient,
+        queueNamePrefix: prefix,
+        idleThresholdMs: 1000,
+      })
+
+      const reasons = result.deleted.length
+        ? 'reaped'
+        : `kept (skipped=${result.skipped.length}, errors=${result.errors.length})`
+      expect(result.deleted.map((u) => u.split('/').pop())).toEqual(
+        expect.arrayContaining([queueName]),
+      )
+      expect(reasons).toBe('reaped')
+      expect(await queueExists(clients, queueName)).toBe(false)
+    })
+
+    it('throws when snsClient is provided without topicArn / topicArns', async () => {
+      await expect(
+        reapStaleQueues({
+          sqsClient: clients.sqsClient,
+          snsClient: clients.snsClient,
+          queueNamePrefix: `nope-${uniqueSuffix()}-`,
+        }),
+      ).rejects.toThrow(/snsClient was supplied without topicArn/)
+    })
+
+    it('throws when idleThresholdMs is not positive', async () => {
+      await expect(
+        reapStaleQueues({
+          sqsClient: clients.sqsClient,
+          queueNamePrefix: `nope-${uniqueSuffix()}-`,
+          idleThresholdMs: 0,
+        }),
+      ).rejects.toThrow(/idleThresholdMs must be a positive number/)
+    })
+
+    it('treats heartbeat tag value "0" as missing rather than ancient', async () => {
+      const suffix = uniqueSuffix()
+      const prefix = `zero-tag-${suffix}-`
+      const queueName = `${prefix}q`
+      await clients.sqsClient.send(new CreateQueueCommand({ QueueName: queueName }))
+      const { TagQueueCommand } = await import('@aws-sdk/client-sqs')
+      await clients.sqsClient.send(
+        new TagQueueCommand({
+          QueueUrl: (
+            await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
+          ).QueueUrl!,
+          // "0" must not be interpreted as a heartbeat from epoch.
+          Tags: { [HEARTBEAT_TAG_KEY]: '0' },
+        }),
+      )
+
+      const result = await reapStaleQueues({
+        sqsClient: clients.sqsClient,
+        queueNamePrefix: prefix,
+        // Very large threshold means the queue's createdMs branch keeps it.
+        idleThresholdMs: 24 * 60 * 60 * 1000,
+      })
+
+      try {
+        expect(result.deleted).not.toContain(
+          (await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))).QueueUrl,
+        )
+        expect(result.skipped.map((u) => u.split('/').pop())).toEqual(
+          expect.arrayContaining([queueName]),
+        )
+      } finally {
+        await clients.sqsClient
+          .send(
+            new DeleteQueueCommand({
+              QueueUrl: (
+                await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
+              ).QueueUrl,
+            }),
+          )
+          .catch(() => undefined)
+      }
+    })
+  })
+
+  describe('SqsNotificationConsumer close() — unsubscribeOnClose alone', () => {
+    it('unsubscribes but leaves the queue when only unsubscribeOnClose is set', async () => {
+      const suffix = uniqueSuffix()
+      const queueName = `unsub-only-${suffix}`
+      const topicName = `unsub-only-topic-${suffix}`
+
+      const { publisher, consumer } = createNotificationPair<string>({
+        publisher: {
+          dependencies: buildPublisherDeps(clients),
+          creationConfig: { topic: { Name: topicName } },
+        },
+        consumer: {
+          dependencies: buildConsumerDeps(clients),
+          creationConfig: {
+            topic: { Name: topicName },
+            queue: { QueueName: queueName },
+          },
+          lifecycle: { unsubscribeOnClose: true },
+        },
+      })
+
+      const loader = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new StubAsyncCache('value'),
+        notificationConsumer: consumer,
+        notificationPublisher: publisher,
+      })
+
+      await loader.init()
+      const topicArn = publisher.topicArn!
+      const subscriptionArn = consumer.subscriptionArn!
+      expect(subscriptionArn).toBeTruthy()
+      expect(subscriptionArn).not.toBe('PendingConfirmation')
+
+      await consumer.close()
+      await publisher.close()
+
+      try {
+        expect(await subscriptionExists(clients, topicArn, subscriptionArn)).toBe(false)
+        expect(await queueExists(clients, queueName)).toBe(true)
+      } finally {
+        // Manual queue cleanup so we don't leak fauxqs state.
+        await clients.sqsClient
+          .send(
+            new DeleteQueueCommand({
+              QueueUrl: (
+                await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
+              ).QueueUrl,
+            }),
+          )
+          .catch(() => undefined)
+      }
+    })
+
+    it('does not invoke onCleanupError for a queue that disappeared before close()', async () => {
+      const suffix = uniqueSuffix()
+      const queueName = `vanished-${suffix}`
+      const topicName = `vanished-topic-${suffix}`
+      let cleanupErrors: Array<{ err: Error; step: string }> = []
+
+      const { publisher, consumer } = createNotificationPair<string>({
+        publisher: {
+          dependencies: buildPublisherDeps(clients),
+          creationConfig: { topic: { Name: topicName } },
+        },
+        consumer: {
+          dependencies: buildConsumerDeps(clients),
+          creationConfig: {
+            topic: { Name: topicName },
+            queue: { QueueName: queueName },
+          },
+          lifecycle: {
+            deleteQueueOnClose: true,
+            unsubscribeOnClose: true,
+            onCleanupError: (err, step) => cleanupErrors.push({ err, step }),
+          },
+        },
+      })
+
+      const loader = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new StubAsyncCache('value'),
+        notificationConsumer: consumer,
+        notificationPublisher: publisher,
+      })
+      await loader.init()
+      const queueUrl = consumer.queueUrl!
+
+      // Simulate the reaper having beaten us to the queue.
+      await clients.sqsClient.send(new DeleteQueueCommand({ QueueUrl: queueUrl }))
+
+      await consumer.close()
+      await publisher.close()
+
+      // The already-gone queue must NOT trigger onCleanupError.
+      expect(cleanupErrors.find((e) => e.step === 'deleteQueue')).toBeUndefined()
+    })
+  })
+
+  describe('SqsGroupNotificationConsumer lifecycle', () => {
+    it('tags the queue with heartbeat and cleans up on close when flags are set', async () => {
+      const suffix = uniqueSuffix()
+      const queueName = `group-lifecycle-${suffix}`
+      const topicName = `group-lifecycle-topic-${suffix}`
+
+      const { publisher, consumer } = createGroupNotificationPair<string>({
+        publisher: {
+          dependencies: buildPublisherDeps(clients),
+          creationConfig: { topic: { Name: topicName } },
+        },
+        consumer: {
+          dependencies: buildConsumerDeps(clients),
+          creationConfig: {
+            topic: { Name: topicName },
+            queue: { QueueName: queueName },
+          },
+          lifecycle: {
+            deleteQueueOnClose: true,
+            unsubscribeOnClose: true,
+            heartbeat: { intervalMs: 50 },
+          },
+        },
+      })
+
+      const loader = new GroupLoader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache: new StubGroupedAsyncCache('value'),
+        notificationConsumer: consumer,
+        notificationPublisher: publisher,
+      })
+
+      await loader.init()
+      const topicArn = publisher.topicArn!
+      const subscriptionArn = consumer.subscriptionArn!
+      const queueUrl = consumer.queueUrl!
+      expect(queueUrl).toBeTruthy()
+
+      // Heartbeat tag should land after subscribe.
+      await waitFor(async () => {
+        const tags = await clients.sqsClient.send(new ListQueueTagsCommand({ QueueUrl: queueUrl }))
+        return Boolean(tags.Tags?.[HEARTBEAT_TAG_KEY])
+      })
+
+      await consumer.close()
+      await publisher.close()
+
+      expect(await queueExists(clients, queueName)).toBe(false)
+      expect(await subscriptionExists(clients, topicArn, subscriptionArn)).toBe(false)
+    })
+  })
+
+  describe('startQueueHeartbeat input validation and stop semantics', () => {
+    const stubSqsClient = (
+      onSend?: (cmd: unknown) => void,
+    ): SQSClient =>
+      ({
+        send: async (cmd: unknown) => {
+          onSend?.(cmd)
+          return {}
+        },
+      }) as unknown as SQSClient
+
+    it('throws when intervalMs is zero', () => {
+      expect(() =>
+        startQueueHeartbeat({
+          sqsClient: stubSqsClient(),
+          queueUrl: 'https://example/q',
+          intervalMs: 0,
+        }),
+      ).toThrow(/intervalMs must be a positive number/)
+    })
+
+    it('throws when intervalMs is negative', () => {
+      expect(() =>
+        startQueueHeartbeat({
+          sqsClient: stubSqsClient(),
+          queueUrl: 'https://example/q',
+          intervalMs: -100,
+        }),
+      ).toThrow(/intervalMs must be a positive number/)
+    })
+
+    it('stop() is idempotent', () => {
+      const runner = startQueueHeartbeat({
+        sqsClient: stubSqsClient(),
+        queueUrl: 'https://example/q',
+        intervalMs: 10_000,
+      })
+      runner.stop()
+      // Second call must not throw.
+      runner.stop()
     })
   })
 })

@@ -12,6 +12,9 @@ import type { ConsumerErrorHandler, SynchronousCache } from 'layered-loader'
 import { AbstractNotificationConsumer } from 'layered-loader'
 import {
   type HeartbeatRunner,
+  isQueueNotFound,
+  isSubscriptionNotFound,
+  PENDING_CONFIRMATION_ARN,
   type QueueLifecycleOptions,
   startQueueHeartbeat,
 } from './queueLifecycle.js'
@@ -201,16 +204,22 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
 
     await consumer.close()
 
-    // Cleanup is best-effort: missing resources (already deleted, never created)
-    // must not break shutdown. The user opts in to this behaviour, so swallowing
-    // errors is the right default — they can re-run reapStaleQueues if needed.
-    if (unsubscribeOnClose && subscriptionArn) {
+    // Cleanup is best-effort: already-gone resources (deleted by the reaper,
+    // never confirmed by SNS) are treated as success per the QueueLifecycleOptions
+    // docstring; only unexpected failures surface via onCleanupError.
+    if (
+      unsubscribeOnClose &&
+      subscriptionArn &&
+      subscriptionArn !== PENDING_CONFIRMATION_ARN
+    ) {
       try {
         await this.params.dependencies.snsClient.send(
           new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }),
         )
       } catch (err) {
-        this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+        if (!isSubscriptionNotFound(err)) {
+          this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+        }
       }
     }
     if (deleteQueueOnClose && queueUrl) {
@@ -219,7 +228,9 @@ export class SqsNotificationConsumer<LoadedValue> extends AbstractNotificationCo
           new DeleteQueueCommand({ QueueUrl: queueUrl }),
         )
       } catch (err) {
-        this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+        if (!isQueueNotFound(err)) {
+          this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+        }
       }
     }
   }

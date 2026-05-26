@@ -12,6 +12,9 @@ import type { ConsumerErrorHandler, SynchronousGroupCache } from 'layered-loader
 import { AbstractNotificationConsumer } from 'layered-loader'
 import {
   type HeartbeatRunner,
+  isQueueNotFound,
+  isSubscriptionNotFound,
+  PENDING_CONFIRMATION_ARN,
   type QueueLifecycleOptions,
   startQueueHeartbeat,
 } from './queueLifecycle.js'
@@ -194,13 +197,22 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
 
     await consumer.close()
 
-    if (unsubscribeOnClose && subscriptionArn) {
+    // Cleanup is best-effort: already-gone resources (deleted by the reaper,
+    // never confirmed by SNS) are treated as success per the QueueLifecycleOptions
+    // docstring; only unexpected failures surface via onCleanupError.
+    if (
+      unsubscribeOnClose &&
+      subscriptionArn &&
+      subscriptionArn !== PENDING_CONFIRMATION_ARN
+    ) {
       try {
         await this.params.dependencies.snsClient.send(
           new UnsubscribeCommand({ SubscriptionArn: subscriptionArn }),
         )
       } catch (err) {
-        this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+        if (!isSubscriptionNotFound(err)) {
+          this.params.lifecycle?.onCleanupError?.(err as Error, 'unsubscribe')
+        }
       }
     }
     if (deleteQueueOnClose && queueUrl) {
@@ -209,7 +221,9 @@ export class SqsGroupNotificationConsumer<LoadedValue> extends AbstractNotificat
           new DeleteQueueCommand({ QueueUrl: queueUrl }),
         )
       } catch (err) {
-        this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+        if (!isQueueNotFound(err)) {
+          this.params.lifecycle?.onCleanupError?.(err as Error, 'deleteQueue')
+        }
       }
     }
   }

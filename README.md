@@ -524,7 +524,7 @@ Pick one of the following strategies — they are listed from simplest to most r
    })
    ```
 
-   The algorithm is the same one AWS's Java Temporary Queue Client uses internally — well-validated in production. Pick a `idleThresholdMs` that is at least 3× the heartbeat interval to tolerate transient AWS API failures without false-positive reaping.
+   This is a classic lease/heartbeat-and-sweep pattern: the consumer continuously asserts liveness via a per-queue tag, and an out-of-band reaper deletes anything whose lease has expired. Pick an `idleThresholdMs` at least 3× the heartbeat interval to tolerate transient AWS API failures without false-positive reaping.
 
 5. **EventBridge + Lambda lifecycle hooks** (most operationally complete, but not library territory). AWS's own [blog post on this pattern](https://aws.amazon.com/blogs/compute/building-dynamic-amazon-sns-subscriptions-for-auto-scaling-container-workloads/) shows how to react to ECS `RUNNING` / `STOPPED` events to create and delete queues without the container needing any SNS/SQS permissions itself. Worth considering for large ECS/Fargate deployments where containers should not hold queue-management permissions.
 
@@ -555,7 +555,7 @@ If your upstream is AWS-native (SNS topic owned by another service) but your own
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
 import Redis from 'ioredis'
-import { createNotificationPair, Loader } from 'layered-loader'
+import { createNotificationPair, Loader, RedisNotificationPublisher } from 'layered-loader'
 import { SqsInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT = z.object({ type: z.literal('user.updated'), userId: z.string() })
@@ -576,15 +576,14 @@ const userLoader = new Loader<User>({
 })
 await userLoader.init()
 
-// 2. A second Redis publisher for the trigger, with a distinct serverUuid so
-//    the local Redis consumer treats trigger-emitted invalidations as foreign
-//    and applies them (instead of skipping them as self-emitted).
-const { publisher: triggerPublisher } = createNotificationPair<User>({
-  channel: 'user-cache-invalidations',
-  serverUuid: randomUUID(),
-  publisherRedis: new Redis(redisOptions),
-  consumerRedis: new Redis(redisOptions),
-})
+// 2. A dedicated Redis publisher for the trigger, with a distinct serverUuid
+//    so the local Redis consumer treats trigger-emitted invalidations as
+//    foreign and applies them (instead of skipping them as self-emitted).
+//    Reuses the existing publisher Redis connection — no extra subscriber.
+const triggerPublisher = new RedisNotificationPublisher<User>(
+  new Redis(redisOptions),
+  { channel: 'user-cache-invalidations', serverUuid: randomUUID() },
+)
 
 // 3. The trigger itself, subscribed to the upstream service's SNS topic via
 //    one SHARED SQS queue (no ${HOSTNAME} suffix). All instances run this
