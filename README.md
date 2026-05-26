@@ -18,6 +18,42 @@ Special thanks to Diana Baužytė for creating the project logo.
 
 You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxYg) for a brief and visual overview of what new features `layered-loader` brings to the table of the Node.js caching.
 
+## Contents
+
+- [Prerequisites](#prerequisites)
+- [Use-cases](#use-cases)
+- [Feature Comparison](#feature-comparison)
+- [Performance Comparison](#performance-comparison)
+  - [In-Memory Store](#in-memory-store)
+  - [Redis Store](#redis-store)
+- [Basic concepts](#basic-concepts)
+- [Basic example](#basic-example)
+  - [Simplified loader syntax](#simplified-loader-syntax)
+- [Loader API](#loader-api)
+- [Parametrized loading](#parametrized-loading)
+- [Update notifications](#update-notifications)
+  - [Available notification adapters](#available-notification-adapters)
+  - [Redis pub/sub](#redis-pubsub)
+  - [AWS SNS/SQS](#aws-snssqs)
+    - [How fanout works](#how-fanout-works)
+- [Flexible invalidation triggers](#flexible-invalidation-triggers)
+  - [The trigger's `publisher` parameter](#the-triggers-publisher-parameter)
+  - [SNS/SQS adapter](#snssqs-adapter)
+- [Cache statistics](#cache-statistics)
+- [Cache-only operations](#cache-only-operations)
+  - [Forcing an update](#forcing-an-update)
+  - [Forcing a specific value](#forcing-a-specific-value)
+- [Usage in high-performance systems](#usage-in-high-performance-systems)
+  - [Synchronous short-circuit](#synchronous-short-circuit)
+  - [Preemptive background refresh](#preemptive-background-refresh)
+- [Group operations](#group-operations)
+- [Provided async caches](#provided-async-caches)
+  - [RedisCache](#rediscache)
+- [Redis connection safety](#redis-connection-safety)
+  - [Automatic READONLY reconnection](#automatic-readonly-reconnection)
+  - [Using `enrichRedisConfig` for your own connections](#using-enrichredisconfig-for-your-own-connections)
+  - [Cloud-optimized configuration](#cloud-optimized-configuration)
+
 ## Prerequisites
 
 Node: 16+
@@ -271,9 +307,11 @@ The way it works - whenever there is an invalidation event within the loader (`i
 | Transport | Package | When to pick it |
 | --- | --- | --- |
 | Redis pub/sub | Built-in (`createNotificationPair` from `layered-loader`) | Default choice; you already run Redis. Lowest latency, no per-instance queue setup. |
-| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native deployments; lets you also drive invalidations from upstream domain-event topics via [flexible triggers](#flexible-invalidation-triggers). |
+| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native deployments where you would rather not run Redis purely for invalidation fanout. |
 
-The Redis example below uses the built-in adapter. For AWS deployments see the [`@layered-loader/sqs` README](packages/sqs/README.md), which keeps the same `notificationPublisher` / `notificationConsumer` contract.
+Both adapters implement the same `notificationPublisher` / `notificationConsumer` contract — the rest of your Loader configuration does not change when you swap one for the other. Redis is the default since most deployments already run it; the SNS/SQS adapter is shown right after the Redis examples so you can compare them side by side.
+
+### Redis pub/sub
 
 Here is an example:
 
@@ -357,9 +395,60 @@ await userLoader.init() // this will ensure that consumers have definitely finis
 await userLoader.invalidateCacheFor('key', 'group') // this will transparently invalidate cache across all instances of your application
 ```
 
-### Flexible invalidation triggers
+### AWS SNS/SQS
 
-In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
+[`@layered-loader/sqs`](packages/sqs/README.md) provides a drop-in publisher/consumer pair backed by an SNS topic with one SQS queue **per instance**. The shape of the configuration mirrors the Redis pair — only the adapter changes.
+
+#### How fanout works
+
+SQS on its own is a competing-consumer queue: if every node read from the same queue, each invalidation would be delivered to only one of them and the rest would silently keep stale data. To get pub/sub-style fanout the adapter uses the SNS-fanout-to-SQS pattern:
+
+1. There is **one shared SNS topic** (named in `creationConfig.topic.Name` — the same on every instance).
+2. Each instance creates its **own SQS queue** subscribed to that topic. SNS delivers a copy of every published message to every subscribed queue.
+3. Each instance consumes only its own queue, so it sees every invalidation exactly once.
+
+This means **each instance must pass a unique `QueueName`** in its consumer's `creationConfig.queue`. The example below uses `process.env.HOSTNAME` for that — any per-instance identifier works (pod name, ECS task id, etc.). If two instances share a queue name they will share the queue and compete for messages, and roughly half the invalidations will be missed by each of them.
+
+In `locatorConfig` mode the same rule applies, just shifted to provisioning: each instance must be pointed at its own pre-created `queueUrl` / `subscriptionArn`.
+
+The publisher side is the opposite — all instances publish to the **same** topic ARN, so a single shared `topic.Name` in the publisher's `creationConfig` is correct (and required for the fanout to reach every subscriber).
+
+
+```ts
+import { Loader } from 'layered-loader'
+import { createNotificationPair } from '@layered-loader/sqs'
+
+const { publisher: notificationPublisher, consumer: notificationConsumer } =
+  createNotificationPair<User>({
+    publisher: {
+      dependencies: pubDeps,
+      creationConfig: { topic: { Name: 'user-cache-invalidations' } },
+    },
+    consumer: {
+      dependencies: consumerDeps,
+      creationConfig: {
+        topic: { Name: 'user-cache-invalidations' },
+        // Each instance MUST use a unique queue name (e.g. include the host id):
+        queue: { QueueName: `user-cache-invalidations-${process.env.HOSTNAME}` },
+      },
+    },
+  })
+
+const userLoader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: yourAsyncCache,
+  notificationConsumer,
+  notificationPublisher,
+})
+
+await userLoader.invalidateCacheFor('key')
+```
+
+`createGroupNotificationPair` from the same package is the `GroupLoader` equivalent. See the [package README](packages/sqs/README.md) for the full configuration reference (locator vs creation config, self-message filtering, AWS SDK dependencies, etc.).
+
+## Flexible invalidation triggers
+
+This is a separate concern from how invalidation is fanned out across your cluster (covered above). In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
 
 Layered-loader ships transport-agnostic primitives for this:
 
@@ -367,14 +456,22 @@ Layered-loader ships transport-agnostic primitives for this:
 - `InvalidationResolver<TMessage, TAction>` — a pure function `(message) => action | action[] | null` that maps an upstream message to invalidations.
 - `InvalidationTrigger` — `start()` / `stop()` lifecycle interface implemented by every adapter.
 
-A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through any `NotificationPublisher` (the same kind you build with `createNotificationPair`). The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
+A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through a `NotificationPublisher` — the same one you already configured under [Update notifications](#update-notifications), passed in as a separate instance (see below). The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
+
+### The trigger's `publisher` parameter
+
+The `publisher` passed to a trigger is **required** — without it the trigger has no way to fan resolved actions out to the cache cluster. It is a `NotificationPublisher<T>`: the same interface returned as `publisher` by `createNotificationPair`, or constructed directly via `SqsNotificationPublisher` (and `SqsGroupNotificationPublisher` for group triggers).
+
+The trigger's publisher must be a **separate instance from the local notification pair's publisher**, with a distinct `serverUuid`. The pair's consumer skips messages whose `originUuid` matches its own `serverUuid` (to avoid re-applying its own invalidations), so a trigger that shares the pair's `serverUuid` would silently never invalidate the local in-memory cache. In practice this means: instantiate the trigger publisher with `randomUUID()` even when it points at the same SNS topic as your `createNotificationPair` publisher.
+
+### SNS/SQS adapter
 
 The first concrete adapter ships in [`@layered-loader/sqs`](packages/sqs/README.md) and supports both:
 
 - Subscribing to an **existing SNS topic** (the trigger creates an SQS queue subscribed to it), and
 - Consuming from an **existing SQS queue** directly.
 
-Sketch with the SQS adapter:
+Sketch:
 
 ```ts
 import { z } from 'zod'
