@@ -63,16 +63,16 @@ export class StubGroupedAsyncCache {
 /**
  * Polls `predicate` every `intervalMs` until it returns truthy or the timeout
  * is reached. Throws on timeout. Use for assertions about events that happen
- * asynchronously after a publish.
+ * asynchronously after a publish. Predicate may be sync or async.
  */
 export async function waitFor(
-  predicate: () => boolean,
+  predicate: () => boolean | Promise<boolean>,
   timeoutMs = 5000,
   intervalMs = 50,
 ): Promise<void> {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
-    if (predicate()) return
+    if (await predicate()) return
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
   }
   throw new Error('Timed out waiting for predicate')

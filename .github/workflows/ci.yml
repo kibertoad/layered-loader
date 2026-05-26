@@ -17,7 +17,9 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x, 22.x, 24.x, 26.x]
+        # pnpm 11.1.2 (pulled by pnpm/action-setup v6) requires Node >= 22.13
+        # (uses the node:sqlite built-in), so Node 20 cannot run our toolchain.
+        node-version: [22.x, 24.x, 26.x]
 
     steps:
       - name: Checkout Repository
@@ -48,9 +50,7 @@ jobs:
       - name: Run Tests
         run: pnpm run test:coverage
 
-      # @layered-loader/sqs uses fauxqs as a test fixture, which requires Node >= 22.5
       - name: Run @layered-loader/sqs Tests
-        if: matrix.node-version != '20.x'
         run: pnpm --filter @layered-loader/sqs test
 
       - name: Stop Docker

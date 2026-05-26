@@ -32,13 +32,16 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 - [Loader API](#loader-api)
 - [Parametrized loading](#parametrized-loading)
 - [Update notifications](#update-notifications)
+  - [Picking a notification adapter (read this first)](#picking-a-notification-adapter-read-this-first)
   - [Available notification adapters](#available-notification-adapters)
   - [Redis pub/sub](#redis-pubsub)
   - [AWS SNS/SQS](#aws-snssqs)
     - [How fanout works](#how-fanout-works)
+    - [Queue lifecycle (AWS SNS/SQS adapter)](#queue-lifecycle-aws-snssqs-adapter)
 - [Flexible invalidation triggers](#flexible-invalidation-triggers)
+  - [Recommended pattern: Redis publisher + SQS trigger](#recommended-pattern-redis-publisher--sqs-trigger)
+  - [Alternative: all-SNS/SQS](#alternative-all-snssqs)
   - [The trigger's `publisher` parameter](#the-triggers-publisher-parameter)
-  - [SNS/SQS adapter](#snssqs-adapter)
 - [Cache statistics](#cache-statistics)
 - [Cache-only operations](#cache-only-operations)
   - [Forcing an update](#forcing-an-update)
@@ -302,14 +305,23 @@ await operation.get({ jwtToken: 'someTokenValue', entityId: 'key' })
 It is possible to mostly rely on fast in-memory caches and still keep data in sync across multiple nodes in a distributed system. In order to achieve this, you need to use Notification Publisher/Consumer pair.
 The way it works - whenever there is an invalidation event within the loader (`invalidate`, `invalidateFor` or `invalidatForGroup` methods are invoked), publisher sends a fanout notification to all subscribed consumers, and they invalidate their own caches as well.
 
+### Picking a notification adapter (read this first)
+
+**Prefer Redis pub/sub.** It is the simplest path operationally — no per-instance resources to provision or reap, no AWS quotas to worry about, no extra latency. Use Redis pub/sub whenever your stack already runs Redis (which it almost always does if you are using `RedisCache`).
+
+The SNS/SQS adapter exists for two situations:
+
+1. **You cannot run Redis** (e.g. a hard "AWS-managed services only" policy). Use the SNS/SQS adapter end-to-end. This works, but the per-instance SQS queues come with a real operational tax — see [Queue lifecycle](#queue-lifecycle-aws-snssqs-adapter) before adopting it.
+2. **You need to consume upstream AWS events** (an SNS topic owned by another service) and turn them into cache invalidations. In this case the **recommended pattern is a hybrid**: Redis pub/sub for the cache cluster's own fanout, plus an `SqsInvalidationTrigger` reading the upstream topic and republishing through the Redis publisher. See [Flexible invalidation triggers](#flexible-invalidation-triggers). This keeps all the operational simplicity of Redis while still consuming AWS-native domain events.
+
 ### Available notification adapters
 
 | Transport | Package | When to pick it |
 | --- | --- | --- |
-| Redis pub/sub | Built-in (`createNotificationPair` from `layered-loader`) | Default choice; you already run Redis. Lowest latency, no per-instance queue setup. |
-| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native deployments where you would rather not run Redis purely for invalidation fanout. |
+| **Redis pub/sub** (default) | Built-in (`createNotificationPair` from `layered-loader`) | First choice. Lowest latency, no per-instance queue setup, no lifecycle management. |
+| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | Only if Redis is unavailable. Adds per-instance queues and their associated lifecycle concerns. |
 
-Both adapters implement the same `notificationPublisher` / `notificationConsumer` contract — the rest of your Loader configuration does not change when you swap one for the other. Redis is the default since most deployments already run it; the SNS/SQS adapter is shown right after the Redis examples so you can compare them side by side.
+Both adapters implement the same `notificationPublisher` / `notificationConsumer` contract — the rest of your Loader configuration does not change when you swap one for the other.
 
 ### Redis pub/sub
 
@@ -446,6 +458,78 @@ await userLoader.invalidateCacheFor('key')
 
 `createGroupNotificationPair` from the same package is the `GroupLoader` equivalent. See the [package README](packages/sqs/README.md) for the full configuration reference (locator vs creation config, self-message filtering, AWS SDK dependencies, etc.).
 
+#### Queue lifecycle (AWS SNS/SQS adapter)
+
+Per-instance queue names solve fanout but introduce a problem Redis pub/sub does not have: **SQS queues persist until explicitly deleted, and AMQP-style `auto-delete` queues do not exist on AWS**. Every restart of a pod with a new `HOSTNAME` leaks a queue + an SNS subscription. AWS quotas (12.5k subscriptions/topic, 1M queues/account) are hit faster than people expect on hot autoscaling groups.
+
+Pick one of the following strategies — they are listed from simplest to most robust:
+
+1. **Stable queue names.** If your deployment gives you stable identifiers (StatefulSet pod ordinals like `web-0`/`web-1`, ECS service with placement constraints, fixed worker slots, etc.), use them in the queue name. Restarted pods reuse the same queue. Zero churn, no cleanup code. This is the simplest answer when applicable.
+
+2. **Use the hybrid pattern (Redis publisher + SQS trigger).** If your only reason for SQS is consuming upstream AWS events, [the hybrid pattern](#flexible-invalidation-triggers) lets the trigger use a **single shared queue across all instances** (competing-consumer semantics — only one node processes each upstream event, then republishes via Redis). No churn either, and no Redis-vs-SQS tradeoff.
+
+3. **Graceful shutdown cleanup.** Opt in to `lifecycle.deleteQueueOnClose` and `lifecycle.unsubscribeOnClose` on the consumer config. On `consumer.close()` (typically wired to your SIGTERM handler), the SDK issues `Unsubscribe` then `DeleteQueue`. Handles the happy path; misses on OOM kill / `kill -9` / hard pod evictions.
+
+   ```ts
+   import { createNotificationPair } from '@layered-loader/sqs'
+
+   const { publisher, consumer } = createNotificationPair<User>({
+     publisher: { dependencies: pubDeps, creationConfig: { topic: { Name: 'user-cache-invalidations' } } },
+     consumer: {
+       dependencies: consumerDeps,
+       creationConfig: {
+         topic: { Name: 'user-cache-invalidations' },
+         queue: { QueueName: `user-cache-invalidations-${process.env.HOSTNAME}` },
+       },
+       lifecycle: {
+         deleteQueueOnClose: true,
+         unsubscribeOnClose: true,
+       },
+     },
+   })
+
+   process.on('SIGTERM', async () => {
+     await consumer.close()
+     await publisher.close()
+     process.exit(0)
+   })
+   ```
+
+4. **Heartbeat + external reaper.** For full robustness against any termination mode (including hard kills), enable the heartbeat on each consumer and run `reapStaleQueues` periodically (cron, Lambda, scheduled task). Each live consumer writes a `layered-loader:heartbeat` tag on its own queue every minute; the reaper deletes queues whose tag is older than the threshold.
+
+   ```ts
+   import { createNotificationPair, reapStaleQueues } from '@layered-loader/sqs'
+
+   const { publisher, consumer } = createNotificationPair<User>({
+     publisher: { dependencies: pubDeps, creationConfig: { topic: { Name: 'user-cache-invalidations' } } },
+     consumer: {
+       dependencies: consumerDeps,
+       creationConfig: {
+         topic: { Name: 'user-cache-invalidations' },
+         queue: { QueueName: `user-cache-invalidations-${process.env.HOSTNAME}` },
+       },
+       lifecycle: {
+         heartbeat: { intervalMs: 60_000 },
+       },
+     },
+   })
+
+   // Run on a schedule (every 5–15 minutes is typical):
+   await reapStaleQueues({
+     sqsClient,
+     snsClient, // optional — also removes orphan subscriptions
+     topicArn,
+     queueNamePrefix: 'user-cache-invalidations-',
+     idleThresholdMs: 5 * 60_000,
+   })
+   ```
+
+   This is a classic lease/heartbeat-and-sweep pattern: the consumer continuously asserts liveness via a per-queue tag, and an out-of-band reaper deletes anything whose lease has expired. Pick an `idleThresholdMs` at least 3× the heartbeat interval to tolerate transient AWS API failures without false-positive reaping.
+
+5. **EventBridge + Lambda lifecycle hooks** (most operationally complete, but not library territory). AWS's own [blog post on this pattern](https://aws.amazon.com/blogs/compute/building-dynamic-amazon-sns-subscriptions-for-auto-scaling-container-workloads/) shows how to react to ECS `RUNNING` / `STOPPED` events to create and delete queues without the container needing any SNS/SQS permissions itself. Worth considering for large ECS/Fargate deployments where containers should not hold queue-management permissions.
+
+If none of the above apply: revisit option 1 (stable names) or option 2 (Redis publisher + SQS trigger hybrid). They are simpler than any cleanup code you might write.
+
 ## Flexible invalidation triggers
 
 This is a separate concern from how invalidation is fanned out across your cluster (covered above). In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
@@ -456,39 +540,84 @@ Layered-loader ships transport-agnostic primitives for this:
 - `InvalidationResolver<TMessage, TAction>` — a pure function `(message) => action | action[] | null` that maps an upstream message to invalidations.
 - `InvalidationTrigger` — `start()` / `stop()` lifecycle interface implemented by every adapter.
 
-A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through a `NotificationPublisher` — the same one you already configured under [Update notifications](#update-notifications), passed in as a separate instance (see below). The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
+A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through a `NotificationPublisher`. The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
 
-### The trigger's `publisher` parameter
+### Recommended pattern: Redis publisher + SQS trigger
 
-The `publisher` passed to a trigger is **required** — without it the trigger has no way to fan resolved actions out to the cache cluster. It is a `NotificationPublisher<T>`: the same interface returned as `publisher` by `createNotificationPair`, or constructed directly via `SqsNotificationPublisher` (and `SqsGroupNotificationPublisher` for group triggers).
+If your upstream is AWS-native (SNS topic owned by another service) but your own infrastructure runs Redis, this is the **recommended setup**. You get AWS-native event ingestion *without* the per-instance SQS queue lifecycle problem, because the trigger queue can be **shared across all instances**:
 
-The trigger's publisher must be a **separate instance from the local notification pair's publisher**, with a distinct `serverUuid`. The pair's consumer skips messages whose `originUuid` matches its own `serverUuid` (to avoid re-applying its own invalidations), so a trigger that shares the pair's `serverUuid` would silently never invalidate the local in-memory cache. In practice this means: instantiate the trigger publisher with `randomUUID()` even when it points at the same SNS topic as your `createNotificationPair` publisher.
-
-### SNS/SQS adapter
-
-The first concrete adapter ships in [`@layered-loader/sqs`](packages/sqs/README.md) and supports both:
-
-- Subscribing to an **existing SNS topic** (the trigger creates an SQS queue subscribed to it), and
-- Consuming from an **existing SQS queue** directly.
-
-Sketch:
+- The trigger reads upstream events from a single shared SQS queue subscribed to the upstream SNS topic.
+- SQS's competing-consumer semantics mean only **one** instance processes each upstream event.
+- That instance republishes the resolved invalidation through the Redis publisher.
+- Redis pub/sub fans it out to every cache instance (including the one that emitted it — Redis pub/sub does not have the self-skip problem SQS has, and the Redis publisher's `serverUuid` filtering handles correctness either way).
 
 ```ts
 import { z } from 'zod'
 import { randomUUID } from 'node:crypto'
-import { Loader } from 'layered-loader'
-import {
-  createNotificationPair,
-  SqsNotificationPublisher,
-  SqsInvalidationTrigger,
-} from '@layered-loader/sqs'
+import Redis from 'ioredis'
+import { createNotificationPair, Loader, RedisNotificationPublisher } from 'layered-loader'
+import { SqsInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT = z.object({ type: z.literal('user.updated'), userId: z.string() })
 
-// Cache cluster's invalidation pair
-const { publisher, consumer } = createNotificationPair<User>({ /* ... */ })
+// 1. The cache cluster's own invalidation pair — pure Redis pub/sub.
+const { publisher: notificationPublisher, consumer: notificationConsumer } =
+  createNotificationPair<User>({
+    channel: 'user-cache-invalidations',
+    publisherRedis: new Redis(redisOptions),
+    consumerRedis: new Redis(redisOptions),
+  })
 
-// Trigger publisher needs a fresh serverUuid so the LOCAL cache also reacts
+const userLoader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: yourAsyncCache,
+  notificationConsumer,
+  notificationPublisher,
+})
+await userLoader.init()
+
+// 2. A dedicated Redis publisher for the trigger, with a distinct serverUuid
+//    so the local Redis consumer treats trigger-emitted invalidations as
+//    foreign and applies them (instead of skipping them as self-emitted).
+//    Reuses the existing publisher Redis connection — no extra subscriber.
+const triggerPublisher = new RedisNotificationPublisher<User>(
+  new Redis(redisOptions),
+  { channel: 'user-cache-invalidations', serverUuid: randomUUID() },
+)
+
+// 3. The trigger itself, subscribed to the upstream service's SNS topic via
+//    one SHARED SQS queue (no ${HOSTNAME} suffix). All instances run this
+//    code, but SQS guarantees each upstream event goes to exactly one of them.
+const trigger = new SqsInvalidationTrigger({
+  sourceType: 'sns-topic',
+  dependencies: consumerDeps,
+  creationConfig: {
+    topic: { Name: 'domain-events.users' },              // upstream service's topic
+    queue: { QueueName: 'user-cache-invalidation-trigger' }, // SHARED across all instances
+  },
+  messageSchema: USER_EVENT,
+  publisher: triggerPublisher,
+  resolver: (msg) => ({ kind: 'delete', key: msg.userId }),
+})
+
+await trigger.start()
+```
+
+Operational properties of this setup:
+
+- **No queue churn.** One SQS queue exists, regardless of how many pods you run.
+- **No lifecycle plumbing needed** (no `deleteQueueOnClose`, no heartbeat, no reaper).
+- **Failure isolation.** If one pod dies mid-message, SQS visibility timeout returns it to the queue and another pod picks it up.
+- **Optional ordering.** Use an SQS FIFO queue if your upstream events have a meaningful order per entity.
+
+### Alternative: all-SNS/SQS
+
+If Redis is not on the table at all, you can use `SqsNotificationPublisher` as the trigger's `publisher` instead. The pattern is the same, but you inherit the per-instance queue lifecycle problem on *both* the cache pair and the trigger pair — see [Queue lifecycle](#queue-lifecycle-aws-snssqs-adapter).
+
+```ts
+import { SqsNotificationPublisher, SqsInvalidationTrigger } from '@layered-loader/sqs'
+
+// Trigger publisher needs a fresh serverUuid distinct from the local pair's.
 const triggerPublisher = new SqsNotificationPublisher<User>({
   serverUuid: randomUUID(),
   dependencies,
@@ -499,18 +628,24 @@ const trigger = new SqsInvalidationTrigger({
   sourceType: 'sns-topic',
   dependencies: consumerDeps,
   creationConfig: {
-    topic: { Name: 'domain-events.users' }, // upstream service's topic
+    topic: { Name: 'domain-events.users' },
+    // In an all-SNS/SQS setup the trigger queue is typically per-instance too.
+    // Apply one of the lifecycle strategies from "Queue lifecycle" to handle churn.
     queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
   },
   messageSchema: USER_EVENT,
   publisher: triggerPublisher,
   resolver: (msg) => ({ kind: 'delete', key: msg.userId }),
 })
-
-await trigger.start()
 ```
 
-Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, the `serverUuid` rule, and error handling.
+### The trigger's `publisher` parameter
+
+The `publisher` passed to a trigger is **required** — without it the trigger has no way to fan resolved actions out to the cache cluster. It is a `NotificationPublisher<T>`: either the built-in Redis publisher (recommended) or `SqsNotificationPublisher` from `@layered-loader/sqs`.
+
+The trigger's publisher must be a **separate instance from the local notification pair's publisher**, with a distinct `serverUuid`. The pair's consumer skips messages whose `originUuid` matches its own `serverUuid` (to avoid re-applying its own invalidations), so a trigger that shares the pair's `serverUuid` would silently never invalidate the local in-memory cache. In practice this means: instantiate the trigger publisher with `randomUUID()` even when it points at the same channel/topic as your cache pair's publisher.
+
+Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the upstream consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, the `serverUuid` rule, and error handling.
 
 ## Cache statistics
 
