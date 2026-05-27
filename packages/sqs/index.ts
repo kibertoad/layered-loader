@@ -50,8 +50,10 @@ export {
 // Flexible invalidation triggers
 export type {
   GroupInvalidationAction,
+  GroupInvalidationTarget,
   InvalidationAction,
   InvalidationResolver,
+  InvalidationTarget,
   InvalidationTrigger,
   ResolverOutput,
   TriggerErrorHandler,
@@ -64,16 +66,43 @@ export {
 } from './lib/triggers/dispatch.js'
 export {
   AbstractSqsTrigger,
-  deriveTriggerChannelName,
-  type SqsTriggerSource,
+  composeTriggers,
+  type InternalConsumerHandle,
+  SnsTopicTriggerConsumer,
+  SqsQueueTriggerConsumer,
 } from './lib/triggers/AbstractSqsTrigger.js'
 export {
-  SqsInvalidationTrigger,
-  type SqsInvalidationTriggerParams,
-  type SqsTriggerSourceConfig,
-} from './lib/triggers/SqsInvalidationTrigger.js'
+  buildFlatBindings,
+  buildGroupBindings,
+  type FlatBinding,
+  type GroupBinding,
+  type MessageTypeResolver,
+} from './lib/triggers/bindingHelpers.js'
 export {
-  SqsGroupInvalidationTrigger,
-  type SqsGroupInvalidationTriggerParams,
-  type SqsGroupTriggerSourceConfig,
-} from './lib/triggers/SqsGroupInvalidationTrigger.js'
+  deriveSqsQueueChannelName,
+  SqsQueueInvalidationTrigger,
+  type SqsQueueInvalidationSource,
+  type SqsQueueInvalidationTriggerParams,
+  type SqsQueueSourceConfig,
+} from './lib/triggers/SqsQueueInvalidationTrigger.js'
+export {
+  deriveSnsTopicChannelName,
+  SnsTopicInvalidationTrigger,
+  type SnsTopicInvalidationSource,
+  type SnsTopicInvalidationTriggerParams,
+  type SnsTopicSourceConfig,
+} from './lib/triggers/SnsTopicInvalidationTrigger.js'
+export {
+  deriveSqsQueueGroupChannelName,
+  SqsQueueGroupInvalidationTrigger,
+  type SqsQueueGroupInvalidationSource,
+  type SqsQueueGroupInvalidationTriggerParams,
+  type SqsQueueGroupSourceConfig,
+} from './lib/triggers/SqsQueueGroupInvalidationTrigger.js'
+export {
+  deriveSnsTopicGroupChannelName,
+  SnsTopicGroupInvalidationTrigger,
+  type SnsTopicGroupInvalidationSource,
+  type SnsTopicGroupInvalidationTriggerParams,
+  type SnsTopicGroupSourceConfig,
+} from './lib/triggers/SnsTopicGroupInvalidationTrigger.js'

@@ -25,9 +25,9 @@
     "update:dependencies": "npx npm-check-updates -u"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
-  "packageManager": "pnpm@11.1.2",
+  "packageManager": "pnpm@11.3.0",
   "repository": {
     "type": "git",
     "url": "git://github.com/kibertoad/layered-loader.git"
@@ -67,10 +67,5 @@
     "README.md",
     "LICENSE",
     "dist/*"
-  ],
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome"
-    ]
-  }
+  ]
 }

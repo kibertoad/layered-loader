@@ -5,24 +5,29 @@ SNS/SQS remote-invalidation adapter for [`layered-loader`](https://github.com/ki
 This package provides:
 
 - **Notification publishers and consumers** that fan cache invalidations out across a cluster via an SNS topic and per-instance SQS queues — a drop-in alternative to the built-in Redis adapter for AWS-native deployments.
-- **Flexible invalidation triggers** that subscribe to an *existing* upstream SNS topic or SQS queue (one that knows nothing about the caching layer) and translate domain events such as `user.updated` into cache invalidations propagated through your notification pair.
+- **Flexible invalidation triggers** that subscribe to an *existing* upstream SNS topic or SQS queue (one that knows nothing about the caching layer) and translate domain events such as `user.updated` into cache invalidations applied to your `Loader` / `GroupLoader`.
 
 The implementation is built on top of [`@message-queue-toolkit/sns`](https://github.com/kibertoad/message-queue-toolkit) and is tested against [fauxqs](https://github.com/kibertoad/fauxqs), an in-process SNS/SQS emulator.
+
+> **Prefer Redis pub/sub when you can.** This package exists to support AWS-native deployments and upstream-event consumption, but operationally Redis pub/sub is simpler — no per-instance queues, no lifecycle management, no AWS quotas to track. If your only reason to be here is "I have an upstream SNS topic to consume", the **[recommended hybrid pattern](#recommended-pattern-redis-fanout--sqs-trigger)** is Redis publisher in the Loader + SQS trigger reading the upstream topic with a shared queue. You skip the queue-lifecycle problem entirely.
 
 ## Contents
 
 - [Installation](#installation)
+- [Picking your shape](#picking-your-shape)
 - [Quick start: notification pair](#quick-start-notification-pair)
 - [Group notification pair](#group-notification-pair)
 - [Locator vs creation config](#locator-vs-creation-config)
 - [How invalidation flows through SNS/SQS](#how-invalidation-flows-through-snssqs)
 - [Self-message filtering and `serverUuid`](#self-message-filtering-and-serveruuid)
 - [Flexible invalidation triggers](#flexible-invalidation-triggers)
+  - [Recommended pattern: Redis fanout + SQS trigger](#recommended-pattern-redis-fanout--sqs-trigger)
   - [Triggering from an existing SNS topic](#triggering-from-an-existing-sns-topic)
   - [Triggering from an existing SQS queue](#triggering-from-an-existing-sqs-queue)
   - [Group triggers](#group-triggers)
+  - [Multiple sources and event types](#multiple-sources-and-event-types)
+  - [Mixing source kinds with `composeTriggers`](#mixing-source-kinds-with-composetriggers)
   - [Resolver semantics](#resolver-semantics)
-  - [The trigger-publisher rule](#the-trigger-publisher-rule)
   - [Error handling and retries](#error-handling-and-retries)
 - [Testing with fauxqs](#testing-with-fauxqs)
 - [API reference](#api-reference)
@@ -39,7 +44,21 @@ npm install \
   zod
 ```
 
-Node 20+ is required.
+Node 22+ is required.
+
+## Picking your shape
+
+There are three deployment shapes you can build with this package, and they have very different operational profiles. Pick deliberately:
+
+| Shape | Publisher | Trigger source | Queue churn | When to use |
+| --- | --- | --- | --- | --- |
+| **A. Pure Redis** (use [`layered-loader`](https://github.com/kibertoad/layered-loader#update-notifications) directly, not this package) | Redis pub/sub | (none, or Redis-driven) | None | Default. Use this whenever Redis is available and you have no upstream AWS events to consume. |
+| **B. Pure SNS/SQS** | `SqsNotificationPublisher` | per-instance SQS queues | **Yes** — needs careful queue naming or external cleanup | Only when Redis is not available at all. |
+| **C. Hybrid: Redis fanout + SQS trigger** ⭐ | Redis pub/sub | `SnsTopicInvalidationTrigger` on a **shared** queue, applying to a `Loader` whose publisher is Redis | None | When you have AWS upstream events to consume but Redis is available for cluster fanout. **Recommended for the upstream-events use case.** |
+
+Shape **C** is almost always the right answer if you have AWS upstream events and Redis. It gives you AWS-native event ingestion *and* the operational simplicity of Redis fanout. See [Recommended pattern: Redis fanout + SQS trigger](#recommended-pattern-redis-fanout--sqs-trigger).
+
+If you settle on shape **B** (no Redis at all), use stable queue names (StatefulSet ordinals, ECS fixed slot IDs) wherever your deployment topology allows — every restart with a random `HOSTNAME` leaks an SQS queue + SNS subscription, and SQS does not have AMQP-style auto-delete queues.
 
 ## Quick start: notification pair
 
@@ -186,25 +205,102 @@ Every published command carries an `originUuid`. A consumer skips a command whos
 
 A *trigger* lets you treat any upstream messaging system as a source of cache-invalidation events without that system knowing the cache exists. The trigger:
 
-1. Subscribes to a queue or topic you do not own.
+1. Subscribes to one or more queues or topics you do not own.
 2. Validates each message with a Zod schema.
 3. Runs your **resolver** to extract entity ids (and optionally a group).
-4. Forwards the resulting actions through a configured `NotificationPublisher`, fanning them out to every cache instance.
+4. Applies the resulting actions directly to your `Loader` / `GroupLoader` — which handles local in-memory and async-cache invalidation and, if you configured a notification pair, also fans the invalidation out to peer instances.
 
-The actions and resolver shape are transport-agnostic — the same `InvalidationResolver`, `InvalidationAction`, dispatch helpers, and `InvalidationTrigger` interface can power future RabbitMQ / Kafka / Pub/Sub adapters. The SNS/SQS adapters live in this package.
+The actions and resolver shape are transport-agnostic — the same `InvalidationResolver`, `InvalidationAction`, and `InvalidationTrigger` interface can power future RabbitMQ / Kafka / Pub/Sub adapters. The SNS/SQS adapters live in this package.
+
+### Recommended pattern: Redis fanout + SQS trigger
+
+This is shape **C** from [Picking your shape](#picking-your-shape) and the recommended setup whenever you have both AWS upstream events to consume and Redis available. The `Loader` uses Redis for cluster fanout, and the trigger queue can be **shared across every instance** (no per-instance queues to manage):
+
+```ts
+import { z } from 'zod'
+import Redis from 'ioredis'
+import { createNotificationPair, Loader } from 'layered-loader'
+import { SnsTopicInvalidationTrigger } from '@layered-loader/sqs'
+
+const USER_EVENT_SCHEMA = z.object({
+  type: z.literal('user.updated'),
+  userId: z.string(),
+})
+
+const redisOptions = { host: 'redis', port: 6379 }
+
+// 1. The cache cluster's own invalidation pair — pure Redis pub/sub.
+const { publisher: notificationPublisher, consumer: notificationConsumer } =
+  createNotificationPair<User>({
+    channel: 'user-cache-invalidations',
+    publisherRedis: new Redis(redisOptions),
+    consumerRedis: new Redis(redisOptions),
+  })
+
+const userLoader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: yourAsyncCache,
+  notificationConsumer,
+  notificationPublisher,
+})
+await userLoader.init()
+
+// 2. The trigger applies invalidations directly to the loader. Each instance
+//    runs this code, but the SQS queue is SHARED (no ${HOSTNAME} suffix) —
+//    competing-consumer semantics deliver each upstream event to exactly one
+//    instance. That instance's loader propagates via Redis pub/sub.
+const trigger = new SnsTopicInvalidationTrigger({
+  target: userLoader,
+  dependencies: consumerDeps,
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'domain-events.users' },                  // upstream service's topic
+        queue: { QueueName: 'user-cache-invalidation-trigger' }, // SHARED across all instances
+      },
+      bindings: [
+        {
+          messageSchema: USER_EVENT_SCHEMA,
+          resolver: (msg) => ({ kind: 'delete', key: msg.userId }),
+        },
+      ],
+    },
+  ],
+})
+
+await trigger.start()
+```
+
+Operational properties:
+
+- **One** SQS queue regardless of pod count → no churn, no lifecycle plumbing needed.
+- AWS-native ingestion of upstream domain events.
+- Redis pub/sub for cluster fanout — sub-ms latency, no per-instance setup.
+- Natural failure isolation: if a pod crashes mid-message, SQS visibility timeout returns the message to the queue and another pod picks it up.
+
+If your upstream events have meaningful per-entity ordering, use an SQS FIFO queue (`QueueName: 'user-cache-invalidation-trigger.fifo'` plus `FifoQueue: 'true'` in the queue attributes). Otherwise a standard queue is appropriate.
+
+The remainder of this section describes the trigger classes themselves — they are used identically whether the loader's publisher is Redis (shape **C**, recommended) or `SqsNotificationPublisher` (shape **B**).
+
+Four trigger classes ship for SNS/SQS:
+
+| Class | Source kind | Target |
+| --- | --- | --- |
+| `SnsTopicInvalidationTrigger`         | SNS topic (subscribes a dedicated SQS queue) | flat `Loader` |
+| `SqsQueueInvalidationTrigger`         | Existing SQS queue                           | flat `Loader` |
+| `SnsTopicGroupInvalidationTrigger`    | SNS topic                                    | `GroupLoader` |
+| `SqsQueueGroupInvalidationTrigger`    | Existing SQS queue                           | `GroupLoader` |
+
+Each trigger is homogeneous in source kind and takes a single `dependencies` block (shared across every source it consumes). For deployments that need to mix source kinds, `composeTriggers(...)` bundles multiple triggers under one `start()` / `stop()`.
 
 ### Triggering from an existing SNS topic
 
-Use `sourceType: 'sns-topic'` with either creation or locator config. The trigger creates (or reuses) an SQS queue and subscribes it to the upstream topic.
+The trigger creates (or reuses) an SQS queue and subscribes it to each upstream topic.
 
 ```ts
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import {
-  createNotificationPair,
-  SqsInvalidationTrigger,
-  SqsNotificationPublisher,
-} from '@layered-loader/sqs'
+import { Loader } from 'layered-loader'
+import { createNotificationPair, SnsTopicInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT_SCHEMA = z.object({
   type: z.enum(['user.updated', 'user.deleted', 'user.bulk-updated']),
@@ -224,37 +320,42 @@ const cachePair = createNotificationPair<User>({
   },
 })
 
-// 2. A separate publisher dedicated to trigger-emitted messages.
-//    Its serverUuid MUST be different from cachePair's so the local consumer
-//    treats trigger messages as foreign and applies them.
-const triggerPublisher = new SqsNotificationPublisher<User>({
-  serverUuid: randomUUID(),
-  dependencies: pubDeps,
-  locatorConfig: { topicName: 'user-cache-invalidations' },
+const userLoader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: yourAsyncCache,
+  notificationConsumer: cachePair.consumer,
+  notificationPublisher: cachePair.publisher,
 })
 
-// 3. The trigger itself, subscribed to an upstream domain-event topic
-//    owned by another service:
-const trigger = new SqsInvalidationTrigger<z.infer<typeof USER_EVENT_SCHEMA>>({
-  sourceType: 'sns-topic',
+// 2. The trigger consumes domain events and applies them to the Loader.
+//    The Loader's own publisher takes care of fanning out to peers.
+const trigger = new SnsTopicInvalidationTrigger({
+  target: userLoader,
   dependencies: consumerDeps,
-  creationConfig: {
-    topic: { Name: 'domain-events.users' }, // owned by an upstream service
-    queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
-  },
-  messageSchema: USER_EVENT_SCHEMA,
-  publisher: triggerPublisher,
-  resolver: (msg) => {
-    switch (msg.type) {
-      case 'user.updated':
-      case 'user.deleted':
-        return msg.userId ? { kind: 'delete', key: msg.userId } : null
-      case 'user.bulk-updated':
-        return msg.userIds?.length
-          ? { kind: 'deleteMany', keys: msg.userIds }
-          : null
-    }
-  },
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'domain-events.users' }, // owned by an upstream service
+        queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
+      },
+      bindings: [
+        {
+          messageSchema: USER_EVENT_SCHEMA,
+          resolver: (msg) => {
+            switch (msg.type) {
+              case 'user.updated':
+              case 'user.deleted':
+                return msg.userId ? { kind: 'delete', key: msg.userId } : null
+              case 'user.bulk-updated':
+                return msg.userIds?.length
+                  ? { kind: 'deleteMany', keys: msg.userIds }
+                  : null
+            }
+          },
+        },
+      ],
+    },
+  ],
 })
 
 await trigger.start()
@@ -262,60 +363,128 @@ await trigger.start()
 
 ### Triggering from an existing SQS queue
 
-If the upstream system writes directly to an SQS queue (no SNS topic in the middle), use `sourceType: 'sqs-queue'`:
+If the upstream system writes directly to an SQS queue (no SNS topic in the middle), use `SqsQueueInvalidationTrigger`:
 
 ```ts
-import { SqsInvalidationTrigger } from '@layered-loader/sqs'
+import { SqsQueueInvalidationTrigger } from '@layered-loader/sqs'
 
-const trigger = new SqsInvalidationTrigger<DomainEvent>({
-  sourceType: 'sqs-queue',
-  dependencies: sqsConsumerDeps,
-  locatorConfig: {
-    queueUrl: 'https://sqs.us-east-1.amazonaws.com/000000000000/domain-events',
-  },
-  messageSchema: DOMAIN_EVENT_SCHEMA,
-  publisher: triggerPublisher,
-  resolver: (msg) => /* ... */,
+const trigger = new SqsQueueInvalidationTrigger({
+  target: userLoader,
+  dependencies: sqsConsumerDeps, // only needs SQS clients, not SNS/STS
+  sources: [
+    {
+      locatorConfig: {
+        queueUrl: 'https://sqs.us-east-1.amazonaws.com/000000000000/domain-events',
+      },
+      bindings: [
+        { messageSchema: DOMAIN_EVENT_SCHEMA, resolver: (msg) => /* ... */ },
+      ],
+    },
+  ],
 })
 
 await trigger.start()
 ```
 
-The pure-SQS source uses `@message-queue-toolkit/sqs`'s consumer directly and does not require SNS / STS clients in its dependencies.
+`SqsQueueInvalidationTrigger` uses `@message-queue-toolkit/sqs`'s consumer directly and does not require SNS / STS clients in its dependencies.
 
 ### Group triggers
 
-`SqsGroupInvalidationTrigger` mirrors the flat trigger but emits `GroupInvalidationAction`s:
+The group counterparts emit `GroupInvalidationAction`s and target a `GroupLoader`:
 
 ```ts
-import { SqsGroupInvalidationTrigger, SqsGroupNotificationPublisher } from '@layered-loader/sqs'
+import { SnsTopicGroupInvalidationTrigger } from '@layered-loader/sqs'
 
-const triggerPublisher = new SqsGroupNotificationPublisher<User>({
-  serverUuid: randomUUID(),
-  dependencies: pubDeps,
-  locatorConfig: { topicName: 'tenant-cache-invalidations' },
-})
-
-const trigger = new SqsGroupInvalidationTrigger<TenantEvent>({
-  sourceType: 'sns-topic',
+const trigger = new SnsTopicGroupInvalidationTrigger({
+  target: tenantLoader, // a GroupLoader with its own notification pair
   dependencies: consumerDeps,
-  creationConfig: {
-    topic: { Name: 'tenant-events' },
-    queue: { QueueName: `tenant-trigger-${process.env.HOSTNAME}` },
-  },
-  messageSchema: TENANT_EVENT_SCHEMA,
-  publisher: triggerPublisher,
-  resolver: (msg) => {
-    if (msg.type === 'tenant.purged') return { kind: 'deleteGroup', group: msg.tenantId }
-    if (msg.type === 'tenant.user.updated' && msg.userId) {
-      return { kind: 'deleteFromGroup', key: msg.userId, group: msg.tenantId }
-    }
-    return null
-  },
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'tenant-events' },
+        queue: { QueueName: `tenant-trigger-${process.env.HOSTNAME}` },
+      },
+      bindings: [
+        {
+          messageSchema: TENANT_EVENT_SCHEMA,
+          resolver: (msg) => {
+            if (msg.type === 'tenant.purged') return { kind: 'deleteGroup', group: msg.tenantId }
+            if (msg.type === 'tenant.user.updated' && msg.userId) {
+              return { kind: 'deleteFromGroup', key: msg.userId, group: msg.tenantId }
+            }
+            return null
+          },
+        },
+      ],
+    },
+  ],
 })
-
-await trigger.start()
 ```
+
+`SqsQueueGroupInvalidationTrigger` is the SQS-queue counterpart.
+
+### Multiple sources and event types
+
+A trigger can subscribe to **multiple sources** at once (each spun up as an independent consumer) and can route **multiple event types from the same source** to different resolvers via a `messageTypeField` discriminator.
+
+```ts
+const USER_UPDATED = z.object({ type: z.literal('user.updated'), userId: z.string() })
+const USER_BULK    = z.object({ type: z.literal('user.bulk'),    userIds: z.array(z.string()) })
+
+const trigger = new SqsQueueInvalidationTrigger({
+  target: userLoader,
+  dependencies: sqsConsumerDeps,
+  sources: [
+    {
+      locatorConfig: { queueUrl: process.env.UPSTREAM_QUEUE_A_URL! },
+      bindings: [
+        { messageSchema: USER_UPDATED, resolver: (m) => ({ kind: 'delete', key: m.userId }) },
+      ],
+    },
+    // Same trigger, different queue, multiple event types
+    {
+      locatorConfig: { queueUrl: process.env.UPSTREAM_QUEUE_B_URL! },
+      messageTypeField: 'type', // path on the message body that selects a binding
+      bindings: [
+        {
+          messageType: 'user.updated',
+          messageSchema: USER_UPDATED,
+          resolver: (m) => ({ kind: 'delete', key: m.userId }),
+        },
+        {
+          messageType: 'user.bulk',
+          messageSchema: USER_BULK,
+          resolver: (m) => ({ kind: 'deleteMany', keys: m.userIds }),
+        },
+      ],
+    },
+  ],
+})
+```
+
+Rules:
+
+- Each source must declare at least one binding.
+- If a source has only one binding, `messageType` and `messageTypeField` are optional — the binding handles every message.
+- If a source has two or more bindings, the source must specify `messageTypeField` and every binding must specify `messageType`. `messageTypeField` is a dotted path (e.g. `'metadata.eventId'`).
+
+### Mixing source kinds with `composeTriggers`
+
+A single trigger class is homogeneous (only SNS topics, or only SQS queues). When a deployment needs both, build one of each and wrap them:
+
+```ts
+import { composeTriggers, SnsTopicInvalidationTrigger, SqsQueueInvalidationTrigger } from '@layered-loader/sqs'
+
+const snsTrigger = new SnsTopicInvalidationTrigger({ target: userLoader, dependencies: snsSqsDeps, sources: [...] })
+const sqsTrigger = new SqsQueueInvalidationTrigger({ target: userLoader, dependencies: sqsDeps,    sources: [...] })
+
+const triggers = composeTriggers(snsTrigger, sqsTrigger)
+await triggers.start()
+// later
+await triggers.stop()
+```
+
+`composeTriggers` returns a plain `InvalidationTrigger` whose `start()` / `stop()` fan out to every wrapped trigger in parallel.
 
 ### Resolver semantics
 
@@ -331,7 +500,6 @@ Flat actions:
 type InvalidationAction =
   | { kind: 'delete'; key: string }
   | { kind: 'deleteMany'; keys: readonly string[] }
-  | { kind: 'set'; key: string; value: unknown }
   | { kind: 'clear' }
 ```
 
@@ -344,19 +512,11 @@ type GroupInvalidationAction =
   | { kind: 'clear' }
 ```
 
-Resolvers may be `async`; the trigger awaits before publishing.
-
-### The trigger-publisher rule
-
-> **The trigger's publisher MUST have a `serverUuid` distinct from any local notification pair.**
-
-Why: a `Loader` invalidates its own in-memory cache *before* publishing, so the pair's consumer is configured to skip messages with a matching `originUuid` (otherwise the pair would re-process its own invalidations). Trigger-emitted invalidations come from outside any Loader, so the pair's consumer must treat them as foreign and apply them. Sharing `serverUuid` means the local in-memory cache silently misses every trigger-driven invalidation.
-
-In practice: build the trigger publisher with `randomUUID()` even when it points at the same SNS topic as your `createNotificationPair` publisher. The example snippets above all show this pattern.
+Resolvers may be `async`; the trigger awaits before applying actions.
 
 ### Error handling and retries
 
-If the resolver or publish step throws, the trigger:
+If the resolver or apply step throws, the trigger:
 
 1. Invokes the optional `errorHandler(err, channel)` for observability.
 2. Re-throws so `message-queue-toolkit` can apply its standard SQS retry / dead-letter behaviour.
@@ -366,7 +526,7 @@ For schema-violation errors, the message is failed by `message-queue-toolkit` be
 ### Lifecycle
 
 ```ts
-const trigger = new SqsInvalidationTrigger({ ... })
+const trigger = new SnsTopicInvalidationTrigger({ ... }) // or SqsQueueInvalidationTrigger, plus the group variants
 
 await trigger.start() // idempotent; concurrent calls share one start
 await trigger.stop()  // idempotent; awaits any in-flight start
@@ -412,7 +572,7 @@ Then point your AWS SDK clients at `http://localhost:4566`.
 | --- | --- |
 | `createNotificationPair<T>(config)` | Returns `{ publisher, consumer }` for flat-cache invalidation. |
 | `createGroupNotificationPair<T>(config)` | Same, but for group caches. |
-| `SqsNotificationPublisher<T>` | Lower-level constructor; useful for trigger publishers (independent UUID). |
+| `SqsNotificationPublisher<T>` | Lower-level constructor for direct notification publishing when not using `createNotificationPair`. |
 | `SqsNotificationConsumer<T>` | Lower-level constructor; rarely used directly. |
 | `SqsGroupNotificationPublisher<T>` / `SqsGroupNotificationConsumer<T>` | Group-cache equivalents. |
 | `SqsSubscriptionOptions` | Type for `subscriptionConfig` overrides. |
@@ -421,13 +581,19 @@ Then point your AWS SDK clients at `http://localhost:4566`.
 
 | Symbol | Purpose |
 | --- | --- |
-| `SqsInvalidationTrigger<TMessage>` | Flat-cache trigger (SQS or SNS+SQS source). |
-| `SqsGroupInvalidationTrigger<TMessage>` | Group-cache trigger. |
-| `SqsTriggerSource` | Discriminated source config (`'sqs-queue'` or `'sns-topic'`, with `creationConfig` or `locatorConfig`). |
+| `SnsTopicInvalidationTrigger` | Flat-cache trigger consuming from upstream SNS topics. |
+| `SqsQueueInvalidationTrigger` | Flat-cache trigger consuming directly from upstream SQS queues. |
+| `SnsTopicGroupInvalidationTrigger` / `SqsQueueGroupInvalidationTrigger` | `GroupLoader` counterparts. |
+| `composeTriggers(...triggers)` | Wraps multiple `InvalidationTrigger`s into one combined `start()` / `stop()`. |
+| `SnsTopicInvalidationSource` / `SqsQueueInvalidationSource` | A single upstream source plus its bindings and optional `messageTypeField`. Group counterparts have parallel names. |
+| `FlatBinding<TMessage>` / `GroupBinding<TMessage>` | One `(messageSchema, resolver, messageType?)` triple. |
+| `InvalidationTarget` / `GroupInvalidationTarget` | Structural interfaces that `Loader` / `GroupLoader` satisfy. |
 | `InvalidationAction` / `GroupInvalidationAction` | Action ADTs returned by resolvers. |
 | `InvalidationResolver<TMessage, TAction>` | Resolver signature. |
 | `InvalidationTrigger` | `start()` / `stop()` lifecycle interface. |
 | `runFlatPipeline` / `runGroupPipeline` | Reusable resolver + dispatch helpers (transport-agnostic). |
-| `applyFlatAction` / `applyGroupAction` | Apply a single resolved action to a publisher. |
-| `AbstractSqsTrigger` | Base class for building custom SQS-based triggers. |
-| `deriveTriggerChannelName` | Helper that derives a logical channel name from a source config. |
+| `applyFlatAction` / `applyGroupAction` | Apply a single resolved action to a target. |
+| `buildFlatBindings` / `buildGroupBindings` | Helpers that turn a binding array into `MessageHandlerConfig`s — useful when writing a custom trigger. |
+| `AbstractSqsTrigger` | Lifecycle-only base class for building custom SQS-based triggers. |
+| `SqsQueueTriggerConsumer` / `SnsTopicTriggerConsumer` | Concrete subclasses of `@message-queue-toolkit` consumers, exposed for advanced custom triggers. |
+| `deriveSqsQueueChannelName` / `deriveSnsTopicChannelName` (+ group variants) | Derive a logical channel name from a source config. |

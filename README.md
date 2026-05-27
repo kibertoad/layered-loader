@@ -33,11 +33,12 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 - [Parametrized loading](#parametrized-loading)
 - [Update notifications](#update-notifications)
   - [Available notification adapters](#available-notification-adapters)
+  - [Picking a notification adapter](#picking-a-notification-adapter)
   - [Redis pub/sub](#redis-pubsub)
   - [AWS SNS/SQS](#aws-snssqs)
     - [How fanout works](#how-fanout-works)
 - [Flexible invalidation triggers](#flexible-invalidation-triggers)
-  - [The trigger's `publisher` parameter](#the-triggers-publisher-parameter)
+  - [Recommended pattern: Redis fanout + SQS trigger](#recommended-pattern-redis-fanout--sqs-trigger)
   - [SNS/SQS adapter](#snssqs-adapter)
 - [Cache statistics](#cache-statistics)
 - [Cache-only operations](#cache-only-operations)
@@ -304,12 +305,21 @@ The way it works - whenever there is an invalidation event within the loader (`i
 
 ### Available notification adapters
 
-| Transport | Package | When to pick it |
+| Transport | Package | One-liner |
 | --- | --- | --- |
-| Redis pub/sub | Built-in (`createNotificationPair` from `layered-loader`) | Default choice; you already run Redis. Lowest latency, no per-instance queue setup. |
-| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native deployments where you would rather not run Redis purely for invalidation fanout. |
+| **Redis pub/sub** (default) | Built-in (`createNotificationPair` from `layered-loader`) | Lowest latency, no per-instance queue setup, no lifecycle management. |
+| AWS SNS + SQS | [`@layered-loader/sqs`](packages/sqs/README.md) | AWS-native fanout via one SNS topic and per-instance SQS queues. |
 
-Both adapters implement the same `notificationPublisher` / `notificationConsumer` contract — the rest of your Loader configuration does not change when you swap one for the other. Redis is the default since most deployments already run it; the SNS/SQS adapter is shown right after the Redis examples so you can compare them side by side.
+Both adapters implement the same `notificationPublisher` / `notificationConsumer` contract — the rest of your Loader configuration does not change when you swap one for the other.
+
+### Picking a notification adapter
+
+**Prefer Redis pub/sub.** It is the simplest path operationally — no per-instance resources to provision or reap, no AWS quotas to worry about, no extra latency. Use Redis pub/sub whenever your stack already runs Redis (which it almost always does if you are using `RedisCache`).
+
+The SNS/SQS adapter exists for two situations:
+
+1. **You cannot run Redis** (e.g. a hard "AWS-managed services only" policy). Use the SNS/SQS adapter end-to-end. This works, but the per-instance SQS queue model has real operational costs — every restart with a fresh `HOSTNAME` leaks an SQS queue + SNS subscription unless you also use stable queue names.
+2. **You need to consume upstream AWS events** (an SNS topic owned by another service) and turn them into cache invalidations. In this case the **recommended pattern is a hybrid**: Redis pub/sub for the cache cluster's own fanout, plus an SQS trigger reading the upstream topic. The trigger applies invalidations directly to your `Loader`, and the loader's Redis publisher handles fan-out. See [Flexible invalidation triggers](#flexible-invalidation-triggers).
 
 ### Redis pub/sub
 
@@ -448,69 +458,93 @@ await userLoader.invalidateCacheFor('key')
 
 ## Flexible invalidation triggers
 
-This is a separate concern from how invalidation is fanned out across your cluster (covered above). In server-oriented architectures, many invalidation events do not originate inside the application that owns the cache — they come from *upstream* domain events such as `user.updated` published by another service onto an SNS topic, an SQS queue, RabbitMQ exchange, or Kafka topic. Wiring those upstream events into the cache cluster typically requires bespoke glue per service.
+Cache invalidations often need to fire in response to *upstream* domain events — a `user.updated` message published by another service onto an SNS topic, SQS queue, RabbitMQ exchange, or Kafka topic — rather than from writes inside the application that owns the cache. Wiring those events in usually means writing bespoke glue per service.
 
-Layered-loader ships transport-agnostic primitives for this:
+Layered-loader ships transport-agnostic primitives for that translation step, complementary to the cluster fanout described [above](#update-notifications):
 
 - `InvalidationAction` / `GroupInvalidationAction` — the invalidation operations a resolver may emit.
 - `InvalidationResolver<TMessage, TAction>` — a pure function `(message) => action | action[] | null` that maps an upstream message to invalidations.
 - `InvalidationTrigger` — `start()` / `stop()` lifecycle interface implemented by every adapter.
 
-A trigger consumes from an upstream source, runs your resolver, and dispatches the emitted actions through a `NotificationPublisher` — the same one you already configured under [Update notifications](#update-notifications), passed in as a separate instance (see below). The cache cluster reacts as if the invalidations originated locally, but the upstream system stays oblivious to the cache.
+A trigger consumes from one or more upstream sources, runs your resolver, and applies the resulting actions directly to a target — typically your `Loader` or `GroupLoader`. The loader already knows how to invalidate its own in-memory and async caches and (if you configured a notification pair) how to fan the invalidation out to peer instances, so the trigger reuses that machinery rather than introducing a second publication path.
 
-### The trigger's `publisher` parameter
+### Recommended pattern: Redis fanout + SQS trigger
 
-The `publisher` passed to a trigger is **required** — without it the trigger has no way to fan resolved actions out to the cache cluster. It is a `NotificationPublisher<T>`: the same interface returned as `publisher` by `createNotificationPair`, or constructed directly via `SqsNotificationPublisher` (and `SqsGroupNotificationPublisher` for group triggers).
+If your upstream is AWS-native (an SNS topic owned by another service) but your own infrastructure runs Redis, this is the **recommended setup**. You get AWS-native event ingestion *without* the per-instance SQS queue lifecycle problem, because the trigger queue can be **shared across every instance**:
 
-The trigger's publisher must be a **separate instance from the local notification pair's publisher**, with a distinct `serverUuid`. The pair's consumer skips messages whose `originUuid` matches its own `serverUuid` (to avoid re-applying its own invalidations), so a trigger that shares the pair's `serverUuid` would silently never invalidate the local in-memory cache. In practice this means: instantiate the trigger publisher with `randomUUID()` even when it points at the same SNS topic as your `createNotificationPair` publisher.
-
-### SNS/SQS adapter
-
-The first concrete adapter ships in [`@layered-loader/sqs`](packages/sqs/README.md) and supports both:
-
-- Subscribing to an **existing SNS topic** (the trigger creates an SQS queue subscribed to it), and
-- Consuming from an **existing SQS queue** directly.
-
-Sketch:
+- The cache cluster's own notification pair is Redis pub/sub. Every Loader invalidation fans out via Redis — sub-ms latency, no per-instance queues, no cleanup.
+- A single SQS queue is subscribed to the upstream SNS topic. Each instance runs the trigger code; SQS's competing-consumer semantics mean only **one** instance processes each upstream event.
+- That instance's trigger calls `loader.invalidateCacheFor(...)`, the loader writes through to the local in-memory + async caches, and the loader's Redis publisher propagates to every other instance.
 
 ```ts
 import { z } from 'zod'
-import { randomUUID } from 'node:crypto'
-import { Loader } from 'layered-loader'
-import {
-  createNotificationPair,
-  SqsNotificationPublisher,
-  SqsInvalidationTrigger,
-} from '@layered-loader/sqs'
+import Redis from 'ioredis'
+import { createNotificationPair, Loader } from 'layered-loader'
+import { SnsTopicInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT = z.object({ type: z.literal('user.updated'), userId: z.string() })
+const redisOptions = { host: 'redis', port: 6379 }
 
-// Cache cluster's invalidation pair
-const { publisher, consumer } = createNotificationPair<User>({ /* ... */ })
+// 1. The cache cluster's own invalidation pair — pure Redis pub/sub.
+const { publisher: notificationPublisher, consumer: notificationConsumer } =
+  createNotificationPair<User>({
+    channel: 'user-cache-invalidations',
+    publisherRedis: new Redis(redisOptions),
+    consumerRedis: new Redis(redisOptions),
+  })
 
-// Trigger publisher needs a fresh serverUuid so the LOCAL cache also reacts
-const triggerPublisher = new SqsNotificationPublisher<User>({
-  serverUuid: randomUUID(),
-  dependencies,
-  locatorConfig: { topicName: 'user-cache-invalidations' },
+const userLoader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 1000 * 60 * 5 },
+  asyncCache: yourAsyncCache,
+  notificationConsumer,
+  notificationPublisher,
 })
+await userLoader.init()
 
-const trigger = new SqsInvalidationTrigger({
-  sourceType: 'sns-topic',
+// 2. The trigger applies invalidations directly to the loader. The trigger
+//    queue is SHARED across every instance (no ${HOSTNAME} suffix) — SQS
+//    delivers each upstream event to exactly one of them.
+const trigger = new SnsTopicInvalidationTrigger({
+  target: userLoader,
   dependencies: consumerDeps,
-  creationConfig: {
-    topic: { Name: 'domain-events.users' }, // upstream service's topic
-    queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
-  },
-  messageSchema: USER_EVENT,
-  publisher: triggerPublisher,
-  resolver: (msg) => ({ kind: 'delete', key: msg.userId }),
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'domain-events.users' },                  // upstream service's topic
+        queue: { QueueName: 'user-cache-invalidation-trigger' }, // SHARED across all instances
+      },
+      bindings: [
+        { messageSchema: USER_EVENT, resolver: (msg) => ({ kind: 'delete', key: msg.userId }) },
+      ],
+    },
+  ],
 })
-
 await trigger.start()
 ```
 
-Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, the `serverUuid` rule, and error handling.
+Why this is the right default for AWS-upstream consumption:
+
+- **No queue churn.** One SQS queue exists, regardless of how many pods run.
+- **No lifecycle plumbing.** No `deleteQueueOnClose`, no heartbeat, no reaper.
+- **Failure isolation.** If a pod dies mid-message, SQS visibility timeout returns it to the queue and another pod picks it up.
+- **Cluster-wide fanout via Redis** — every instance's in-memory cache reacts within milliseconds.
+
+If your upstream events have meaningful per-entity ordering, use an SQS FIFO queue (`QueueName: 'user-cache-invalidation-trigger.fifo'`). Otherwise a standard queue is appropriate.
+
+### SNS/SQS adapter
+
+The concrete adapter ships in [`@layered-loader/sqs`](packages/sqs/README.md) as four trigger classes:
+
+| Class | Source kind | Target |
+| --- | --- | --- |
+| `SnsTopicInvalidationTrigger`         | Upstream SNS topic | flat `Loader` |
+| `SqsQueueInvalidationTrigger`         | Existing SQS queue | flat `Loader` |
+| `SnsTopicGroupInvalidationTrigger`    | Upstream SNS topic | `GroupLoader` |
+| `SqsQueueGroupInvalidationTrigger`    | Existing SQS queue | `GroupLoader` |
+
+Each trigger takes a single `dependencies` block and an array of `sources` (queues or topics) — listening to multiple at once is just listing them. Within one source, multiple event types can be routed to different resolvers via a `messageTypeField` discriminator. `composeTriggers(...)` bundles multiple triggers for deployments that need to mix source kinds.
+
+Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, multi-source / multi-binding configuration, mixing source kinds via `composeTriggers`, and error handling.
 
 ## Cache statistics
 

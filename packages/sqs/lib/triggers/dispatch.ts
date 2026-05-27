@@ -1,8 +1,9 @@
-import type { GroupNotificationPublisher, NotificationPublisher } from 'layered-loader'
 import type {
   GroupInvalidationAction,
+  GroupInvalidationTarget,
   InvalidationAction,
   InvalidationResolver,
+  InvalidationTarget,
   ResolverOutput,
 } from './types.js'
 
@@ -18,25 +19,25 @@ function assertNever(value: never, label: string): never {
 }
 
 /**
- * Apply a resolved {@link InvalidationAction} to a flat
- * {@link NotificationPublisher}.
+ * Apply a resolved {@link InvalidationAction} to an {@link InvalidationTarget}.
+ *
+ * The target (typically a `Loader`) takes care of removing entries from both
+ * its in-memory and async caches and — if it was configured with a
+ * notification publisher — propagates the invalidation to peer instances.
  */
 export async function applyFlatAction(
   action: InvalidationAction,
-  publisher: NotificationPublisher<unknown>,
+  target: InvalidationTarget,
 ): Promise<void> {
   switch (action.kind) {
     case 'delete':
-      await publisher.delete(action.key)
+      await target.invalidateCacheFor(action.key)
       return
     case 'deleteMany':
-      await publisher.deleteMany([...action.keys])
-      return
-    case 'set':
-      await publisher.set(action.key, action.value)
+      await target.invalidateCacheForMany(action.keys)
       return
     case 'clear':
-      await publisher.clear()
+      await target.invalidateCache()
       return
     default:
       assertNever(action, 'InvalidationAction')
@@ -45,21 +46,21 @@ export async function applyFlatAction(
 
 /**
  * Apply a resolved {@link GroupInvalidationAction} to a
- * {@link GroupNotificationPublisher}.
+ * {@link GroupInvalidationTarget}.
  */
 export async function applyGroupAction(
   action: GroupInvalidationAction,
-  publisher: GroupNotificationPublisher<unknown>,
+  target: GroupInvalidationTarget,
 ): Promise<void> {
   switch (action.kind) {
     case 'deleteFromGroup':
-      await publisher.deleteFromGroup(action.key, action.group)
+      await target.invalidateCacheFor(action.key, action.group)
       return
     case 'deleteGroup':
-      await publisher.deleteGroup(action.group)
+      await target.invalidateCacheForGroup(action.group)
       return
     case 'clear':
-      await publisher.clear()
+      await target.invalidateCache()
       return
     default:
       assertNever(action, 'GroupInvalidationAction')
@@ -74,21 +75,21 @@ export async function applyGroupAction(
 export async function runFlatPipeline<TMessage>(
   message: TMessage,
   resolver: InvalidationResolver<TMessage, InvalidationAction>,
-  publisher: NotificationPublisher<unknown>,
+  target: InvalidationTarget,
 ): Promise<void> {
   const result = await resolver(message)
   for (const action of toArray(result)) {
-    await applyFlatAction(action, publisher)
+    await applyFlatAction(action, target)
   }
 }
 
 export async function runGroupPipeline<TMessage>(
   message: TMessage,
   resolver: InvalidationResolver<TMessage, GroupInvalidationAction>,
-  publisher: GroupNotificationPublisher<unknown>,
+  target: GroupInvalidationTarget,
 ): Promise<void> {
   const result = await resolver(message)
   for (const action of toArray(result)) {
-    await applyGroupAction(action, publisher)
+    await applyGroupAction(action, target)
   }
 }
