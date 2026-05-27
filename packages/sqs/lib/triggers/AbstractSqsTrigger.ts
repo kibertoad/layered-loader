@@ -72,15 +72,21 @@ export abstract class AbstractSqsTrigger implements InvalidationTrigger {
     if (this.startPromise) return this.startPromise
     if (this.internalConsumers.length > 0) return
     this.startPromise = (async () => {
-      const consumers = this.createConsumers()
-      if (consumers.length === 0) return
       try {
-        await Promise.all(consumers.map((c) => c.init()))
-        await Promise.all(consumers.map((c) => c.start()))
-        this.internalConsumers = [...consumers]
-      } catch (err) {
-        await Promise.allSettled(consumers.map((c) => c.close().catch(() => undefined)))
-        throw err
+        // createConsumers() can throw (e.g. binding validation in subclasses);
+        // keep it inside the outer try so a failure still clears startPromise
+        // via the finally below instead of leaving the trigger wedged on a
+        // rejected promise forever.
+        const consumers = this.createConsumers()
+        if (consumers.length === 0) return
+        try {
+          await Promise.all(consumers.map((c) => c.init()))
+          await Promise.all(consumers.map((c) => c.start()))
+          this.internalConsumers = [...consumers]
+        } catch (err) {
+          await Promise.allSettled(consumers.map((c) => c.close().catch(() => undefined)))
+          throw err
+        }
       } finally {
         this.startPromise = undefined
       }

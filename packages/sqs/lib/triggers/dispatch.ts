@@ -34,7 +34,7 @@ export async function applyFlatAction(
       await target.invalidateCacheFor(action.key)
       return
     case 'deleteMany':
-      await target.invalidateCacheForMany([...action.keys])
+      await target.invalidateCacheForMany(action.keys)
       return
     case 'clear':
       await target.invalidateCache()

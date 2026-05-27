@@ -78,15 +78,20 @@ export function buildFlatBindings(
 ): BuiltBindings<InvalidationTarget> {
   validateBindings(bindings, messageTypeField, channel)
 
+  // When messageTypeField is not set, validateBindings has guaranteed
+  // bindings.length === 1, so bindings[0].messageType (or the default) is the
+  // single literal every handler dispatches on. We compute it once and reuse
+  // it for both the resolver and the per-handler messageType — avoiding a
+  // narrowing cast on messageTypeResolver later on.
+  const fallbackMessageType = bindings[0]?.messageType ?? DEFAULT_FLAT_MESSAGE_TYPE
   const messageTypeResolver: MessageTypeResolver = messageTypeField
     ? { messageTypePath: messageTypeField }
-    : { literal: bindings[0]!.messageType ?? DEFAULT_FLAT_MESSAGE_TYPE }
+    : { literal: fallbackMessageType }
   const context: BindingHandlerContext<InvalidationTarget> = { target, channel, errorHandler }
 
   const builder = new MessageHandlerConfigBuilder<object, BindingHandlerContext<InvalidationTarget>>()
   for (const binding of bindings) {
-    const messageType =
-      binding.messageType ?? (messageTypeResolver as { literal: string }).literal
+    const messageType = binding.messageType ?? fallbackMessageType
     builder.addConfig(
       binding.messageSchema as ZodSchema<object>,
       async (message, ctx) => {
@@ -120,9 +125,11 @@ export function buildGroupBindings(
 ): BuiltBindings<GroupInvalidationTarget> {
   validateBindings(bindings, messageTypeField, channel)
 
+  // See buildFlatBindings for the rationale behind fallbackMessageType.
+  const fallbackMessageType = bindings[0]?.messageType ?? DEFAULT_GROUP_MESSAGE_TYPE
   const messageTypeResolver: MessageTypeResolver = messageTypeField
     ? { messageTypePath: messageTypeField }
-    : { literal: bindings[0]!.messageType ?? DEFAULT_GROUP_MESSAGE_TYPE }
+    : { literal: fallbackMessageType }
   const context: BindingHandlerContext<GroupInvalidationTarget> = {
     target,
     channel,
@@ -134,8 +141,7 @@ export function buildGroupBindings(
     BindingHandlerContext<GroupInvalidationTarget>
   >()
   for (const binding of bindings) {
-    const messageType =
-      binding.messageType ?? (messageTypeResolver as { literal: string }).literal
+    const messageType = binding.messageType ?? fallbackMessageType
     builder.addConfig(
       binding.messageSchema as ZodSchema<object>,
       async (message, ctx) => {

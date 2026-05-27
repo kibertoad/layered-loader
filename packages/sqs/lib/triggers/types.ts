@@ -39,7 +39,7 @@ export type InvalidationResolver<TMessage, TAction> = (
  */
 export interface InvalidationTarget {
   invalidateCacheFor(key: string): Promise<void>
-  invalidateCacheForMany(keys: string[]): Promise<void>
+  invalidateCacheForMany(keys: readonly string[]): Promise<void>
   invalidateCache(): Promise<void>
 }
 
