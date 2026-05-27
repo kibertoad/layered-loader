@@ -95,6 +95,9 @@ export abstract class AbstractSqsTrigger implements InvalidationTrigger {
     const consumers = this.internalConsumers
     if (consumers.length === 0) return
     this.internalConsumers = []
+    // Use allSettled so a single consumer's failure doesn't skip cleanup of the rest.
+    // Rejections are intentionally swallowed: shutdown is best-effort, the caller has
+    // no useful recovery action, and the underlying connection may already be closed.
     await Promise.allSettled(consumers.map((c) => c.close()))
   }
 }
@@ -110,10 +113,29 @@ export function composeTriggers(
 ): InvalidationTrigger {
   return {
     async start() {
-      await Promise.all(triggers.map((t) => t.start()))
+      const results = await Promise.allSettled(triggers.map((t) => t.start()))
+      const reasons = results
+        .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+        .map((r) => r.reason)
+      if (reasons.length === 0) return
+      // Roll back any triggers that did start so a partial failure
+      // doesn't leak still-running consumers.
+      const started = triggers.filter((_, i) => results[i].status === 'fulfilled')
+      await Promise.allSettled(started.map((t) => t.stop()))
+      if (reasons.length === 1) throw reasons[0]
+      throw new AggregateError(reasons, 'One or more triggers failed to start')
     },
     async stop() {
-      await Promise.allSettled(triggers.map((t) => t.stop()))
+      // allSettled so one trigger's failure doesn't skip cleanup of the rest.
+      // Rejections are logged but not rethrown: shutdown is best-effort and
+      // the caller can't usefully recover, but a silent failure during stop
+      // would be hard to diagnose, so we surface it via the logger.
+      const results = await Promise.allSettled(triggers.map((t) => t.stop()))
+      for (const result of results) {
+        if (result.status === 'rejected') {
+          console.error('composeTriggers: trigger stop failed', result.reason)
+        }
+      }
     },
   }
 }
