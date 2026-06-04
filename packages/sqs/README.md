@@ -1,5 +1,5 @@
 # @layered-loader/sqs
-
+ 
 SNS/SQS remote-invalidation adapter for [`layered-loader`](https://github.com/kibertoad/layered-loader).
 
 This package provides:
