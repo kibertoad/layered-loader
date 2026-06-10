@@ -468,6 +468,45 @@ Rules:
 - If a source has only one binding, `messageType` and `messageTypeField` are optional — the binding handles every message.
 - If a source has two or more bindings, the source must specify `messageTypeField` and every binding must specify `messageType`. `messageTypeField` is a dotted path (e.g. `'metadata.eventId'`).
 
+#### One binding over a union of event types
+
+When several event types should all flow through a **single** resolver, you do not need one binding per type. Bind a single `z.union(...)` (or `z.discriminatedUnion(...)`) schema instead and branch inside the resolver. This is the natural shape when you already have message-queue-toolkit message definitions and want to react to a couple of their `consumerSchema`s:
+
+```ts
+const PROJECT_LANGUAGE_EVENT_SCHEMA = z.union([
+  ExpertProjectLanguageEvent['project_language.added'].consumerSchema,
+  ExpertProjectLanguageEvent['project_language.removed'].consumerSchema,
+])
+
+const trigger = new SnsTopicInvalidationTrigger({
+  target: projectLoader,
+  dependencies: consumerDeps,
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'domain-events.project-languages' },
+        queue: { QueueName: `project-language-trigger-${process.env.HOSTNAME}` },
+      },
+      // No messageTypeField: this is still a single binding.
+      bindings: [
+        {
+          messageSchema: PROJECT_LANGUAGE_EVENT_SCHEMA,
+          resolver: (msg) => ({ kind: 'delete', key: msg.projectId }),
+        },
+      ],
+    },
+  ],
+})
+```
+
+How routing behaves with this shape:
+
+- **Every member of the union is routed.** Because there is one binding, every message is validated against the union schema and, on success, handed to the resolver — regardless of which union member it matched.
+- **Event types outside the union are dropped.** A message that matches *neither* union member fails schema validation and is rejected **before** the resolver runs (it goes back to the queue / DLQ as a validation error — see [Error handling and retries](#error-handling-and-retries)). It never reaches your resolver and never invalidates anything.
+- **Do not set `messageTypeField` for the union shape.** `messageTypeField` switches the source into the multi-binding routing mode above, where the extracted type must match a binding's `messageType`. With a single union binding there is no per-member `messageType` to match, so setting it would cause every message to be treated as an unknown type and dropped. Leave it unset so all messages route to the one binding and the union schema does the filtering.
+
+Reach for the multi-binding `messageTypeField` form when each event type needs a **different** resolver; reach for the single union binding when one resolver handles them all and you simply want everything outside the union ignored.
+
 ### Mixing source kinds with `composeTriggers`
 
 A single trigger class is homogeneous (only SNS topics, or only SQS queues). When a deployment needs both, build one of each and wrap them:
