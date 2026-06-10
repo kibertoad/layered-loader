@@ -516,27 +516,10 @@ describe('SnsTopicInvalidationTrigger', () => {
 
   it('routes every member of a single union-schema binding and drops events outside it', async () => {
     const suffix = Math.random().toString(36).slice(2, 8)
-    const invalidationTopic = `union-sns-${suffix}`
-
-    const peer = createNotificationPair<string>({
-      publisher: {
-        dependencies: buildPublisherDeps(clients),
-        creationConfig: { topic: { Name: invalidationTopic } },
-      },
-      consumer: {
-        dependencies: buildConsumerDeps(clients),
-        creationConfig: {
-          topic: { Name: invalidationTopic },
-          queue: { QueueName: `union-sns-peer-q-${suffix}` },
-        },
-      },
-    })
 
     const loader = new Loader<string>({
       inMemoryCache: IN_MEMORY_CACHE_CONFIG,
       asyncCache: new StubAsyncCache('value'),
-      notificationConsumer: peer.consumer,
-      notificationPublisher: peer.publisher,
     })
 
     const upstreamTopicName = `union-sns-domain-${suffix}`
@@ -562,6 +545,13 @@ describe('SnsTopicInvalidationTrigger', () => {
 
     let addedCalls = 0
     let removedCalls = 0
+    // Anything reaching the resolver that is neither union member would land
+    // here. Union validation should reject such events before the resolver
+    // runs, so this must stay at 0 — it is the assertion that actually proves
+    // the "drops events outside the union" behavior, rather than relying on the
+    // absence of an invalidation (which a null-returning resolver would also
+    // produce).
+    let otherCalls = 0
 
     const trigger = new SnsTopicInvalidationTrigger({
       target: loader,
@@ -584,6 +574,7 @@ describe('SnsTopicInvalidationTrigger', () => {
                   removedCalls += 1
                   return { kind: 'delete', key: msg.key }
                 }
+                otherCalls += 1
                 return null
               },
             },
@@ -600,6 +591,17 @@ describe('SnsTopicInvalidationTrigger', () => {
       await loader.getAsyncOnly('lang-b')
       await loader.getAsyncOnly('lang-c')
 
+      // Publish the excluded event FIRST so the two union members that follow
+      // act as a drain marker: once they have been processed, the renamed event
+      // ahead of them in the queue has had at least as long to be pulled and
+      // (correctly) rejected. An event type that is NOT part of the union should
+      // fail union validation and never reach the resolver.
+      await clients.snsClient.send(
+        new PublishCommand({
+          TopicArn: upstreamTopicArn,
+          Message: JSON.stringify({ type: 'project_language.renamed', key: 'lang-c' }),
+        }),
+      )
       // Both union members get routed...
       await clients.snsClient.send(
         new PublishCommand({
@@ -613,30 +615,27 @@ describe('SnsTopicInvalidationTrigger', () => {
           Message: JSON.stringify({ type: 'project_language.removed', key: 'lang-b' }),
         }),
       )
-      // ...while an event type that is NOT part of the union is dropped: it
-      // fails union validation and never reaches the resolver.
-      await clients.snsClient.send(
-        new PublishCommand({
-          TopicArn: upstreamTopicArn,
-          Message: JSON.stringify({ type: 'project_language.renamed', key: 'lang-c' }),
-        }),
-      )
 
       await waitFor(
         () =>
           loader.getInMemoryOnly('lang-a') === undefined &&
           loader.getInMemoryOnly('lang-b') === undefined,
       )
-      // Give the excluded event the same window the routed ones had, then assert
-      // it was never processed: resolver counts stay at one apiece and its entry
-      // is untouched.
+      // Small extra margin on top of the drain marker, then assert the excluded
+      // event never reached the resolver and never invalidated its entry. Note
+      // SNS->SQS ordering is best-effort, so the drain marker plus margin is a
+      // strong-but-not-absolute guarantee that the renamed event was dequeued.
       await new Promise((r) => setTimeout(r, 200))
 
-      expect(addedCalls).toBe(1)
-      expect(removedCalls).toBe(1)
+      // >= 1 rather than === 1: SQS is at-least-once, so a redelivery could
+      // legitimately bump a union member's count. The drop assertion below
+      // stays strict — a redelivered valid event never increments otherCalls.
+      expect(addedCalls).toBeGreaterThanOrEqual(1)
+      expect(removedCalls).toBeGreaterThanOrEqual(1)
+      expect(otherCalls).toBe(0)
       expect(loader.getInMemoryOnly('lang-c')).toBe('value')
     } finally {
-      await Promise.allSettled([trigger.stop(), peer.consumer.close(), peer.publisher.close()])
+      await trigger.stop()
     }
   })
 })
