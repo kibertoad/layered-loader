@@ -513,6 +513,132 @@ describe('SnsTopicInvalidationTrigger', () => {
       await Promise.allSettled([trigger.stop(), peer.consumer.close(), peer.publisher.close()])
     }
   })
+
+  it('routes every member of a single union-schema binding and drops events outside it', async () => {
+    const suffix = Math.random().toString(36).slice(2, 8)
+    const invalidationTopic = `union-sns-${suffix}`
+
+    const peer = createNotificationPair<string>({
+      publisher: {
+        dependencies: buildPublisherDeps(clients),
+        creationConfig: { topic: { Name: invalidationTopic } },
+      },
+      consumer: {
+        dependencies: buildConsumerDeps(clients),
+        creationConfig: {
+          topic: { Name: invalidationTopic },
+          queue: { QueueName: `union-sns-peer-q-${suffix}` },
+        },
+      },
+    })
+
+    const loader = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new StubAsyncCache('value'),
+      notificationConsumer: peer.consumer,
+      notificationPublisher: peer.publisher,
+    })
+
+    const upstreamTopicName = `union-sns-domain-${suffix}`
+    const upstreamTopicArn = (
+      await clients.snsClient.send(new CreateTopicCommand({ Name: upstreamTopicName }))
+    ).TopicArn!
+
+    // A single binding whose schema is a z.union of two event types — the
+    // flexible-trigger analogue of binding one consumer to a union of two
+    // message-queue-toolkit consumerSchemas. Because there is exactly one
+    // binding and no messageTypeField, every message routes to this handler and
+    // is validated against the union; events matching neither member are
+    // rejected before the resolver runs.
+    const LANGUAGE_ADDED = z.object({
+      type: z.literal('project_language.added'),
+      key: z.string(),
+    })
+    const LANGUAGE_REMOVED = z.object({
+      type: z.literal('project_language.removed'),
+      key: z.string(),
+    })
+    const PROJECT_LANGUAGE_EVENT_SCHEMA = z.union([LANGUAGE_ADDED, LANGUAGE_REMOVED])
+
+    let addedCalls = 0
+    let removedCalls = 0
+
+    const trigger = new SnsTopicInvalidationTrigger({
+      target: loader,
+      dependencies: buildConsumerDeps(clients),
+      sources: [
+        {
+          creationConfig: {
+            topic: { Name: upstreamTopicName },
+            queue: { QueueName: `union-sns-trigger-q-${suffix}` },
+          },
+          bindings: [
+            {
+              messageSchema: PROJECT_LANGUAGE_EVENT_SCHEMA,
+              resolver: (msg: z.infer<typeof PROJECT_LANGUAGE_EVENT_SCHEMA>) => {
+                if (msg.type === 'project_language.added') {
+                  addedCalls += 1
+                  return { kind: 'delete', key: msg.key }
+                }
+                if (msg.type === 'project_language.removed') {
+                  removedCalls += 1
+                  return { kind: 'delete', key: msg.key }
+                }
+                return null
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    try {
+      await loader.init()
+      await trigger.start()
+
+      await loader.getAsyncOnly('lang-a')
+      await loader.getAsyncOnly('lang-b')
+      await loader.getAsyncOnly('lang-c')
+
+      // Both union members get routed...
+      await clients.snsClient.send(
+        new PublishCommand({
+          TopicArn: upstreamTopicArn,
+          Message: JSON.stringify({ type: 'project_language.added', key: 'lang-a' }),
+        }),
+      )
+      await clients.snsClient.send(
+        new PublishCommand({
+          TopicArn: upstreamTopicArn,
+          Message: JSON.stringify({ type: 'project_language.removed', key: 'lang-b' }),
+        }),
+      )
+      // ...while an event type that is NOT part of the union is dropped: it
+      // fails union validation and never reaches the resolver.
+      await clients.snsClient.send(
+        new PublishCommand({
+          TopicArn: upstreamTopicArn,
+          Message: JSON.stringify({ type: 'project_language.renamed', key: 'lang-c' }),
+        }),
+      )
+
+      await waitFor(
+        () =>
+          loader.getInMemoryOnly('lang-a') === undefined &&
+          loader.getInMemoryOnly('lang-b') === undefined,
+      )
+      // Give the excluded event the same window the routed ones had, then assert
+      // it was never processed: resolver counts stay at one apiece and its entry
+      // is untouched.
+      await new Promise((r) => setTimeout(r, 200))
+
+      expect(addedCalls).toBe(1)
+      expect(removedCalls).toBe(1)
+      expect(loader.getInMemoryOnly('lang-c')).toBe('value')
+    } finally {
+      await Promise.allSettled([trigger.stop(), peer.consumer.close(), peer.publisher.close()])
+    }
+  })
 })
 
 describe('SqsQueueInvalidationTrigger', () => {
