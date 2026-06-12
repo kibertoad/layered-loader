@@ -25,8 +25,13 @@ export type GroupInvalidationAction =
 export type ResolverOutput<TAction> = TAction | readonly TAction[] | null | undefined
 
 /**
- * Pure function turning a parsed upstream message into invalidation
- * action(s). Return `undefined`/`null` to skip the message.
+ * Function turning a parsed upstream message into invalidation action(s).
+ * Return `undefined`/`null` to skip the message.
+ *
+ * May be **synchronous or asynchronous**: return the action(s) directly, or a
+ * `Promise` resolving to them (e.g. when you need to look up the affected keys
+ * from a database or another service). The trigger always `await`s the result
+ * before applying actions, so both forms are handled uniformly.
  */
 export type InvalidationResolver<TMessage, TAction> = (
   message: TMessage,
