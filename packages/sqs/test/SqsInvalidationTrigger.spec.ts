@@ -1,4 +1,9 @@
-import { CreateQueueCommand, GetQueueUrlCommand, SendMessageCommand } from '@aws-sdk/client-sqs'
+import {
+  CreateQueueCommand,
+  GetQueueAttributesCommand,
+  GetQueueUrlCommand,
+  SendMessageCommand,
+} from '@aws-sdk/client-sqs'
 import { CreateTopicCommand, PublishCommand } from '@aws-sdk/client-sns'
 import { Loader, type InMemoryCacheConfiguration } from 'layered-loader'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -634,6 +639,84 @@ describe('SnsTopicInvalidationTrigger', () => {
       expect(removedCalls).toBeGreaterThanOrEqual(1)
       expect(otherCalls).toBe(0)
       expect(loader.getInMemoryOnly('lang-c')).toBe('value')
+    } finally {
+      await trigger.stop()
+    }
+  })
+
+  it('auto-creates a dead-letter queue and wires its redrive policy', async () => {
+    const suffix = Math.random().toString(36).slice(2, 8)
+
+    const loader = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new StubAsyncCache('value'),
+    })
+
+    const upstreamTopicName = `dlq-domain-${suffix}`
+    const upstreamTopicArn = (
+      await clients.snsClient.send(new CreateTopicCommand({ Name: upstreamTopicName }))
+    ).TopicArn!
+
+    const queueName = `dlq-trigger-q-${suffix}`
+    const dlqName = `dlq-trigger-q-${suffix}-dlq`
+
+    const trigger = new SnsTopicInvalidationTrigger({
+      target: loader,
+      dependencies: buildConsumerDeps(clients),
+      sources: [
+        {
+          creationConfig: {
+            topic: { Name: upstreamTopicName },
+            queue: { QueueName: queueName },
+          },
+          deadLetterQueue: {
+            redrivePolicy: { maxReceiveCount: 3 },
+            creationConfig: { queue: { QueueName: dlqName } },
+          },
+          bindings: [
+            {
+              messageSchema: UPSTREAM_EVENT_SCHEMA,
+              resolver: (m: UpstreamEvent) =>
+                m.userId ? { kind: 'delete', key: m.userId } : null,
+            },
+          ],
+        },
+      ],
+    })
+
+    try {
+      await loader.init()
+      await trigger.start()
+
+      // The DLQ was created by the trigger's consumer, not by the test.
+      const dlqUrl = (
+        await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: dlqName }))
+      ).QueueUrl!
+      expect(dlqUrl).toContain(dlqName)
+
+      // ...and the source queue's redrive policy points at it.
+      const sourceQueueUrl = (
+        await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: queueName }))
+      ).QueueUrl!
+      const attrs = await clients.sqsClient.send(
+        new GetQueueAttributesCommand({
+          QueueUrl: sourceQueueUrl,
+          AttributeNames: ['RedrivePolicy'],
+        }),
+      )
+      const redrivePolicy = JSON.parse(attrs.Attributes!.RedrivePolicy!)
+      expect(redrivePolicy.maxReceiveCount).toBe(3)
+      expect(redrivePolicy.deadLetterTargetArn).toContain(dlqName)
+
+      // The trigger still routes invalidations normally alongside the DLQ.
+      await loader.getAsyncOnly('user-1')
+      await clients.snsClient.send(
+        new PublishCommand({
+          TopicArn: upstreamTopicArn,
+          Message: JSON.stringify({ eventType: 'user.updated', userId: 'user-1' }),
+        }),
+      )
+      await waitFor(() => loader.getInMemoryOnly('user-1') === undefined)
     } finally {
       await trigger.stop()
     }

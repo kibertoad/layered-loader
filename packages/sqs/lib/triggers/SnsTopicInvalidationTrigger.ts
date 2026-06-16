@@ -1,10 +1,7 @@
 import type {
   SNSSQSConsumerDependencies,
   SNSSQSConsumerOptions,
-  SNSSQSCreationConfig,
-  SNSSQSQueueLocatorType,
 } from '@message-queue-toolkit/sns'
-import type { SqsSubscriptionOptions } from '../SqsNotificationConsumer.js'
 import {
   AbstractSqsTrigger,
   type InternalConsumerHandle,
@@ -17,12 +14,36 @@ import {
 } from './bindingHelpers.js'
 import type { InvalidationTarget, TriggerErrorHandler } from './types.js'
 
-export type SnsTopicSourceConfig =
-  | { creationConfig: SNSSQSCreationConfig; locatorConfig?: never }
-  | { creationConfig?: never; locatorConfig: SNSSQSQueueLocatorType }
+/**
+ * Every option the underlying `message-queue-toolkit` SNS→SQS consumer accepts,
+ * minus the `handlers` list (which the trigger builds from `bindings`).
+ *
+ * This is the per-source config surface, so callers get the same flexibility in
+ * two interchangeable styles, both fully type-checked:
+ *
+ * - **Explicit** — spell out `creationConfig`/`locatorConfig`, `subscriptionConfig`,
+ *   `deadLetterQueue`, `concurrentConsumersAmount`, etc. with autocomplete and
+ *   typo detection.
+ * - **Spread** — drop in a pre-resolved options object (e.g.
+ *   `@lokalise/aws-config`'s `resolveConsumerOptions(...)`) with `...options`.
+ */
+export type SnsTopicSourceConfig = Omit<
+  SNSSQSConsumerOptions<object, BindingHandlerContext<InvalidationTarget>, undefined>,
+  'handlers'
+>
+
+/**
+ * Dead-letter-queue config for an SNS-topic source, surfaced verbatim from the
+ * underlying `message-queue-toolkit` consumer. Supplying it with a
+ * `creationConfig` makes the toolkit auto-create the DLQ, attach the redrive
+ * policy to the trigger's own queue, and wire the topic subscription; a
+ * `locatorConfig` points the redrive policy at a pre-existing DLQ instead.
+ */
+export type SnsTopicInvalidationDeadLetterQueueConfig = NonNullable<
+  SnsTopicSourceConfig['deadLetterQueue']
+>
 
 export type SnsTopicInvalidationSource = SnsTopicSourceConfig & {
-  subscriptionConfig?: SqsSubscriptionOptions
   messageTypeField?: string
   // biome-ignore lint/suspicious/noExplicitAny: bindings heterogeneous over TMessage
   bindings: readonly FlatBinding<any>[]
@@ -70,22 +91,30 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
 
   private buildConsumer(source: SnsTopicInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSnsTopicChannelName(source)
+    const { bindings, messageTypeField, ...consumerOptions } = source
     const { handlers, context, messageTypeResolver } = buildFlatBindings(
-      source.bindings,
-      source.messageTypeField,
+      bindings,
+      messageTypeField,
       this.target,
       channel,
       this.errorHandler,
     )
 
-    const base = {
+    // Forward every consumer option the caller supplied. This deliberately
+    // spreads the whole source (minus the trigger-only `bindings`/
+    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
+    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
+    // straight into the source and have all of its fields (`creationConfig`/
+    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
+    // `consumerOverrides`, ...) flow through untouched. The trigger owns
+    // `handlers`, so the bindings-derived handlers always override any in the
+    // spread.
+    const options = {
+      ...consumerOptions,
       handlers,
       messageTypeResolver,
       subscriptionConfig: source.subscriptionConfig ?? { updateAttributesIfExists: false },
     }
-    const options = source.creationConfig
-      ? { ...base, creationConfig: source.creationConfig }
-      : { ...base, locatorConfig: source.locatorConfig }
 
     return new SnsTopicTriggerConsumer(
       this.dependencies,

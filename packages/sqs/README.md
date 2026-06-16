@@ -29,6 +29,8 @@ The implementation is built on top of [`@message-queue-toolkit/sns`](https://git
   - [Mixing source kinds with `composeTriggers`](#mixing-source-kinds-with-composetriggers)
   - [Resolver semantics](#resolver-semantics)
   - [Error handling and retries](#error-handling-and-retries)
+  - [Dead-letter queues](#dead-letter-queues)
+  - [Explicit vs spread configuration](#explicit-vs-spread-configuration)
 - [Testing with fauxqs](#testing-with-fauxqs)
 - [API reference](#api-reference)
 
@@ -560,7 +562,66 @@ If the resolver or apply step throws, the trigger:
 1. Invokes the optional `errorHandler(err, channel)` for observability.
 2. Re-throws so `message-queue-toolkit` can apply its standard SQS retry / dead-letter behaviour.
 
-For schema-violation errors, the message is failed by `message-queue-toolkit` before the resolver runs and goes back to the queue (and ultimately to a DLQ if you configured one). Configure DLQ on the trigger's queue creation config to bound retries.
+For schema-violation errors, the message is failed by `message-queue-toolkit` before the resolver runs and goes back to the queue (and ultimately to a DLQ if you configured one).
+
+### Dead-letter queues
+
+To bound retries, add a `deadLetterQueue` to any trigger source. With a `creationConfig` the trigger **auto-creates the DLQ, attaches the redrive policy to its own queue, and (for SNS sources) wires the subscription** — no manual AWS setup required:
+
+```ts
+const trigger = new SnsTopicInvalidationTrigger({
+  target: userLoader,
+  dependencies: consumerDeps,
+  sources: [
+    {
+      creationConfig: {
+        topic: { Name: 'domain-events.users' },
+        queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}` },
+      },
+      deadLetterQueue: {
+        // Move a message to the DLQ after this many failed receives.
+        redrivePolicy: { maxReceiveCount: 3 },
+        // Auto-create the DLQ. Use `locatorConfig` instead to point at an existing one.
+        creationConfig: { queue: { QueueName: `cache-trigger-${process.env.HOSTNAME}-dlq` } },
+      },
+      bindings: [/* ... */],
+    },
+  ],
+})
+```
+
+The `deadLetterQueue` field is the same shape `message-queue-toolkit` exposes on its consumers, surfaced per trigger as `SnsTopicInvalidationDeadLetterQueueConfig` (and the `SqsQueue*` / `*Group*` counterparts). It is available on all four trigger source types.
+
+### Explicit vs spread configuration
+
+A trigger source **is** the underlying `message-queue-toolkit` consumer options (minus the `handlers` list, which the trigger builds from `bindings`). That means both styles are fully type-checked — autocomplete and typo detection on every option:
+
+- **Explicit** — spell options out inline (`creationConfig`/`locatorConfig`, `deadLetterQueue`, `subscriptionConfig`, `concurrentConsumersAmount`, `consumerOverrides`, ...). An unknown key or a wrong-typed value is a compile error.
+- **Spread** — resolve options elsewhere — e.g. with `@lokalise/aws-config`'s `getSnsMqtOptionsResolver()` — and spread the result straight in.
+
+The trigger always overrides `handlers` with the ones it builds from `bindings`; everything else flows through untouched.
+
+```ts
+
+```ts
+const resolver = getSnsMqtOptionsResolver({ appEnv: 'production' })
+const options = resolver.resolveConsumerOptions(topicName, queueName, {
+  /* awsConfig, logger, deadLetterQueue, ... */
+})
+
+const trigger = new SnsTopicInvalidationTrigger({
+  target,
+  dependencies,
+  sources: [
+    {
+      ...options,
+      bindings: [
+        { messageSchema: PROJECT_LANGUAGE_EVENT_SCHEMA, resolver: async (message) => { /* ... */ } },
+      ],
+    },
+  ],
+})
+```
 
 ### Lifecycle
 
@@ -624,7 +685,8 @@ Then point your AWS SDK clients at `http://localhost:4566`.
 | `SqsQueueInvalidationTrigger` | Flat-cache trigger consuming directly from upstream SQS queues. |
 | `SnsTopicGroupInvalidationTrigger` / `SqsQueueGroupInvalidationTrigger` | `GroupLoader` counterparts. |
 | `composeTriggers(...triggers)` | Wraps multiple `InvalidationTrigger`s into one combined `start()` / `stop()`. |
-| `SnsTopicInvalidationSource` / `SqsQueueInvalidationSource` | A single upstream source plus its bindings and optional `messageTypeField`. Group counterparts have parallel names. |
+| `SnsTopicInvalidationSource` / `SqsQueueInvalidationSource` | A single upstream source: every `message-queue-toolkit` consumer option (`creationConfig`/`locatorConfig`, `deadLetterQueue`, `subscriptionConfig`, ...) minus `handlers`, plus `bindings` and optional `messageTypeField`. Fully typed for both explicit and spread configuration. Group counterparts have parallel names. |
+| `SnsTopicInvalidationDeadLetterQueueConfig` / `SqsQueueInvalidationDeadLetterQueueConfig` | Type for the `deadLetterQueue` field (`redrivePolicy` + `creationConfig`/`locatorConfig`). Group counterparts have parallel names. |
 | `FlatBinding<TMessage>` / `GroupBinding<TMessage>` | One `(messageSchema, resolver, messageType?)` triple. |
 | `InvalidationTarget` / `GroupInvalidationTarget` | Structural interfaces that `Loader` / `GroupLoader` satisfy. |
 | `InvalidationAction` / `GroupInvalidationAction` | Action ADTs returned by resolvers. |

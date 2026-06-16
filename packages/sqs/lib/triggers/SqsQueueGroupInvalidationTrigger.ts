@@ -1,8 +1,6 @@
 import type {
   SQSConsumerDependencies,
   SQSConsumerOptions,
-  SQSCreationConfig,
-  SQSQueueLocatorType,
 } from '@message-queue-toolkit/sqs'
 import {
   AbstractSqsTrigger,
@@ -16,9 +14,33 @@ import {
 } from './bindingHelpers.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
-export type SqsQueueGroupSourceConfig =
-  | { creationConfig: SQSCreationConfig; locatorConfig?: never }
-  | { creationConfig?: never; locatorConfig: SQSQueueLocatorType }
+/**
+ * Every option the underlying `message-queue-toolkit` SQS consumer accepts,
+ * minus the `handlers` list (which the trigger builds from `bindings`).
+ *
+ * This is the per-source config surface, so callers get the same flexibility in
+ * two interchangeable styles, both fully type-checked:
+ *
+ * - **Explicit** — spell out `creationConfig`/`locatorConfig`, `deadLetterQueue`,
+ *   `concurrentConsumersAmount`, etc. with autocomplete and typo detection.
+ * - **Spread** — drop in a pre-resolved options object (e.g.
+ *   `@lokalise/aws-config`'s `resolveConsumerOptions(...)`) with `...options`.
+ */
+export type SqsQueueGroupSourceConfig = Omit<
+  SQSConsumerOptions<object, BindingHandlerContext<GroupInvalidationTarget>, undefined>,
+  'handlers'
+>
+
+/**
+ * Dead-letter-queue config for an SQS-queue group source, surfaced verbatim
+ * from the underlying `message-queue-toolkit` consumer. Supplying it with a
+ * `creationConfig` makes the toolkit auto-create the DLQ and attach the redrive
+ * policy to the trigger's queue; a `locatorConfig` points the redrive policy at
+ * a pre-existing DLQ instead.
+ */
+export type SqsQueueGroupInvalidationDeadLetterQueueConfig = NonNullable<
+  SqsQueueGroupSourceConfig['deadLetterQueue']
+>
 
 export type SqsQueueGroupInvalidationSource = SqsQueueGroupSourceConfig & {
   messageTypeField?: string
@@ -59,18 +81,25 @@ export class SqsQueueGroupInvalidationTrigger extends AbstractSqsTrigger {
 
   private buildConsumer(source: SqsQueueGroupInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSqsQueueGroupChannelName(source)
+    const { bindings, messageTypeField, ...consumerOptions } = source
     const { handlers, context, messageTypeResolver } = buildGroupBindings(
-      source.bindings,
-      source.messageTypeField,
+      bindings,
+      messageTypeField,
       this.target,
       channel,
       this.errorHandler,
     )
 
-    const base = { handlers, messageTypeResolver }
-    const options = source.creationConfig
-      ? { ...base, creationConfig: source.creationConfig }
-      : { ...base, locatorConfig: source.locatorConfig }
+    // Forward every consumer option the caller supplied. This deliberately
+    // spreads the whole source (minus the trigger-only `bindings`/
+    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
+    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
+    // straight into the source and have all of its fields (`creationConfig`/
+    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
+    // `consumerOverrides`, ...) flow through untouched. The trigger owns
+    // `handlers`, so the bindings-derived handlers always override any in the
+    // spread.
+    const options = { ...consumerOptions, handlers, messageTypeResolver }
 
     return new SqsQueueTriggerConsumer(
       this.dependencies,

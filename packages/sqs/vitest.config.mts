@@ -13,6 +13,11 @@ export default defineConfig({
     hookTimeout: 30000,
     globalSetup: ['./test/globalSetup.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
+    typecheck: {
+      enabled: true,
+      include: ['test/**/*.test-d.ts'],
+      tsconfig: './tsconfig.test-d.json',
+    },
     coverage: {
       include: ['lib/**/*.ts', 'index.ts'],
       reporter: ['lcov', 'text'],
