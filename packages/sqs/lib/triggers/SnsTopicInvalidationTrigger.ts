@@ -101,43 +101,63 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
 /**
  * Build the underlying SNS→SQS consumer options for a trigger source.
  *
- * A trigger is not a full consumer: it owns its handlers, its subscription
- * filtering, and its lifecycle. So while the source still supports spreading in
- * a pre-resolved options object — e.g. `@lokalise/aws-config`'s
- * `resolveConsumerOptions(...)` — for `creationConfig`/`locatorConfig`,
- * `deadLetterQueue`, `concurrentConsumersAmount`, `consumerOverrides`, etc., the
- * fields the trigger owns are stripped here rather than left for the caller to
+ * A trigger is not a full consumer: it owns its handlers and its subscription
+ * *filtering*. So while the source still supports spreading in a pre-resolved
+ * options object — e.g. `@lokalise/aws-config`'s `resolveConsumerOptions(...)` —
+ * for `creationConfig`/`locatorConfig`, `deadLetterQueue`,
+ * `concurrentConsumersAmount`, `consumerOverrides`, etc., the two things the
+ * trigger genuinely owns are reset here rather than left for the caller to
  * un-set at every call site:
  *
  * - **`handlers`** — always rebuilt from `bindings` (the caller's destructure
  *   already drops any spread-in handlers; we re-inject the binding-derived ones).
- * - **subscription filter policy** (`subscriptionConfig.Attributes`) —
- *   `resolveConsumerOptions` derives a `FilterPolicy` from the *consumer's*
- *   handlers. The trigger supplies its own handlers from `bindings`, so the
- *   policy the resolver built (from the empty handler list it was given) would
- *   reject every message. We drop it and default the subscription to accept-all.
- * - **`subscriptionDeadLetterQueue`** — the trigger handles failures through the
- *   queue-level `deadLetterQueue`; a subscription-level redrive policy is
- *   re-applied on every init and conflicts with that, so we drop it. (Not part of
- *   the typed surface, but it can ride along on a spread-in resolved object.)
+ * - **subscription filter policy** (`subscriptionConfig.Attributes.FilterPolicy`
+ *   / `FilterPolicyScope`) — `resolveConsumerOptions` derives a `FilterPolicy`
+ *   from the *consumer's* handlers. The trigger supplies its own handlers from
+ *   `bindings`, so the policy the resolver built (from the empty handler list it
+ *   was given) would reject every message. We drop just those keys and default
+ *   the subscription to accept-all.
+ *
+ * Everything else on `subscriptionConfig` is preserved — notably any
+ * `Attributes.RedrivePolicy` (the SNS subscription-level dead-letter queue) and
+ * a spread-in `subscriptionDeadLetterQueue` both flow through untouched.
  */
 export function buildSnsTriggerConsumerOptions<TTarget>(
   consumerOptions: SnsTopicSourceConfig,
   built: Pick<BuiltBindings<TTarget>, 'handlers' | 'messageTypeResolver'>,
 ): SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined> {
-  const {
-    subscriptionConfig,
-    subscriptionDeadLetterQueue: _subscriptionDeadLetterQueue,
-    ...rest
-  } = consumerOptions as SnsTopicSourceConfig & { subscriptionDeadLetterQueue?: unknown }
-  const { Attributes: _filterPolicy, ...callerSubscriptionConfig } = subscriptionConfig ?? {}
+  const { subscriptionConfig, ...rest } = consumerOptions
 
   return {
     ...rest,
     handlers: built.handlers,
     messageTypeResolver: built.messageTypeResolver,
-    subscriptionConfig: { updateAttributesIfExists: false, ...callerSubscriptionConfig },
+    subscriptionConfig: stripSubscriptionFilterPolicy(subscriptionConfig),
   } as SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined>
+}
+
+/**
+ * Strip only the handler-derived filter-policy keys from a subscription config,
+ * leaving every other attribute (e.g. `RedrivePolicy`, `RawMessageDelivery`)
+ * intact. Defaults `updateAttributesIfExists` to `false` when unset.
+ */
+function stripSubscriptionFilterPolicy(
+  subscriptionConfig: SnsTopicSourceConfig['subscriptionConfig'],
+): SnsTopicSourceConfig['subscriptionConfig'] {
+  const { Attributes, updateAttributesIfExists, ...rest } = subscriptionConfig ?? {}
+  const {
+    FilterPolicy: _filterPolicy,
+    FilterPolicyScope: _filterPolicyScope,
+    ...remainingAttributes
+  } = Attributes ?? {}
+
+  return {
+    updateAttributesIfExists: updateAttributesIfExists ?? false,
+    ...rest,
+    // Omit Attributes entirely when nothing but the filter policy was present,
+    // so the subscription stays accept-all instead of carrying an empty object.
+    ...(Object.keys(remainingAttributes).length > 0 ? { Attributes: remainingAttributes } : {}),
+  }
 }
 
 /** Human-readable channel name derived from an SNS-topic source config. */

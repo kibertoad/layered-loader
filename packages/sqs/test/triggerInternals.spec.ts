@@ -39,7 +39,10 @@ describe('buildSnsTriggerConsumerOptions', () => {
         subscriptionConfig: {
           updateAttributesIfExists: true,
           // A reject-all policy resolveConsumerOptions() derived from empty handlers.
-          Attributes: { FilterPolicy: JSON.stringify({ type: ['__never__'] }) },
+          Attributes: {
+            FilterPolicy: JSON.stringify({ type: ['__never__'] }),
+            FilterPolicyScope: 'MessageBody',
+          },
         },
       },
       built,
@@ -48,6 +51,32 @@ describe('buildSnsTriggerConsumerOptions', () => {
     expect(options.subscriptionConfig?.Attributes).toBeUndefined()
     // ...but the caller's other subscription settings are preserved.
     expect(options.subscriptionConfig?.updateAttributesIfExists).toBe(true)
+  })
+
+  it('preserves a subscription-level RedrivePolicy while dropping the filter policy', () => {
+    const redrivePolicy = JSON.stringify({ deadLetterTargetArn: 'arn:aws:sqs:::sub-dlq' })
+    const options = buildSnsTriggerConsumerOptions(
+      {
+        creationConfig: { topic: { Name: 't' }, queue: { QueueName: 'q' } },
+        subscriptionConfig: {
+          updateAttributesIfExists: true,
+          Attributes: {
+            FilterPolicy: JSON.stringify({ type: ['__never__'] }),
+            RedrivePolicy: redrivePolicy,
+            RawMessageDelivery: 'true',
+          },
+        },
+      },
+      buildBindings(),
+    )
+
+    // The subscription DLQ (and other non-filter attributes) survive...
+    expect(options.subscriptionConfig?.Attributes).toEqual({
+      RedrivePolicy: redrivePolicy,
+      RawMessageDelivery: 'true',
+    })
+    // ...while the handler-derived filter policy is gone.
+    expect(options.subscriptionConfig?.Attributes?.FilterPolicy).toBeUndefined()
   })
 
   it('defaults updateAttributesIfExists to false when no subscriptionConfig is given', () => {
@@ -59,7 +88,7 @@ describe('buildSnsTriggerConsumerOptions', () => {
     expect(options.subscriptionConfig?.updateAttributesIfExists).toBe(false)
   })
 
-  it('strips a spread-in subscriptionDeadLetterQueue (trigger owns queue-level DLQ)', () => {
+  it('forwards a spread-in subscriptionDeadLetterQueue untouched', () => {
     const options = buildSnsTriggerConsumerOptions(
       {
         creationConfig: { topic: { Name: 't' }, queue: { QueueName: 'q' } },
@@ -67,14 +96,18 @@ describe('buildSnsTriggerConsumerOptions', () => {
           redrivePolicy: { maxReceiveCount: 3 },
           creationConfig: { queue: { QueueName: 'q-dlq' } },
         },
-        // Not part of the typed surface, but rides along on a resolveConsumerOptions() spread.
+        // Not part of the vendored typed surface, but rides along on a
+        // resolveConsumerOptions() spread / newer toolkit versions.
         subscriptionDeadLetterQueue: { reuseConsumerDeadLetterQueue: true },
       } as Parameters<typeof buildSnsTriggerConsumerOptions>[0],
       buildBindings(),
     )
 
-    expect('subscriptionDeadLetterQueue' in options).toBe(false)
-    // The queue-level DLQ the trigger does own is forwarded untouched.
+    // The subscription-level DLQ directive flows through to the consumer.
+    expect((options as { subscriptionDeadLetterQueue?: unknown }).subscriptionDeadLetterQueue).toEqual(
+      { reuseConsumerDeadLetterQueue: true },
+    )
+    // The queue-level DLQ is forwarded untouched as well.
     expect(options.deadLetterQueue).toEqual({
       redrivePolicy: { maxReceiveCount: 3 },
       creationConfig: { queue: { QueueName: 'q-dlq' } },
