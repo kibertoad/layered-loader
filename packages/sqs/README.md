@@ -602,8 +602,6 @@ A trigger source **is** the underlying `message-queue-toolkit` consumer options 
 The trigger always overrides `handlers` with the ones it builds from `bindings`; everything else flows through untouched.
 
 ```ts
-
-```ts
 const resolver = getSnsMqtOptionsResolver({ appEnv: 'production' })
 const options = resolver.resolveConsumerOptions(topicName, queueName, {
   /* awsConfig, logger, deadLetterQueue, ... */
