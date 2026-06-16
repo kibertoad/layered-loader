@@ -721,6 +721,90 @@ describe('SqsQueueInvalidationTrigger', () => {
     }
   })
 
+  it('awaits an async resolver that derives keys via an I/O lookup', async () => {
+    const suffix = Math.random().toString(36).slice(2, 8)
+    const invalidationTopic = `async-src-${suffix}`
+
+    const peer = createNotificationPair<string>({
+      publisher: {
+        dependencies: buildPublisherDeps(clients),
+        creationConfig: { topic: { Name: invalidationTopic } },
+      },
+      consumer: {
+        dependencies: buildConsumerDeps(clients),
+        creationConfig: {
+          topic: { Name: invalidationTopic },
+          queue: { QueueName: `async-src-peer-q-${suffix}` },
+        },
+      },
+    })
+
+    const loader = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new StubAsyncCache('value'),
+      notificationConsumer: peer.consumer,
+      notificationPublisher: peer.publisher,
+    })
+
+    const upstreamQueueName = `domain-events-async-q-${suffix}`
+    await clients.sqsClient.send(new CreateQueueCommand({ QueueName: upstreamQueueName }))
+    const queueUrl = (
+      await clients.sqsClient.send(new GetQueueUrlCommand({ QueueName: upstreamQueueName }))
+    ).QueueUrl!
+
+    // Stand-in for a DB/service lookup the resolver must await before it knows
+    // which keys an event actually affects.
+    const membership: Record<string, string[]> = { 'team-7': ['user-1', 'user-2'] }
+    const lookupMembers = (teamId: string) =>
+      Promise.resolve(membership[teamId] ?? [])
+
+    const trigger = new SqsQueueInvalidationTrigger({
+      target: loader,
+      dependencies: buildConsumerDeps(clients),
+      sources: [
+        {
+          locatorConfig: { queueUrl },
+          bindings: [
+            {
+              messageSchema: UPSTREAM_EVENT_SCHEMA,
+              resolver: async (m: UpstreamEvent) => {
+                if (m.eventType !== 'user.bulk-updated' || !m.userId) return null
+                const keys = await lookupMembers(m.userId)
+                return keys.length ? { kind: 'deleteMany', keys } : null
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    try {
+      await loader.init()
+      await trigger.start()
+
+      await loader.getAsyncOnly('user-1')
+      await loader.getAsyncOnly('user-2')
+      expect(loader.getInMemoryOnly('user-1')).toBe('value')
+      expect(loader.getInMemoryOnly('user-2')).toBe('value')
+
+      // userId carries the team id this event fans out to.
+      await clients.sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: queueUrl,
+          MessageBody: JSON.stringify({ eventType: 'user.bulk-updated', userId: 'team-7' }),
+        }),
+      )
+
+      await waitFor(
+        () =>
+          loader.getInMemoryOnly('user-1') === undefined &&
+          loader.getInMemoryOnly('user-2') === undefined,
+      )
+    } finally {
+      await Promise.allSettled([trigger.stop(), peer.consumer.close(), peer.publisher.close()])
+    }
+  })
+
   it('consumes from two SQS queues simultaneously', async () => {
     const suffix = Math.random().toString(36).slice(2, 8)
     const invalidationTopic = `multi-sqs-${suffix}`

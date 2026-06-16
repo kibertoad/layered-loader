@@ -551,7 +551,18 @@ type GroupInvalidationAction =
   | { kind: 'clear' }
 ```
 
-Resolvers may be `async`; the trigger awaits before applying actions.
+A resolver may be **synchronous or asynchronous** — both are fully supported. Return the action(s) directly for a simple field-to-key mapping, or return a `Promise` (e.g. an `async` function) when deriving the affected keys requires I/O such as a database or service lookup. The trigger always `await`s the resolver before applying actions, so the two forms behave identically:
+
+```ts
+// Synchronous: map a field straight to a key.
+resolver: (msg) => ({ kind: 'delete', key: msg.userId })
+
+// Asynchronous: look up the affected keys first.
+resolver: async (msg) => {
+  const memberIds = await membership.listMemberIds(msg.teamId)
+  return { kind: 'deleteMany', keys: memberIds }
+}
+```
 
 ### Error handling and retries
 
