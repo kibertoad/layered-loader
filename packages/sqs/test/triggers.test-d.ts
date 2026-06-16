@@ -3,13 +3,9 @@ import type { SQSConsumerOptions } from '@message-queue-toolkit/sqs'
 import { assertType, describe, expectTypeOf, test } from 'vitest'
 import { z } from 'zod'
 import type {
-  SnsTopicGroupInvalidationDeadLetterQueueConfig,
   SnsTopicGroupInvalidationSource,
-  SnsTopicInvalidationDeadLetterQueueConfig,
   SnsTopicInvalidationSource,
-  SqsQueueGroupInvalidationDeadLetterQueueConfig,
   SqsQueueGroupInvalidationSource,
-  SqsQueueInvalidationDeadLetterQueueConfig,
   SqsQueueInvalidationSource,
 } from '../index.js'
 
@@ -119,27 +115,6 @@ describe('trigger source types: spread + explicit configuration', () => {
       nope: true,
       creationConfig: { queue: { QueueName: 'q' } },
       bindings: [groupBinding],
-    })
-  })
-})
-
-describe('dead-letter-queue helper types', () => {
-  test('each exposes redrivePolicy + create/locate', () => {
-    const dlqConfigs = [
-      {} as SnsTopicInvalidationDeadLetterQueueConfig,
-      {} as SnsTopicGroupInvalidationDeadLetterQueueConfig,
-      {} as SqsQueueInvalidationDeadLetterQueueConfig,
-      {} as SqsQueueGroupInvalidationDeadLetterQueueConfig,
-    ]
-
-    expectTypeOf(dlqConfigs[0]!.redrivePolicy).toEqualTypeOf<{ maxReceiveCount: number }>()
-    expectTypeOf(dlqConfigs[0]!).toHaveProperty('creationConfig')
-    expectTypeOf(dlqConfigs[0]!).toHaveProperty('locatorConfig')
-
-    // A standalone DLQ object can be built against the exported helper type.
-    assertType<SnsTopicInvalidationDeadLetterQueueConfig>({
-      redrivePolicy: { maxReceiveCount: 5 },
-      creationConfig: { queue: { QueueName: 'q-dlq' } },
     })
   })
 })

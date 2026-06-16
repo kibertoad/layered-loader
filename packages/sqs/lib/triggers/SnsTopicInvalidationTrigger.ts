@@ -32,17 +32,6 @@ export type SnsTopicSourceConfig = Omit<
   'handlers'
 >
 
-/**
- * Dead-letter-queue config for an SNS-topic source, surfaced verbatim from the
- * underlying `message-queue-toolkit` consumer. Supplying it with a
- * `creationConfig` makes the toolkit auto-create the DLQ, attach the redrive
- * policy to the trigger's own queue, and wire the topic subscription; a
- * `locatorConfig` points the redrive policy at a pre-existing DLQ instead.
- */
-export type SnsTopicInvalidationDeadLetterQueueConfig = NonNullable<
-  SnsTopicSourceConfig['deadLetterQueue']
->
-
 export type SnsTopicInvalidationSource = SnsTopicSourceConfig & {
   messageTypeField?: string
   // biome-ignore lint/suspicious/noExplicitAny: bindings heterogeneous over TMessage

@@ -81,7 +81,6 @@ export {
 export {
   deriveSqsQueueChannelName,
   SqsQueueInvalidationTrigger,
-  type SqsQueueInvalidationDeadLetterQueueConfig,
   type SqsQueueInvalidationSource,
   type SqsQueueInvalidationTriggerParams,
   type SqsQueueSourceConfig,
@@ -89,7 +88,6 @@ export {
 export {
   deriveSnsTopicChannelName,
   SnsTopicInvalidationTrigger,
-  type SnsTopicInvalidationDeadLetterQueueConfig,
   type SnsTopicInvalidationSource,
   type SnsTopicInvalidationTriggerParams,
   type SnsTopicSourceConfig,
@@ -97,7 +95,6 @@ export {
 export {
   deriveSqsQueueGroupChannelName,
   SqsQueueGroupInvalidationTrigger,
-  type SqsQueueGroupInvalidationDeadLetterQueueConfig,
   type SqsQueueGroupInvalidationSource,
   type SqsQueueGroupInvalidationTriggerParams,
   type SqsQueueGroupSourceConfig,
@@ -105,7 +102,6 @@ export {
 export {
   deriveSnsTopicGroupChannelName,
   SnsTopicGroupInvalidationTrigger,
-  type SnsTopicGroupInvalidationDeadLetterQueueConfig,
   type SnsTopicGroupInvalidationSource,
   type SnsTopicGroupInvalidationTriggerParams,
   type SnsTopicGroupSourceConfig,

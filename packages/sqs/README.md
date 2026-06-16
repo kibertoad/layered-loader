@@ -590,7 +590,7 @@ const trigger = new SnsTopicInvalidationTrigger({
 })
 ```
 
-The `deadLetterQueue` field is the same shape `message-queue-toolkit` exposes on its consumers, surfaced per trigger as `SnsTopicInvalidationDeadLetterQueueConfig` (and the `SqsQueue*` / `*Group*` counterparts). It is available on all four trigger source types.
+The `deadLetterQueue` field is the same shape `message-queue-toolkit` exposes on its consumers. It is available on all four trigger source types.
 
 ### Explicit vs spread configuration
 
@@ -684,7 +684,6 @@ Then point your AWS SDK clients at `http://localhost:4566`.
 | `SnsTopicGroupInvalidationTrigger` / `SqsQueueGroupInvalidationTrigger` | `GroupLoader` counterparts. |
 | `composeTriggers(...triggers)` | Wraps multiple `InvalidationTrigger`s into one combined `start()` / `stop()`. |
 | `SnsTopicInvalidationSource` / `SqsQueueInvalidationSource` | A single upstream source: every `message-queue-toolkit` consumer option (`creationConfig`/`locatorConfig`, `deadLetterQueue`, `subscriptionConfig`, ...) minus `handlers`, plus `bindings` and optional `messageTypeField`. Fully typed for both explicit and spread configuration. Group counterparts have parallel names. |
-| `SnsTopicInvalidationDeadLetterQueueConfig` / `SqsQueueInvalidationDeadLetterQueueConfig` | Type for the `deadLetterQueue` field (`redrivePolicy` + `creationConfig`/`locatorConfig`). Group counterparts have parallel names. |
 | `FlatBinding<TMessage>` / `GroupBinding<TMessage>` | One `(messageSchema, resolver, messageType?)` triple. |
 | `InvalidationTarget` / `GroupInvalidationTarget` | Structural interfaces that `Loader` / `GroupLoader` satisfy. |
 | `InvalidationAction` / `GroupInvalidationAction` | Action ADTs returned by resolvers. |

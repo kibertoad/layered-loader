@@ -31,17 +31,6 @@ export type SqsQueueGroupSourceConfig = Omit<
   'handlers'
 >
 
-/**
- * Dead-letter-queue config for an SQS-queue group source, surfaced verbatim
- * from the underlying `message-queue-toolkit` consumer. Supplying it with a
- * `creationConfig` makes the toolkit auto-create the DLQ and attach the redrive
- * policy to the trigger's queue; a `locatorConfig` points the redrive policy at
- * a pre-existing DLQ instead.
- */
-export type SqsQueueGroupInvalidationDeadLetterQueueConfig = NonNullable<
-  SqsQueueGroupSourceConfig['deadLetterQueue']
->
-
 export type SqsQueueGroupInvalidationSource = SqsQueueGroupSourceConfig & {
   messageTypeField?: string
   // biome-ignore lint/suspicious/noExplicitAny: bindings heterogeneous over TMessage

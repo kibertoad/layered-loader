@@ -31,17 +31,6 @@ export type SqsQueueSourceConfig = Omit<
   'handlers'
 >
 
-/**
- * Dead-letter-queue config for an SQS-queue source, surfaced verbatim from the
- * underlying `message-queue-toolkit` consumer. Supplying it with a
- * `creationConfig` makes the toolkit auto-create the DLQ and attach the redrive
- * policy to the trigger's queue; a `locatorConfig` points the redrive policy at
- * a pre-existing DLQ instead.
- */
-export type SqsQueueInvalidationDeadLetterQueueConfig = NonNullable<
-  SqsQueueSourceConfig['deadLetterQueue']
->
-
 export type SqsQueueInvalidationSource = SqsQueueSourceConfig & {
   /**
    * Path on the message body whose value selects which binding handles each
