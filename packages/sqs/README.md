@@ -610,7 +610,13 @@ A trigger source **is** the underlying `message-queue-toolkit` consumer options 
 - **Explicit** — spell options out inline (`creationConfig`/`locatorConfig`, `deadLetterQueue`, `subscriptionConfig`, `concurrentConsumersAmount`, `consumerOverrides`, ...). An unknown key or a wrong-typed value is a compile error.
 - **Spread** — resolve options elsewhere — e.g. with `@lokalise/aws-config`'s `getSnsMqtOptionsResolver()` — and spread the result straight in.
 
-The trigger always overrides `handlers` with the ones it builds from `bindings`; everything else flows through untouched.
+A trigger is not a plain consumer — it owns its handlers, its subscription filtering, and its lifecycle — so a few fields are claimed by the trigger and the rest flow through untouched. You can spread a resolved options object straight in without un-setting anything:
+
+- **`handlers`** — always rebuilt from `bindings`.
+- **subscription filter policy** (`subscriptionConfig.Attributes`) — `resolveConsumerOptions` derives a `FilterPolicy` from the consumer's handlers. The trigger has its own handlers (from `bindings`), so the resolver's policy — built from an empty handler list — would reject every message. The trigger drops it and defaults the subscription to accept-all. Other `subscriptionConfig` settings you pass are preserved.
+- **`subscriptionDeadLetterQueue`** — the trigger handles failures through the queue-level `deadLetterQueue`; a subscription-level redrive policy is dropped.
+
+Everything else (`creationConfig`/`locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`, `consumerOverrides`, ...) flows through as-is.
 
 ```ts
 const resolver = getSnsMqtOptionsResolver({ appEnv: 'production' })

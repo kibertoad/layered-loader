@@ -1,18 +1,14 @@
-import type {
-  SNSSQSConsumerDependencies,
-  SNSSQSConsumerOptions,
-} from '@message-queue-toolkit/sns'
+import type { SNSSQSConsumerDependencies } from '@message-queue-toolkit/sns'
 import {
   AbstractSqsTrigger,
   type InternalConsumerHandle,
   SnsTopicTriggerConsumer,
 } from './AbstractSqsTrigger.js'
+import { buildGroupBindings, type GroupBinding } from './bindingHelpers.js'
 import {
-  type BindingHandlerContext,
-  buildGroupBindings,
-  type GroupBinding,
-} from './bindingHelpers.js'
-import type { SnsTopicSourceConfig } from './SnsTopicInvalidationTrigger.js'
+  buildSnsTriggerConsumerOptions,
+  type SnsTopicSourceConfig,
+} from './SnsTopicInvalidationTrigger.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
 /**
@@ -64,7 +60,7 @@ export class SnsTopicGroupInvalidationTrigger extends AbstractSqsTrigger {
   private buildConsumer(source: SnsTopicGroupInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSnsTopicGroupChannelName(source)
     const { bindings, messageTypeField, ...consumerOptions } = source
-    const { handlers, context, messageTypeResolver } = buildGroupBindings(
+    const built = buildGroupBindings(
       bindings,
       messageTypeField,
       this.target,
@@ -72,30 +68,10 @@ export class SnsTopicGroupInvalidationTrigger extends AbstractSqsTrigger {
       this.errorHandler,
     )
 
-    // Forward every consumer option the caller supplied. This deliberately
-    // spreads the whole source (minus the trigger-only `bindings`/
-    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
-    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
-    // straight into the source and have all of its fields (`creationConfig`/
-    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
-    // `consumerOverrides`, ...) flow through untouched. The trigger owns
-    // `handlers`, so the bindings-derived handlers always override any in the
-    // spread.
-    const options = {
-      ...consumerOptions,
-      handlers,
-      messageTypeResolver,
-      subscriptionConfig: source.subscriptionConfig ?? { updateAttributesIfExists: false },
-    }
-
     return new SnsTopicTriggerConsumer(
       this.dependencies,
-      options as SNSSQSConsumerOptions<
-        object,
-        BindingHandlerContext<GroupInvalidationTarget>,
-        undefined
-      >,
-      context,
+      buildSnsTriggerConsumerOptions(consumerOptions, built),
+      built.context,
     )
   }
 }

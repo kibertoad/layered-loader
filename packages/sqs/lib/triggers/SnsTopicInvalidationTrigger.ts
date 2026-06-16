@@ -10,6 +10,7 @@ import {
 import {
   type BindingHandlerContext,
   buildFlatBindings,
+  type BuiltBindings,
   type FlatBinding,
 } from './bindingHelpers.js'
 import type { InvalidationTarget, TriggerErrorHandler } from './types.js'
@@ -81,7 +82,7 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
   private buildConsumer(source: SnsTopicInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSnsTopicChannelName(source)
     const { bindings, messageTypeField, ...consumerOptions } = source
-    const { handlers, context, messageTypeResolver } = buildFlatBindings(
+    const built = buildFlatBindings(
       bindings,
       messageTypeField,
       this.target,
@@ -89,32 +90,54 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
       this.errorHandler,
     )
 
-    // Forward every consumer option the caller supplied. This deliberately
-    // spreads the whole source (minus the trigger-only `bindings`/
-    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
-    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
-    // straight into the source and have all of its fields (`creationConfig`/
-    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
-    // `consumerOverrides`, ...) flow through untouched. The trigger owns
-    // `handlers`, so the bindings-derived handlers always override any in the
-    // spread.
-    const options = {
-      ...consumerOptions,
-      handlers,
-      messageTypeResolver,
-      subscriptionConfig: source.subscriptionConfig ?? { updateAttributesIfExists: false },
-    }
-
     return new SnsTopicTriggerConsumer(
       this.dependencies,
-      options as SNSSQSConsumerOptions<
-        object,
-        BindingHandlerContext<InvalidationTarget>,
-        undefined
-      >,
-      context,
+      buildSnsTriggerConsumerOptions(consumerOptions, built),
+      built.context,
     )
   }
+}
+
+/**
+ * Build the underlying SNS→SQS consumer options for a trigger source.
+ *
+ * A trigger is not a full consumer: it owns its handlers, its subscription
+ * filtering, and its lifecycle. So while the source still supports spreading in
+ * a pre-resolved options object — e.g. `@lokalise/aws-config`'s
+ * `resolveConsumerOptions(...)` — for `creationConfig`/`locatorConfig`,
+ * `deadLetterQueue`, `concurrentConsumersAmount`, `consumerOverrides`, etc., the
+ * fields the trigger owns are stripped here rather than left for the caller to
+ * un-set at every call site:
+ *
+ * - **`handlers`** — always rebuilt from `bindings` (the caller's destructure
+ *   already drops any spread-in handlers; we re-inject the binding-derived ones).
+ * - **subscription filter policy** (`subscriptionConfig.Attributes`) —
+ *   `resolveConsumerOptions` derives a `FilterPolicy` from the *consumer's*
+ *   handlers. The trigger supplies its own handlers from `bindings`, so the
+ *   policy the resolver built (from the empty handler list it was given) would
+ *   reject every message. We drop it and default the subscription to accept-all.
+ * - **`subscriptionDeadLetterQueue`** — the trigger handles failures through the
+ *   queue-level `deadLetterQueue`; a subscription-level redrive policy is
+ *   re-applied on every init and conflicts with that, so we drop it. (Not part of
+ *   the typed surface, but it can ride along on a spread-in resolved object.)
+ */
+export function buildSnsTriggerConsumerOptions<TTarget>(
+  consumerOptions: SnsTopicSourceConfig,
+  built: Pick<BuiltBindings<TTarget>, 'handlers' | 'messageTypeResolver'>,
+): SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined> {
+  const {
+    subscriptionConfig,
+    subscriptionDeadLetterQueue: _subscriptionDeadLetterQueue,
+    ...rest
+  } = consumerOptions as SnsTopicSourceConfig & { subscriptionDeadLetterQueue?: unknown }
+  const { Attributes: _filterPolicy, ...callerSubscriptionConfig } = subscriptionConfig ?? {}
+
+  return {
+    ...rest,
+    handlers: built.handlers,
+    messageTypeResolver: built.messageTypeResolver,
+    subscriptionConfig: { updateAttributesIfExists: false, ...callerSubscriptionConfig },
+  } as SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined>
 }
 
 /** Human-readable channel name derived from an SNS-topic source config. */

@@ -80,7 +80,13 @@ export abstract class AbstractSqsTrigger implements InvalidationTrigger {
         const consumers = this.createConsumers()
         if (consumers.length === 0) return
         try {
-          await Promise.all(consumers.map((c) => c.init()))
+          // Only call start(): the underlying message-queue-toolkit consumer's
+          // start() already runs init() internally. Calling init() here as well
+          // would init() every consumer twice, and the second pass re-subscribes
+          // the queue to its topic — which conflicts with subscription attributes
+          // (filter policy, redrive policy) applied on the first pass. start()
+          // also provisions all resources, so nothing is lost by dropping the
+          // separate init() barrier.
           await Promise.all(consumers.map((c) => c.start()))
           this.internalConsumers = [...consumers]
         } catch (err) {

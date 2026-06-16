@@ -86,6 +86,7 @@ export {
   type SqsQueueSourceConfig,
 } from './lib/triggers/SqsQueueInvalidationTrigger.js'
 export {
+  buildSnsTriggerConsumerOptions,
   deriveSnsTopicChannelName,
   SnsTopicInvalidationTrigger,
   type SnsTopicInvalidationSource,
