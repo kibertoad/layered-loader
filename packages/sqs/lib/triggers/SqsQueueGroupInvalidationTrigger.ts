@@ -1,8 +1,6 @@
 import type {
   SQSConsumerDependencies,
   SQSConsumerOptions,
-  SQSCreationConfig,
-  SQSQueueLocatorType,
 } from '@message-queue-toolkit/sqs'
 import {
   AbstractSqsTrigger,
@@ -14,11 +12,17 @@ import {
   buildGroupBindings,
   type GroupBinding,
 } from './bindingHelpers.js'
+import type { SqsQueueSourceConfig } from './SqsQueueInvalidationTrigger.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
-export type SqsQueueGroupSourceConfig =
-  | { creationConfig: SQSCreationConfig; locatorConfig?: never }
-  | { creationConfig?: never; locatorConfig: SQSQueueLocatorType }
+/**
+ * The per-source config surface is identical to the flat-cache one — every
+ * `message-queue-toolkit` SQS consumer option minus `handlers` — so it is
+ * aliased to {@link SqsQueueSourceConfig} rather than re-declared. The handler
+ * execution context (the only place the two would differ) lives on the omitted
+ * `handlers` field, so the resulting types are structurally the same.
+ */
+export type SqsQueueGroupSourceConfig = SqsQueueSourceConfig
 
 export type SqsQueueGroupInvalidationSource = SqsQueueGroupSourceConfig & {
   messageTypeField?: string
@@ -59,18 +63,25 @@ export class SqsQueueGroupInvalidationTrigger extends AbstractSqsTrigger {
 
   private buildConsumer(source: SqsQueueGroupInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSqsQueueGroupChannelName(source)
+    const { bindings, messageTypeField, ...consumerOptions } = source
     const { handlers, context, messageTypeResolver } = buildGroupBindings(
-      source.bindings,
-      source.messageTypeField,
+      bindings,
+      messageTypeField,
       this.target,
       channel,
       this.errorHandler,
     )
 
-    const base = { handlers, messageTypeResolver }
-    const options = source.creationConfig
-      ? { ...base, creationConfig: source.creationConfig }
-      : { ...base, locatorConfig: source.locatorConfig }
+    // Forward every consumer option the caller supplied. This deliberately
+    // spreads the whole source (minus the trigger-only `bindings`/
+    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
+    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
+    // straight into the source and have all of its fields (`creationConfig`/
+    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
+    // `consumerOverrides`, ...) flow through untouched. The trigger owns
+    // `handlers`, so the bindings-derived handlers always override any in the
+    // spread.
+    const options = { ...consumerOptions, handlers, messageTypeResolver }
 
     return new SqsQueueTriggerConsumer(
       this.dependencies,

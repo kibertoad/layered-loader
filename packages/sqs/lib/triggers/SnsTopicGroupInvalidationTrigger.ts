@@ -1,10 +1,7 @@
 import type {
   SNSSQSConsumerDependencies,
   SNSSQSConsumerOptions,
-  SNSSQSCreationConfig,
-  SNSSQSQueueLocatorType,
 } from '@message-queue-toolkit/sns'
-import type { SqsSubscriptionOptions } from '../SqsNotificationConsumer.js'
 import {
   AbstractSqsTrigger,
   type InternalConsumerHandle,
@@ -15,14 +12,19 @@ import {
   buildGroupBindings,
   type GroupBinding,
 } from './bindingHelpers.js'
+import type { SnsTopicSourceConfig } from './SnsTopicInvalidationTrigger.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
-export type SnsTopicGroupSourceConfig =
-  | { creationConfig: SNSSQSCreationConfig; locatorConfig?: never }
-  | { creationConfig?: never; locatorConfig: SNSSQSQueueLocatorType }
+/**
+ * The per-source config surface is identical to the flat-cache one — every
+ * `message-queue-toolkit` SNS→SQS consumer option minus `handlers` — so it is
+ * aliased to {@link SnsTopicSourceConfig} rather than re-declared. The handler
+ * execution context (the only place the two would differ) lives on the omitted
+ * `handlers` field, so the resulting types are structurally the same.
+ */
+export type SnsTopicGroupSourceConfig = SnsTopicSourceConfig
 
 export type SnsTopicGroupInvalidationSource = SnsTopicGroupSourceConfig & {
-  subscriptionConfig?: SqsSubscriptionOptions
   messageTypeField?: string
   // biome-ignore lint/suspicious/noExplicitAny: bindings heterogeneous over TMessage
   bindings: readonly GroupBinding<any>[]
@@ -61,22 +63,30 @@ export class SnsTopicGroupInvalidationTrigger extends AbstractSqsTrigger {
 
   private buildConsumer(source: SnsTopicGroupInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSnsTopicGroupChannelName(source)
+    const { bindings, messageTypeField, ...consumerOptions } = source
     const { handlers, context, messageTypeResolver } = buildGroupBindings(
-      source.bindings,
-      source.messageTypeField,
+      bindings,
+      messageTypeField,
       this.target,
       channel,
       this.errorHandler,
     )
 
-    const base = {
+    // Forward every consumer option the caller supplied. This deliberately
+    // spreads the whole source (minus the trigger-only `bindings`/
+    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
+    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
+    // straight into the source and have all of its fields (`creationConfig`/
+    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
+    // `consumerOverrides`, ...) flow through untouched. The trigger owns
+    // `handlers`, so the bindings-derived handlers always override any in the
+    // spread.
+    const options = {
+      ...consumerOptions,
       handlers,
       messageTypeResolver,
       subscriptionConfig: source.subscriptionConfig ?? { updateAttributesIfExists: false },
     }
-    const options = source.creationConfig
-      ? { ...base, creationConfig: source.creationConfig }
-      : { ...base, locatorConfig: source.locatorConfig }
 
     return new SnsTopicTriggerConsumer(
       this.dependencies,
