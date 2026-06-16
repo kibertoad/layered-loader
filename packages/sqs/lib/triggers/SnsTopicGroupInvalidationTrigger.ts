@@ -12,25 +12,17 @@ import {
   buildGroupBindings,
   type GroupBinding,
 } from './bindingHelpers.js'
+import type { SnsTopicSourceConfig } from './SnsTopicInvalidationTrigger.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
 /**
- * Every option the underlying `message-queue-toolkit` SNS→SQS consumer accepts,
- * minus the `handlers` list (which the trigger builds from `bindings`).
- *
- * This is the per-source config surface, so callers get the same flexibility in
- * two interchangeable styles, both fully type-checked:
- *
- * - **Explicit** — spell out `creationConfig`/`locatorConfig`, `subscriptionConfig`,
- *   `deadLetterQueue`, `concurrentConsumersAmount`, etc. with autocomplete and
- *   typo detection.
- * - **Spread** — drop in a pre-resolved options object (e.g.
- *   `@lokalise/aws-config`'s `resolveConsumerOptions(...)`) with `...options`.
+ * The per-source config surface is identical to the flat-cache one — every
+ * `message-queue-toolkit` SNS→SQS consumer option minus `handlers` — so it is
+ * aliased to {@link SnsTopicSourceConfig} rather than re-declared. The handler
+ * execution context (the only place the two would differ) lives on the omitted
+ * `handlers` field, so the resulting types are structurally the same.
  */
-export type SnsTopicGroupSourceConfig = Omit<
-  SNSSQSConsumerOptions<object, BindingHandlerContext<GroupInvalidationTarget>, undefined>,
-  'handlers'
->
+export type SnsTopicGroupSourceConfig = SnsTopicSourceConfig
 
 export type SnsTopicGroupInvalidationSource = SnsTopicGroupSourceConfig & {
   messageTypeField?: string

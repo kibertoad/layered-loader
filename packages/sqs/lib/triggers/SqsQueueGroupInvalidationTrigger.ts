@@ -12,24 +12,17 @@ import {
   buildGroupBindings,
   type GroupBinding,
 } from './bindingHelpers.js'
+import type { SqsQueueSourceConfig } from './SqsQueueInvalidationTrigger.js'
 import type { GroupInvalidationTarget, TriggerErrorHandler } from './types.js'
 
 /**
- * Every option the underlying `message-queue-toolkit` SQS consumer accepts,
- * minus the `handlers` list (which the trigger builds from `bindings`).
- *
- * This is the per-source config surface, so callers get the same flexibility in
- * two interchangeable styles, both fully type-checked:
- *
- * - **Explicit** — spell out `creationConfig`/`locatorConfig`, `deadLetterQueue`,
- *   `concurrentConsumersAmount`, etc. with autocomplete and typo detection.
- * - **Spread** — drop in a pre-resolved options object (e.g.
- *   `@lokalise/aws-config`'s `resolveConsumerOptions(...)`) with `...options`.
+ * The per-source config surface is identical to the flat-cache one — every
+ * `message-queue-toolkit` SQS consumer option minus `handlers` — so it is
+ * aliased to {@link SqsQueueSourceConfig} rather than re-declared. The handler
+ * execution context (the only place the two would differ) lives on the omitted
+ * `handlers` field, so the resulting types are structurally the same.
  */
-export type SqsQueueGroupSourceConfig = Omit<
-  SQSConsumerOptions<object, BindingHandlerContext<GroupInvalidationTarget>, undefined>,
-  'handlers'
->
+export type SqsQueueGroupSourceConfig = SqsQueueSourceConfig
 
 export type SqsQueueGroupInvalidationSource = SqsQueueGroupSourceConfig & {
   messageTypeField?: string
