@@ -1,6 +1,6 @@
 {
   "name": "@layered-loader/sqs",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "SNS/SQS remote invalidation adapter for layered-loader",
   "license": "MIT",
   "type": "module",
