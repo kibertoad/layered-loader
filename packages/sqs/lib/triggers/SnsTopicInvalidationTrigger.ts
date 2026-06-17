@@ -10,6 +10,7 @@ import {
 import {
   type BindingHandlerContext,
   buildFlatBindings,
+  type BuiltBindings,
   type FlatBinding,
 } from './bindingHelpers.js'
 import type { InvalidationTarget, TriggerErrorHandler } from './types.js'
@@ -81,7 +82,7 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
   private buildConsumer(source: SnsTopicInvalidationSource): InternalConsumerHandle {
     const channel = this.channelOverride ?? deriveSnsTopicChannelName(source)
     const { bindings, messageTypeField, ...consumerOptions } = source
-    const { handlers, context, messageTypeResolver } = buildFlatBindings(
+    const built = buildFlatBindings(
       bindings,
       messageTypeField,
       this.target,
@@ -89,31 +90,73 @@ export class SnsTopicInvalidationTrigger extends AbstractSqsTrigger {
       this.errorHandler,
     )
 
-    // Forward every consumer option the caller supplied. This deliberately
-    // spreads the whole source (minus the trigger-only `bindings`/
-    // `messageTypeField`) so a pre-resolved options object — e.g. the output of
-    // `@lokalise/aws-config`'s `resolveConsumerOptions(...)` — can be spread
-    // straight into the source and have all of its fields (`creationConfig`/
-    // `locatorConfig`, `deadLetterQueue`, `concurrentConsumersAmount`,
-    // `consumerOverrides`, ...) flow through untouched. The trigger owns
-    // `handlers`, so the bindings-derived handlers always override any in the
-    // spread.
-    const options = {
-      ...consumerOptions,
-      handlers,
-      messageTypeResolver,
-      subscriptionConfig: source.subscriptionConfig ?? { updateAttributesIfExists: false },
-    }
-
     return new SnsTopicTriggerConsumer(
       this.dependencies,
-      options as SNSSQSConsumerOptions<
-        object,
-        BindingHandlerContext<InvalidationTarget>,
-        undefined
-      >,
-      context,
+      buildSnsTriggerConsumerOptions(consumerOptions, built),
+      built.context,
     )
+  }
+}
+
+/**
+ * Build the underlying SNS→SQS consumer options for a trigger source.
+ *
+ * A trigger is not a full consumer: it owns its handlers and its subscription
+ * *filtering*. So while the source still supports spreading in a pre-resolved
+ * options object — e.g. `@lokalise/aws-config`'s `resolveConsumerOptions(...)` —
+ * for `creationConfig`/`locatorConfig`, `deadLetterQueue`,
+ * `concurrentConsumersAmount`, `consumerOverrides`, etc., the two things the
+ * trigger genuinely owns are reset here rather than left for the caller to
+ * un-set at every call site:
+ *
+ * - **`handlers`** — always rebuilt from `bindings` (the caller's destructure
+ *   already drops any spread-in handlers; we re-inject the binding-derived ones).
+ * - **subscription filter policy** (`subscriptionConfig.Attributes.FilterPolicy`
+ *   / `FilterPolicyScope`) — `resolveConsumerOptions` derives a `FilterPolicy`
+ *   from the *consumer's* handlers. The trigger supplies its own handlers from
+ *   `bindings`, so the policy the resolver built (from the empty handler list it
+ *   was given) would reject every message. We drop just those keys and default
+ *   the subscription to accept-all.
+ *
+ * Everything else on `subscriptionConfig` is preserved — notably any
+ * `Attributes.RedrivePolicy` (the SNS subscription-level dead-letter queue) and
+ * a spread-in `subscriptionDeadLetterQueue` both flow through untouched.
+ */
+export function buildSnsTriggerConsumerOptions<TTarget>(
+  consumerOptions: SnsTopicSourceConfig,
+  built: Pick<BuiltBindings<TTarget>, 'handlers' | 'messageTypeResolver'>,
+): SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined> {
+  const { subscriptionConfig, ...rest } = consumerOptions
+
+  return {
+    ...rest,
+    handlers: built.handlers,
+    messageTypeResolver: built.messageTypeResolver,
+    subscriptionConfig: stripSubscriptionFilterPolicy(subscriptionConfig),
+  } as SNSSQSConsumerOptions<object, BindingHandlerContext<TTarget>, undefined>
+}
+
+/**
+ * Strip only the handler-derived filter-policy keys from a subscription config,
+ * leaving every other attribute (e.g. `RedrivePolicy`, `RawMessageDelivery`)
+ * intact. Defaults `updateAttributesIfExists` to `false` when unset.
+ */
+function stripSubscriptionFilterPolicy(
+  subscriptionConfig: SnsTopicSourceConfig['subscriptionConfig'],
+): SnsTopicSourceConfig['subscriptionConfig'] {
+  const { Attributes, updateAttributesIfExists, ...rest } = subscriptionConfig ?? {}
+  const {
+    FilterPolicy: _filterPolicy,
+    FilterPolicyScope: _filterPolicyScope,
+    ...remainingAttributes
+  } = Attributes ?? {}
+
+  return {
+    updateAttributesIfExists: updateAttributesIfExists ?? false,
+    ...rest,
+    // Omit Attributes entirely when nothing but the filter policy was present,
+    // so the subscription stays accept-all instead of carrying an empty object.
+    ...(Object.keys(remainingAttributes).length > 0 ? { Attributes: remainingAttributes } : {}),
   }
 }
 
