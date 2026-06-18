@@ -39,6 +39,7 @@ export type { GroupLoaderConfig } from './lib/GroupLoader'
 export type { ManualGroupCacheConfig } from './lib/ManualGroupCache'
 export type {
   DataSource,
+  GroupDataSource,
   Cache,
   CommonCacheConfiguration,
 } from './lib/types/DataSources'

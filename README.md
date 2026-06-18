@@ -702,7 +702,124 @@ Bulk operations (`getMany()`) do not support preemptive background refresh.
 
 ## Group operations
 
-ToDo
+### What are group operations?
+
+A regular `Loader` stores every entry in a single, flat key space. Group operations let you partition that key space into named **groups**, so the same logical key can exist independently in different groups, and an entire group can be invalidated in one shot without touching the rest of the cache.
+
+A group is just a string identifier you supply alongside the key. Every cache lookup, store and invalidation then takes both a `key` and a `group`:
+
+- entries in different groups never collide, even when they share the same key;
+- you can drop a whole group at once (`invalidateCacheForGroup`), which is much cheaper and safer than enumerating and deleting individual keys;
+- you can still invalidate a single entry within a group (`invalidateCacheFor(key, group)`).
+
+Group functionality is provided by `GroupLoader` and `ManualGroupCache`, which mirror `Loader` and `ManualCache` but add the extra `group` argument to their methods. The building blocks (`InMemoryGroupCache`, `RedisGroupCache`) and notification pairs (`createGroupNotificationPair`) all have group-aware counterparts.
+
+### When should they be used?
+
+Reach for group operations whenever cached entries naturally cluster into sets that are created, expired and invalidated **together**:
+
+- **Multi-tenant data** - group by `tenantId` / `organizationId`, so you can flush a single tenant's cache (e.g. after a bulk import or a permissions change) without evicting everyone else;
+- **Per-user or per-session collections** - group by `userId`, and clear everything cached for a user on logout or profile update;
+- **Entities scoped to a parent** - group a parent's children (e.g. all line items of an order, all comments of a post) so updating the parent invalidates the whole set at once;
+- **Versioned or namespaced datasets** - group by dataset/version, so swapping in a new version is a single group invalidation.
+
+If your entries are unrelated and you only ever invalidate them one by one, a plain `Loader` is simpler and slightly faster - don't add a group dimension you won't use.
+
+### How are they used?
+
+`GroupLoader` is configured exactly like a `Loader`, except its data sources implement `getFromGroup` / `getManyFromGroup`, and its read/write/invalidate methods take a `group` argument:
+
+```ts
+import Redis from 'ioredis'
+import { GroupLoader, RedisGroupCache } from 'layered-loader'
+import type { GroupDataSource } from 'layered-loader'
+
+const ioRedis = new Redis({
+  host: 'localhost',
+  port: 6379,
+  password: 'sOmE_sEcUrE_pAsS',
+})
+
+class UsersDataSource implements GroupDataSource<User> {
+  private readonly db: Knex
+  name = 'Users DB loader'
+  isCache = false
+
+  constructor(db: Knex) {
+    this.db = db
+  }
+
+  // `group` here is the organization id, `loadParams` is the user id
+  async getFromGroup(userId: string, organizationId: string): Promise<User | undefined | null> {
+    const results = await this.db('users')
+      .select('*')
+      .where({ id: userId, organization_id: organizationId })
+    return results[0]
+  }
+
+  async getManyFromGroup(userIds: string[], organizationId: string): Promise<User[]> {
+    return this.db('users')
+      .select('*')
+      .where({ organization_id: organizationId })
+      .whereIn('id', userIds)
+  }
+}
+
+const userLoader = new GroupLoader<User>({
+  inMemoryCache: {
+    ttlInMsecs: 1000 * 60,
+    maxGroups: 1000, // how many groups to keep in memory
+    maxItemsPerGroup: 500, // how many entries to keep per group
+  },
+  asyncCache: new RedisGroupCache<User>(ioRedis, {
+    json: true,
+    ttlInMsecs: 1000 * 60 * 10,
+  }),
+  dataSources: [new UsersDataSource(db)],
+})
+
+// retrieval - both key and group are required
+const user = await userLoader.get('user-1', 'org-42')
+const users = await userLoader.getMany(['user-1', 'user-2'], 'org-42')
+
+// invalidate a single entry within a group
+await userLoader.invalidateCacheFor('user-1', 'org-42')
+
+// invalidate the entire group in one operation
+await userLoader.invalidateCacheForGroup('org-42')
+```
+
+When a notification publisher/consumer pair (`createGroupNotificationPair`, see [Update notifications](#update-notifications)) is configured, both `invalidateCacheFor` and `invalidateCacheForGroup` are transparently propagated to every node of your distributed system, so in-memory caches everywhere stay consistent.
+
+If you populate the cache yourself rather than through data sources, use `ManualGroupCache`, which exposes the same group-aware `getFromGroup` / `setForGroup` / `invalidateCacheForGroup` methods without the data-source layer.
+
+### How is group invalidation handled efficiently?
+
+The naive way to invalidate a group would be to find every key belonging to it and delete each one - in Redis that means a `SCAN`/`KEYS` sweep plus N deletes, which is slow and blocks the server as groups grow large. `layered-loader` avoids this entirely by using a **group index counter (generation marker)** instead.
+
+For each group, the `RedisGroupCache` keeps a small integer counter at a dedicated index key (`<prefix>:group-index:<group>`). The current value of that counter is embedded into the key of every entry written for the group:
+
+```
+<prefix>:<group>:<groupIndexKey>:<key>
+```
+
+So a write first reads (or lazily initializes) the group's counter, then stores the entry under a key that includes the counter value. Reads do the same: they look up the current counter, then build the key and fetch it.
+
+Invalidating the whole group (`deleteGroup`) simply **increments that counter** - a single O(1) `INCR`:
+
+```ts
+// effectively what deleteGroup does
+await redis.incr('<prefix>:group-index:<group>')
+```
+
+After the increment, every previously written entry still physically exists in Redis but is now stored under the *old* counter value, so no subsequent read can ever construct its key again - the entire group becomes unreachable instantly, regardless of how many entries it held. The orphaned entries are reclaimed automatically by their own per-entry TTL, so no scan or bulk delete is ever needed.
+
+A few consequences worth knowing:
+
+- Group invalidation cost is constant (`O(1)`) and independent of group size; there is no `SCAN`/`KEYS` and no server-side blocking.
+- Because old entries expire passively, you should keep a `ttlInMsecs` on the entries themselves so stale generations don't accumulate in memory.
+- The group index keys themselves can optionally be expired via `groupTtlInMsecs`. Without it the index keys live forever, which is fine for a bounded number of groups; if you create groups unboundedly (millions, ever-growing), set `groupTtlInMsecs` so old index keys are eventually reclaimed. Note that adding new entries to a group does **not** reset that TTL.
+- The in-memory tier mirrors the same semantics: each group is a separate sub-cache, so `invalidateCacheForGroup` is a single map delete, and `maxGroups` / `maxItemsPerGroup` bound memory usage.
 
 ## Provided async caches
 
