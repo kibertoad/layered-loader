@@ -55,7 +55,7 @@
     "toad-cache": "^3.7.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.15",
+    "@biomejs/biome": "^2.4.16",
     "@types/node": "^25.8.0",
     "@vitest/coverage-v8": "^4.1.6",
     "del-cli": "^7.0.0",
