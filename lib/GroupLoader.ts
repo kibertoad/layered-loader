@@ -2,7 +2,7 @@ import { AbstractGroupCache } from './AbstractGroupCache'
 import type { LoaderConfig } from './Loader'
 import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { CacheEntry, GroupCache, GroupDataSource } from './types/DataSources'
+import type { CacheEntry, GroupCache, GroupDataSource, IsGroupEntryStillCurrentFn } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
 export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> = LoaderConfig<
@@ -13,17 +13,30 @@ export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams =
   GroupDataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryGroupCacheConfiguration,
   InMemoryGroupCache<LoadedValue>,
-  GroupNotificationPublisher<LoadedValue>
+  GroupNotificationPublisher<LoadedValue>,
+  IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
 >
 export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractGroupCache<LoadedValue, LoadParams, LoadManyParams> {
   private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
+  private readonly isEntryStillCurrentFn?: IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
   constructor(config: GroupLoaderConfig<LoadedValue, LoadParams, LoadManyParams>) {
     super(config)
     this.dataSources = config.dataSources ?? []
+
+    if (config.isEntryStillCurrentFn) {
+      if (!config.asyncCache) {
+        throw new Error('isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.')
+      }
+      if (typeof config.asyncCache.resetTtlFromGroup !== 'function') {
+        throw new Error('The configured asyncCache does not support resetTtlFromGroup, which is required by isEntryStillCurrentFn.')
+      }
+    }
+    this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
+
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.groupRefreshFlags = new Map()
@@ -53,7 +66,7 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                   }
                   groupSet.add(key)
 
-                  this.loadFromLoaders(key, group, loadParams)
+                  this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
                     .catch((err) => {
                       this.logger.error(err.message)
                     })
@@ -73,6 +86,38 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
 
       return this.loadFromLoaders(key, group, loadParams)
     })
+  }
+
+  private async refreshOrBumpTtl(
+    key: string,
+    group: string,
+    loadParams: LoadParams,
+    cachedValue: LoadedValue | null,
+  ): Promise<void> {
+    if (this.isEntryStillCurrentFn) {
+      let isCurrent = false
+      try {
+        isCurrent = await this.isEntryStillCurrentFn(cachedValue, loadParams, group)
+      } catch (err) {
+        // a failing check cannot confirm freshness, so fall through to a full refresh
+        this.loadErrorHandler(err as Error, key, { name: 'isEntryStillCurrentFn' }, this.logger)
+      }
+
+      if (isCurrent) {
+        const isTtlBumped = await this.asyncCache!.resetTtlFromGroup!(key, group).catch((err) => {
+          this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+          return false
+        })
+        if (isTtlBumped) {
+          // re-set to reset the in-memory TTL as well; toad-cache has no touch operation
+          this.inMemoryCache.setForGroup(key, cachedValue, group)
+          return
+        }
+        // the entry expired or its group was invalidated between the read and the bump, fall through to a full refresh
+      }
+    }
+
+    await this.loadFromLoaders(key, group, loadParams)
   }
 
   protected override async resolveManyGroupValues(

@@ -79,6 +79,24 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     })
   }
 
+  resetTtl(key: string): Promise<boolean> {
+    // without a TTL entries never expire, so there is nothing to reset
+    if (!this.config.ttlInMsecs) {
+      return Promise.resolve(false)
+    }
+
+    return this.redis.pexpire(this.resolveKey(key), this.config.ttlInMsecs).then((result) => {
+      // 0 means the key no longer exists - it expired or was deleted since it was read
+      if (result !== 1) {
+        return false
+      }
+      if (this.ttlLeftBeforeRefreshInMsecs) {
+        void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
+      }
+      return true
+    })
+  }
+
   set(key: string, value: T | null): Promise<void> {
     return this.internalSet(this.resolveKey(key), value).then(() => {
       if (this.ttlLeftBeforeRefreshInMsecs) {

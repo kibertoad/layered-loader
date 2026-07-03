@@ -47,6 +47,7 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 - [Usage in high-performance systems](#usage-in-high-performance-systems)
   - [Synchronous short-circuit](#synchronous-short-circuit)
   - [Preemptive background refresh](#preemptive-background-refresh)
+  - [Conditional refresh with a staleness check](#conditional-refresh-with-a-staleness-check)
 - [Group operations](#group-operations)
 - [Provided async caches](#provided-async-caches)
   - [RedisCache](#rediscache)
@@ -699,6 +700,55 @@ const asyncCache = new RedisCache<string>(redis, {
 
 Note that there is overhead involved in performing refresh checks (especially for Redis). Always measure performance before and after enabling preemptive refresh in order to determine, whether it improves or worsens the performance of your system.
 Bulk operations (`getMany()`) do not support preemptive background refresh.
+
+### Conditional refresh with a staleness check
+
+If refetching an entry is expensive, but *verifying* that it is still up-to-date is cheap (e. g. comparing an `updatedAt` timestamp, a version column or a content hash), you can avoid unnecessary refetches by providing `isEntryStillCurrentFn`. This is the loader-level equivalent of HTTP conditional revalidation (`ETag` / `If-Modified-Since`).
+
+When an entry enters the `ttlLeftBeforeRefreshInMsecs` window, the loader first invokes your check with the cached value instead of immediately starting a full background refresh:
+
+- if it resolves to `true`, the entry's TTL is reset to the full `ttlInMsecs` in both the async cache and the in-memory cache, and no data source call is made;
+- if it resolves to `false` (or throws, or the entry disappeared in the meantime), the usual full background refresh from the data sources runs.
+
+```ts
+const operation = new Loader<UserEntity>({
+  asyncCache: new RedisCache<UserEntity>(redis, {
+    json: true,
+    ttlInMsecs: 1000 * 60,
+    ttlLeftBeforeRefreshInMsecs: 1000 * 20,
+  }),
+  dataSources: [expensiveUserDataSource],
+  isEntryStillCurrentFn: async (cachedValue, loadParams) => {
+    // light query instead of refetching the whole entity
+    const updatedAt = await getUserUpdatedAt(loadParams)
+    return updatedAt.getTime() === new Date(cachedValue!.updatedAt).getTime()
+  },
+})
+```
+
+For `GroupLoader` the check additionally receives the group:
+
+```ts
+const operation = new GroupLoader<UserEntity>({
+  asyncCache: new RedisGroupCache<UserEntity>(redis, {
+    json: true,
+    ttlInMsecs: 1000 * 60,
+    ttlLeftBeforeRefreshInMsecs: 1000 * 20,
+  }),
+  dataSources: [expensiveUserDataSource],
+  isEntryStillCurrentFn: async (cachedValue, loadParams, group) => {
+    const updatedAt = await getUserUpdatedAt(loadParams, group)
+    return updatedAt.getTime() === new Date(cachedValue!.updatedAt).getTime()
+  },
+})
+```
+
+Things to keep in mind:
+
+- `isEntryStillCurrentFn` requires an `asyncCache` that implements `resetTtl` (`resetTtlFromGroup` for group caches). `RedisCache` and `RedisGroupCache` do; if you implement the `Cache` interface yourself, add the method to support conditional refresh.
+- Errors thrown by the check are routed to `loadErrorHandler` and treated as "stale", so the worst case degrades to a regular full background refresh.
+- Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis.
+- No update notifications are published when a TTL is merely bumped, since the data has not changed; in-memory copies on other nodes expire on their own schedule and re-read the shared cache.
 
 ## Group operations
 

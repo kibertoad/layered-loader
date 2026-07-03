@@ -42,6 +42,8 @@ export type {
   GroupDataSource,
   Cache,
   CommonCacheConfiguration,
+  IsEntryStillCurrentFn,
+  IsGroupEntryStillCurrentFn,
 } from './lib/types/DataSources'
 export type { Logger, LogFn } from './lib/util/Logger'
 

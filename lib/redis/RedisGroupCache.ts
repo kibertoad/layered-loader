@@ -119,6 +119,32 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     return remainingTtl && remainingTtl > 0 ? now + remainingTtl : undefined
   }
 
+  async resetTtlFromGroup(key: string, groupId: string): Promise<boolean> {
+    // without a TTL entries never expire, so there is nothing to reset
+    if (!this.config.ttlInMsecs) {
+      return false
+    }
+
+    // a missing group index means the group was invalidated - the entry is effectively gone
+    const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(groupId))
+    if (!currentGroupKey) {
+      return false
+    }
+
+    const result = await this.redis.pexpire(
+      this.resolveKeyWithGroup(key, groupId, currentGroupKey),
+      this.config.ttlInMsecs,
+    )
+    // 0 means the key no longer exists - it expired or was deleted since it was read
+    if (result !== 1) {
+      return false
+    }
+    if (this.ttlLeftBeforeRefreshInMsecs) {
+      void this.expirationTimeLoadingGroupedOperation.invalidateCacheFor(key, groupId)
+    }
+    return true
+  }
+
   async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
     const getGroupKeyPromise = this.config.groupTtlInMsecs
       ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
