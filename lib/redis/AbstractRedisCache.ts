@@ -18,6 +18,7 @@ export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
 export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfiguration, LoadedValue> {
   protected readonly redis: Redis
   protected readonly config: ConfigType
+  protected readonly keyPrefix: string
 
   constructor(redis: Redis, config: Partial<ConfigType>) {
     this.redis = redis
@@ -26,6 +27,7 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
       ...DEFAULT_REDIS_CACHE_CONFIGURATION,
       ...config,
     }
+    this.keyPrefix = `${this.config.prefix}${this.config.separator}`
   }
 
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
@@ -64,10 +66,10 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   }
 
   resolveKey(key: string) {
-    return `${this.config.prefix}${this.config.separator}${key}`
+    return this.keyPrefix + key
   }
 
   resolveCachePattern() {
-    return `${this.config.prefix}${this.config.separator}*`
+    return `${this.keyPrefix}*`
   }
 }

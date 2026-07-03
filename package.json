@@ -52,7 +52,7 @@
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
     "ioredis": "^5.10.1",
-    "toad-cache": "^3.7.1"
+    "toad-cache": "^3.7.4"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",

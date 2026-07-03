@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { unique } from './unique'
 
 describe('unique', () => {
+  it('returns the same array reference for an empty array', () => {
+    const input: string[] = []
+    expect(unique(input)).toBe(input)
+  })
+
+  it('returns the same array reference for a single-element array', () => {
+    const input = ['key']
+    expect(unique(input)).toBe(input)
+  })
+
   it('returns the same array reference when there are no duplicates', () => {
     const input = [1, 2, 3, 'a', 'b']
     const result = unique(input)

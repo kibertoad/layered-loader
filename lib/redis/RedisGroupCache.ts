@@ -16,10 +16,13 @@ export interface RedisGroupCacheConfiguration extends RedisCacheConfiguration, G
 export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfiguration, T> implements GroupCache<T> {
   public readonly expirationTimeLoadingGroupedOperation: GroupLoader<number>
   public ttlLeftBeforeRefreshInMsecs?: number
+  private readonly groupIndexPrefix: string
   name = 'Redis group cache'
 
   constructor(redis: Redis, config: Partial<RedisGroupCacheConfiguration> = {}) {
     super(redis, config)
+
+    this.groupIndexPrefix = `${this.keyPrefix}${GROUP_INDEX_KEY}${this.config.separator}`
 
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
     this.redis.defineCommand('getOrSetZeroWithTtl', {
@@ -88,7 +91,8 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
       }
     }
 
-    const transformedKeys = keys.map((key) => this.resolveKeyWithGroup(key, groupId, currentGroupKey))
+    const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)
+    const transformedKeys = keys.map((key) => entryPrefix + key)
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
 
@@ -182,13 +186,14 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
     const currentGroupKey = await getGroupKeyPromise
 
+    const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)
     if (this.config.ttlInMsecs) {
       const setCommands = []
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i]
         setCommands.push([
           'set',
-          this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey),
+          entryPrefix + entry.key,
           entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
           'PX',
           this.config.ttlInMsecs,
@@ -202,18 +207,22 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     const commandParam = []
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
-      commandParam.push(this.resolveKeyWithGroup(entry.key, groupId, currentGroupKey))
+      commandParam.push(entryPrefix + entry.key)
       commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
     }
     return this.redis.mset(commandParam)
   }
 
   resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {
-    return `${this.config.prefix}${this.config.separator}${groupId}${this.config.separator}${groupIndexKey}${this.config.separator}${key}`
+    return this.resolveGroupEntryPrefix(groupId, groupIndexKey) + key
+  }
+
+  private resolveGroupEntryPrefix(groupId: string, groupIndexKey: string) {
+    return `${this.keyPrefix}${groupId}${this.config.separator}${groupIndexKey}${this.config.separator}`
   }
 
   resolveGroupIndexPrefix(groupId: string) {
-    return `${this.config.prefix}${this.config.separator}${GROUP_INDEX_KEY}${this.config.separator}${groupId}`
+    return this.groupIndexPrefix + groupId
   }
 
   async close() {

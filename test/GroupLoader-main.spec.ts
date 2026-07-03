@@ -602,6 +602,28 @@ describe('GroupLoader Main', () => {
   })
 
   describe('getMany', () => {
+    it('serves cached null value without hitting the data source again', async () => {
+      const userValuesNull = {
+        [user1.companyId]: {
+          [user1.userId]: null,
+        },
+      }
+      const loader = new CountingGroupedLoader(userValuesNull as unknown as typeof userValues)
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+        cacheKeyFromValueResolver: idResolver,
+      })
+
+      const value = await operation.get(user1.userId, user1.companyId)
+      expect(value).toBeNull()
+      expect(loader.counter).toBe(1)
+
+      const values = await operation.getMany([user1.userId], user1.companyId)
+      expect(values).toEqual([null])
+      expect(loader.counter).toBe(1)
+    })
+
     it('returns empty array when fails to resolve value', async () => {
       const operation = new GroupLoader<User>({
         cacheKeyFromValueResolver: idResolver,
