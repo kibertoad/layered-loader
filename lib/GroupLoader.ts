@@ -123,6 +123,7 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
 
     if (this.asyncCache) {
       await this.asyncCache.setForGroup(key, newValue, group).catch((err) => {
+        /* v8 ignore next -- @preserve */
         this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
       })
     }
