@@ -50,8 +50,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
   async deleteGroup(group: string) {
     const key = this.resolveGroupIndexPrefix(group)
-    if (this.config.ttlInMsecs) {
-      await this.redis.multi().incr(key).pexpire(key, this.config.ttlInMsecs).exec()
+    // the group index key's lifetime is governed by groupTtlInMsecs everywhere else
+    // (see setForGroup/setManyForGroup); using entry ttlInMsecs here would silently
+    // re-scope the generation counter to the entry TTL
+    if (this.config.groupTtlInMsecs) {
+      await this.redis.multi().incr(key).pexpire(key, this.config.groupTtlInMsecs).exec()
       return
     }
 

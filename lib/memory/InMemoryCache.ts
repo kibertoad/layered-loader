@@ -60,8 +60,9 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
 
     for (let i = 0; i < keys.length; i++) {
       const resolvedValue = this.cache.get(keys[i])
-      if (resolvedValue) {
-        resolvedValues.push(resolvedValue)
+      // null is a valid cached value ("resolved to empty"), only undefined means a miss
+      if (resolvedValue !== undefined) {
+        resolvedValues.push(resolvedValue as T)
       } else {
         unresolvedKeys.push(keys[i])
       }

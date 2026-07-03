@@ -77,19 +77,28 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   getFromGroup(key: string, groupId: string) {
-    const group = this.resolveGroup(groupId)
-    return group.get(key)
+    // do not use resolveGroup here - reads must not insert empty groups into the LRU,
+    // or a miss on a nonexistent group could evict a real group's still-valid data
+    return this.groups.get(groupId)?.get(key)
   }
 
   getManyFromGroup(keys: string[], group: string): GetManyResult<T> {
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
-    const groupCache = this.resolveGroup(group)
+    const groupCache = this.groups.get(group)
+
+    if (!groupCache) {
+      return {
+        resolvedValues,
+        unresolvedKeys: [...keys],
+      }
+    }
 
     for (let i = 0; i < keys.length; i++) {
       const resolvedValue = groupCache.get(keys[i])
-      if (resolvedValue) {
-        resolvedValues.push(resolvedValue)
+      // null is a valid cached value ("resolved to empty"), only undefined means a miss
+      if (resolvedValue !== undefined) {
+        resolvedValues.push(resolvedValue as T)
       } else {
         unresolvedKeys.push(keys[i])
       }
@@ -107,8 +116,8 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   deleteFromGroup(key: string, groupId: string): void {
-    const group = this.resolveGroup(groupId)
-    group.delete(key)
+    // do not use resolveGroup here - reads must not insert empty groups into the LRU
+    this.groups.get(groupId)?.delete(key)
   }
 
   clear(): void {
@@ -116,7 +125,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   getExpirationTimeFromGroup(key: string, groupId: string): number | undefined {
-    const group = this.resolveGroup(groupId)
-    return group.expiresAt(key)
+    // do not use resolveGroup here - reads must not insert empty groups into the LRU
+    return this.groups.get(groupId)?.expiresAt(key)
   }
 }

@@ -7,6 +7,7 @@ import type {
   GroupNotificationCommand,
 } from './RedisGroupNotificationPublisher'
 import type { RedisConsumerConfig } from './RedisNotificationConsumer'
+import { defaultLogger } from '../util/Logger'
 
 export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
   LoadedValue,
@@ -39,30 +40,45 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   }
 
   subscribe(): Promise<void> {
-    return this.redis.subscribe(this.channel).then(() => {
-      this.messageHandler = (channel, message) => {
-        const parsedMessage: GroupNotificationCommand = JSON.parse(message)
-        // this is a local message, ignore
-        if (parsedMessage.originUuid === this.serverUuid) {
-          return
-        }
-
-        if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
-          return this.targetCache.deleteFromGroup(
-            (parsedMessage as DeleteFromGroupNotificationCommand).key,
-            (parsedMessage as DeleteFromGroupNotificationCommand).group,
-          )
-        }
-
-        if (parsedMessage.actionId === 'DELETE_GROUP') {
-          return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
-        }
-
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
+    // The listener is registered before subscribing so that no message can slip through
+    // between the SUBSCRIBE ack and the listener attachment.
+    this.messageHandler = (channel, message) => {
+      // ioredis emits 'message' for every channel the connection is subscribed to;
+      // without this check a shared consumer connection would cross-apply commands
+      // from other channels against this target cache
+      if (channel !== this.channel) {
+        return
       }
-      this.redis.on('message', this.messageHandler)
-    })
+
+      let parsedMessage: GroupNotificationCommand
+      try {
+        parsedMessage = JSON.parse(message)
+      } catch (err) {
+        this.errorHandler(err as Error, this.channel, defaultLogger)
+        return
+      }
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
+
+      if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
+        return this.targetCache.deleteFromGroup(
+          (parsedMessage as DeleteFromGroupNotificationCommand).key,
+          (parsedMessage as DeleteFromGroupNotificationCommand).group,
+        )
+      }
+
+      if (parsedMessage.actionId === 'DELETE_GROUP') {
+        return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
+      }
+
+      if (parsedMessage.actionId === 'CLEAR') {
+        return this.targetCache.clear()
+      }
+    }
+    this.redis.on('message', this.messageHandler)
+
+    return this.redis.subscribe(this.channel).then(() => {})
   }
 }

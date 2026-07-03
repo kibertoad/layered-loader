@@ -130,6 +130,62 @@ describe('InMemoryCache', () => {
         resolvedValues: ['value', 'value2'],
       })
     })
+
+    it('resolves falsy and null cached values', () => {
+      const cache = new InMemoryGroupCache<unknown>({
+        maxGroups: 2,
+        ttlInMsecs: 9999,
+      })
+      cache.setForGroup('zero', 0, 'group')
+      cache.setForGroup('emptyString', '', 'group')
+      cache.setForGroup('false', false, 'group')
+      cache.setForGroup('null', null, 'group')
+
+      const values = cache.getManyFromGroup(
+        ['zero', 'emptyString', 'false', 'null', 'missing'],
+        'group',
+      )
+      expect(values).toEqual({
+        unresolvedKeys: ['missing'],
+        resolvedValues: [0, '', false, null],
+      })
+    })
+
+    it('returns all keys as unresolved for a nonexistent group', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 2,
+        ttlInMsecs: 9999,
+      })
+
+      const values = cache.getManyFromGroup(['key', 'key2'], 'no-such-group')
+      expect(values).toEqual({
+        unresolvedKeys: ['key', 'key2'],
+        resolvedValues: [],
+      })
+    })
+  })
+
+  describe('read operations on nonexistent groups', () => {
+    it('do not evict existing groups from the groups cache', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 2,
+        ttlInMsecs: 9999,
+      })
+      cache.setForGroup('key', 'value1', 'group1')
+      cache.setForGroup('key', 'value2', 'group2')
+
+      // each of these reads used to insert an empty group, evicting a populated one
+      expect(cache.getFromGroup('key', 'group3')).toBeUndefined()
+      expect(cache.getManyFromGroup(['key'], 'group4')).toEqual({
+        resolvedValues: [],
+        unresolvedKeys: ['key'],
+      })
+      expect(cache.getExpirationTimeFromGroup('key', 'group5')).toBeUndefined()
+      cache.deleteFromGroup('key', 'group6')
+
+      expect(cache.getFromGroup('key', 'group1')).toBe('value1')
+      expect(cache.getFromGroup('key', 'group2')).toBe('value2')
+    })
   })
 
   describe('getExpirationTimeFromGroup', () => {
