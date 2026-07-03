@@ -39,30 +39,37 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   }
 
   subscribe(): Promise<void> {
-    return this.redis.subscribe(this.channel).then(() => {
-      this.messageHandler = (channel, message) => {
-        const parsedMessage: GroupNotificationCommand = JSON.parse(message)
-        // this is a local message, ignore
-        if (parsedMessage.originUuid === this.serverUuid) {
-          return
-        }
-
-        if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
-          return this.targetCache.deleteFromGroup(
-            (parsedMessage as DeleteFromGroupNotificationCommand).key,
-            (parsedMessage as DeleteFromGroupNotificationCommand).group,
-          )
-        }
-
-        if (parsedMessage.actionId === 'DELETE_GROUP') {
-          return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
-        }
-
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
+    // The listener is registered before subscribing so that no message can slip through
+    // between the SUBSCRIBE ack and the listener attachment.
+    this.messageHandler = (channel, message) => {
+      // the connection may carry subscriptions of other consumers, ignore their channels
+      if (channel !== this.channel) {
+        return
       }
-      this.redis.on('message', this.messageHandler)
-    })
+
+      const parsedMessage: GroupNotificationCommand = JSON.parse(message)
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
+
+      if (parsedMessage.actionId === 'DELETE_FROM_GROUP') {
+        return this.targetCache.deleteFromGroup(
+          (parsedMessage as DeleteFromGroupNotificationCommand).key,
+          (parsedMessage as DeleteFromGroupNotificationCommand).group,
+        )
+      }
+
+      if (parsedMessage.actionId === 'DELETE_GROUP') {
+        return this.targetCache.deleteGroup((parsedMessage as DeleteGroupNotificationCommand).group)
+      }
+
+      if (parsedMessage.actionId === 'CLEAR') {
+        return this.targetCache.clear()
+      }
+    }
+    this.redis.on('message', this.messageHandler)
+
+    return this.redis.subscribe(this.channel).then(() => {})
   }
 }

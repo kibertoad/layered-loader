@@ -54,6 +54,16 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                   groupSet.add(key)
 
                   this.loadFromLoaders(key, group, loadParams)
+                    .then((freshValue) => {
+                      // Propagate the freshly loaded value to the in-memory cache as well.
+                      // Without this, the in-memory layer keeps serving the stale value that
+                      // was read from the async cache before this background refresh started,
+                      // and its TTL is reset on the next read, so subsequent reads stay stale
+                      // for another full ttlInMsecs window even though the async cache is fresh.
+                      if (freshValue !== undefined) {
+                        this.inMemoryCache.setForGroup(key, freshValue, group)
+                      }
+                    })
                     .catch((err) => {
                       this.logger.error(err.message)
                     })

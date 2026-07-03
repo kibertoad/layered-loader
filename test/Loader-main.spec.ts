@@ -8,6 +8,8 @@ import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { CountingDataSource } from './fakes/CountingDataSource'
 import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 import { CountingTimedCache } from './fakes/CountingTimedCache'
+import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
+import { DelayedDeleteCache } from './fakes/DelayedDeleteCache'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
 import {
@@ -1099,6 +1101,103 @@ describe('Loader Main', () => {
       expect(valuePre).toBe('value')
       expect(valuePost).toBe('value')
       expect(loader2.counter).toBe(2)
+    })
+  })
+
+  describe('invalidation racing with in-flight loads', () => {
+    it('does not cache a load that was in flight when invalidateCacheFor was called', async () => {
+      const loader = new DelayedCountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get('key')
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      await operation.invalidateCacheFor('key')
+      await loader.finishLoading()
+
+      // the caller that was already awaiting the load still receives the value
+      expect(await loadPromise).toBe('value')
+      // but the invalidated key is not resurrected in the cache
+      expect(operation.getInMemoryOnly('key')).toBeUndefined()
+
+      // the next get starts a fresh load instead of serving the fenced-out result
+      const freshPromise = operation.get('key')
+      await setTimeout(2)
+      expect(loader.counter).toBe(2)
+      await loader.finishLoading()
+      expect(await freshPromise).toBe('value')
+    })
+
+    it('does not cache a load that was in flight when invalidateCacheForMany was called', async () => {
+      const loader = new DelayedCountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get('key')
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      await operation.invalidateCacheForMany(['key', 'key2'])
+      await loader.finishLoading()
+
+      expect(await loadPromise).toBe('value')
+      expect(operation.getInMemoryOnly('key')).toBeUndefined()
+    })
+
+    it('does not let an in-flight load overwrite forceSetValue', async () => {
+      const loader = new DelayedCountingLoader('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get('key')
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      await operation.forceSetValue('key', 'value2')
+      await loader.finishLoading()
+
+      // the caller that was already awaiting the load still receives the loaded value
+      expect(await loadPromise).toBe('value')
+      // but the forced value is not clobbered by the older in-flight load
+      expect(operation.getInMemoryOnly('key')).toBe('value2')
+      expect(await operation.get('key')).toBe('value2')
+      expect(loader.counter).toBe(1)
+    })
+
+    it('does not repopulate the in-memory cache from a get that raced a slow async delete', async () => {
+      const asyncCache = new DelayedDeleteCache('value')
+      const loader = new CountingDataSource('value')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      // populate both tiers
+      expect(await operation.get('key')).toBe('value')
+
+      const invalidationPromise = operation.invalidateCacheFor('key')
+      // concurrent read while the async delete is still in flight
+      const racingGetPromise = operation.get('key')
+      asyncCache.finishDelete()
+      await invalidationPromise
+      await racingGetPromise
+
+      // after the invalidation resolves, neither tier holds the old value
+      expect(operation.getInMemoryOnly('key')).toBeUndefined()
+      expect(asyncCache.value).toBeUndefined()
     })
   })
 

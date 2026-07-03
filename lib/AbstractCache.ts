@@ -163,14 +163,20 @@ export abstract class AbstractCache<
   }
 
   public async invalidateCache() {
-    this.inMemoryCache.clear()
+    // Evict the running loads first so in-flight results are fenced out of the caches.
+    this.runningLoads.clear()
     if (this.asyncCache) {
       await this.asyncCache.clear().catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
       })
     }
 
+    // Evict again: a load that started while the async clear was in flight may have
+    // read a not-yet-deleted async value; fencing it out here stops it from
+    // repopulating the caches after this invalidation resolves. The in-memory clear
+    // comes last for the same reason.
     this.runningLoads.clear()
+    this.inMemoryCache.clear()
 
     if (this.notificationPublisher) {
       this.notificationPublisher.clear().catch((err) => {

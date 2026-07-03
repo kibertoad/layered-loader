@@ -4,6 +4,7 @@ import type { CacheKeyResolver } from '../lib/AbstractCache'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
 import type { DummyLoaderManyParams, DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { DummyGroupedDataSourceWithParams } from './fakes/DummyGroupedDataSourceWithParams'
@@ -11,6 +12,7 @@ import { DummyGroupedLoader } from './fakes/DummyGroupedLoader'
 import { DummyGroupNotificationConsumer } from './fakes/DummyGroupNotificationConsumer'
 import { DummyGroupNotificationConsumerMultiplexer } from './fakes/DummyGroupNotificationConsumerMultiplexer'
 import { DummyGroupNotificationPublisher } from './fakes/DummyGroupNotificationPublisher'
+import { MultiDelayedCountingGroupedLoader } from './fakes/MultiDelayedCountingGroupedLoader'
 import { TemporaryThrowingGroupedLoader } from './fakes/TemporaryThrowingGroupedLoader'
 import { ThrowingGroupedCache } from './fakes/ThrowingGroupedCache'
 import { ThrowingGroupedLoader } from './fakes/ThrowingGroupedLoader'
@@ -893,6 +895,86 @@ describe('GroupLoader Main', () => {
       expect(valuePre).toEqual(user1)
       expect(valuePost).toEqual(user1)
       expect(loader2.counter).toBe(2)
+    })
+  })
+
+  describe('invalidation racing with in-flight loads', () => {
+    it('does not cache a load that was in flight when invalidateCacheForGroup was called', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      await operation.invalidateCacheForGroup(user1.companyId)
+      await loader.finishLoading()
+
+      // the caller that was already awaiting the load still receives the value
+      expect(await loadPromise).toEqual(user1)
+      // but the invalidated group is not resurrected in the cache
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+    })
+
+    it('does not cache a load that was in flight when invalidateCacheFor was called', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      await operation.invalidateCacheFor(user1.userId, user1.companyId)
+      await loader.finishLoading()
+
+      expect(await loadPromise).toEqual(user1)
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+    })
+
+    it('load settling after group invalidation does not break deduplication of newer loads', async () => {
+      const loader = new MultiDelayedCountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      // load A starts and registers the running-loads map for the group
+      const loadPromiseA = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      expect(loader.counter).toBe(1)
+
+      // invalidation detaches the running-loads map for the group
+      await operation.invalidateCacheForGroup(user1.companyId)
+
+      // load B starts after the invalidation and registers a fresh running-loads map
+      const loadPromiseB = operation.get(user1.userId, user1.companyId)
+      await setTimeout(2)
+      expect(loader.counter).toBe(2)
+
+      // load A settles against the detached map — it must not evict B's map
+      await loader.finishLoading()
+      expect(await loadPromiseA).toEqual(user1)
+      // A started before the invalidation, so its result must not be cached
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+
+      // load C must be deduplicated into the still-running load B
+      const loadPromiseC = operation.getAsyncOnly(user1.userId, user1.companyId)
+      await setTimeout(2)
+      expect(loader.counter).toBe(2)
+
+      await loader.finishLoading()
+      expect(await loadPromiseB).toEqual(user1)
+      expect(await loadPromiseC).toEqual(user1)
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toEqual(user1)
     })
   })
 

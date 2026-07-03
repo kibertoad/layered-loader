@@ -407,6 +407,64 @@ describe('RedisNotificationPublisher', () => {
     await setTimeout(1)
   })
 
+  it('Ignores messages published on other channels when consumer connection is shared', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    // second consumer shares the same Redis connection, but listens on a different channel
+    const { publisher: notificationPublisher2, consumer: notificationConsumer2 } =
+      createNotificationPair<string>({
+        channel: 'other_channel',
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+
+    const operation2 = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer2,
+      notificationPublisher: notificationPublisher2,
+    })
+    await operation.init()
+    await operation2.init()
+
+    await operation.getAsyncOnly('key')
+    await operation2.getAsyncOnly('key')
+    expect(operation.getInMemoryOnly('key')).toBe('value')
+    expect(operation2.getInMemoryOnly('key')).toBe('value')
+
+    // deletion published on CHANNEL_ID by a remote instance
+    await redisPublisher.publish(
+      CHANNEL_ID,
+      JSON.stringify({
+        actionId: 'DELETE',
+        key: 'key',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    await waitAndRetry(() => operation.getInMemoryOnly('key') === undefined, 50, 100)
+
+    // consumer on CHANNEL_ID applies the deletion
+    expect(operation.getInMemoryOnly('key')).toBeUndefined()
+    // consumer on other_channel sharing the connection must not apply it
+    expect(operation2.getInMemoryOnly('key')).toBe('value')
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Ignores unknown action IDs', async () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createNotificationPair<string>({

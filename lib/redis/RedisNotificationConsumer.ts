@@ -44,34 +44,41 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   }
 
   subscribe(): Promise<void> {
-    return this.redis.subscribe(this.channel).then(() => {
-      this.messageHandler = (channel, message) => {
-        const parsedMessage: NotificationCommand = JSON.parse(message)
-        // this is a local message, ignore
-        if (parsedMessage.originUuid === this.serverUuid) {
-          return
-        }
-
-        if (parsedMessage.actionId === 'DELETE') {
-          return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
-        }
-
-        if (parsedMessage.actionId === 'DELETE_MANY') {
-          return this.targetCache.deleteMany((parsedMessage as DeleteManyNotificationCommand).keys)
-        }
-
-        if (parsedMessage.actionId === 'CLEAR') {
-          return this.targetCache.clear()
-        }
-
-        if (parsedMessage.actionId === 'SET') {
-          return this.targetCache.set(
-            (parsedMessage as SetNotificationCommand<LoadedValue>).key,
-            (parsedMessage as SetNotificationCommand<LoadedValue>).value,
-          )
-        }
+    // The listener is registered before subscribing so that no message can slip through
+    // between the SUBSCRIBE ack and the listener attachment.
+    this.messageHandler = (channel, message) => {
+      // the connection may carry subscriptions of other consumers, ignore their channels
+      if (channel !== this.channel) {
+        return
       }
-      this.redis.on('message', this.messageHandler)
-    })
+
+      const parsedMessage: NotificationCommand = JSON.parse(message)
+      // this is a local message, ignore
+      if (parsedMessage.originUuid === this.serverUuid) {
+        return
+      }
+
+      if (parsedMessage.actionId === 'DELETE') {
+        return this.targetCache.delete((parsedMessage as DeleteNotificationCommand).key)
+      }
+
+      if (parsedMessage.actionId === 'DELETE_MANY') {
+        return this.targetCache.deleteMany((parsedMessage as DeleteManyNotificationCommand).keys)
+      }
+
+      if (parsedMessage.actionId === 'CLEAR') {
+        return this.targetCache.clear()
+      }
+
+      if (parsedMessage.actionId === 'SET') {
+        return this.targetCache.set(
+          (parsedMessage as SetNotificationCommand<LoadedValue>).key,
+          (parsedMessage as SetNotificationCommand<LoadedValue>).value,
+        )
+      }
+    }
+    this.redis.on('message', this.messageHandler)
+
+    return this.redis.subscribe(this.channel).then(() => {})
   }
 }

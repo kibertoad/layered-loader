@@ -48,13 +48,21 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
     loadingPromise
       .then((resolvedValue) => {
+        // If the running load was evicted (invalidation, forceSetValue) while this load
+        // was in flight, its result reflects a snapshot taken before that point and must
+        // not be persisted — callers awaiting the promise still receive the value.
+        if (this.runningLoads.get(key) !== loadingPromise) {
+          return
+        }
         if (resolvedValue !== undefined) {
           this.inMemoryCache.set(key, resolvedValue)
         }
         this.runningLoads.delete(key)
       })
       .catch(() => {
-        this.runningLoads.delete(key)
+        if (this.runningLoads.get(key) === loadingPromise) {
+          this.runningLoads.delete(key)
+        }
       })
 
     return loadingPromise
@@ -131,14 +139,20 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   public async invalidateCacheFor(key: string) {
-    this.inMemoryCache.delete(key)
+    // Evict the running load first so an in-flight result is fenced out of the caches.
+    this.runningLoads.delete(key)
     if (this.asyncCache) {
       await this.asyncCache.delete(key).catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
       })
     }
 
+    // Evict again: a load that started while the async delete was in flight may have
+    // read the not-yet-deleted async value; fencing it out here stops it from
+    // repopulating the caches after this invalidation resolves. The in-memory delete
+    // comes last for the same reason.
     this.runningLoads.delete(key)
+    this.inMemoryCache.delete(key)
     if (this.notificationPublisher) {
       this.notificationPublisher.delete(key).catch((err) => {
         this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
@@ -147,6 +161,10 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   public async invalidateCacheForMany(keys: string[]) {
+    // Evict the running loads first so in-flight results are fenced out of the caches.
+    for (let i = 0; i < keys.length; i++) {
+      this.runningLoads.delete(keys[i])
+    }
     if (this.asyncCache) {
       await this.asyncCache.deleteMany(keys).catch((err) => {
         /* v8 ignore next -- @preserve */

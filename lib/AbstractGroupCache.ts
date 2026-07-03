@@ -19,14 +19,20 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   }
 
   public async invalidateCacheForGroup(group: string) {
+    // Evict the running loads first so in-flight results are fenced out of the caches.
+    this.runningLoads.delete(group)
     if (this.asyncCache) {
       await this.asyncCache.deleteGroup(group).catch((err) => {
         this.cacheUpdateErrorHandler(err, `group: ${group}`, this.asyncCache!, this.logger)
       })
     }
 
-    this.inMemoryCache.deleteGroup(group)
+    // Evict again: a load that started while the async delete was in flight may have
+    // read the not-yet-deleted async value; fencing it out here stops it from
+    // repopulating the caches after this invalidation resolves. The in-memory delete
+    // comes last for the same reason.
     this.runningLoads.delete(group)
+    this.inMemoryCache.deleteGroup(group)
 
     if (this.notificationPublisher) {
       void this.notificationPublisher.deleteGroup(group).catch((err) => {
@@ -67,13 +73,21 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
     loadingPromise
       .then((resolvedValue) => {
+        // If the running load was evicted (group or key invalidation) while this load
+        // was in flight, its result reflects a snapshot taken before that point and must
+        // not be persisted — callers awaiting the promise still receive the value.
+        if (this.runningLoads.get(group) !== groupLoads || groupLoads.get(key) !== loadingPromise) {
+          return
+        }
         if (resolvedValue !== undefined) {
           this.inMemoryCache.setForGroup(key, resolvedValue, group)
         }
         this.deleteGroupRunningLoad(groupLoads, group, key)
       })
       .catch(() => {
-        this.deleteGroupRunningLoad(groupLoads, group, key)
+        if (this.runningLoads.get(group) === groupLoads && groupLoads.get(key) === loadingPromise) {
+          this.deleteGroupRunningLoad(groupLoads, group, key)
+        }
       })
 
     return loadingPromise
@@ -125,15 +139,20 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   }
 
   public async invalidateCacheFor(key: string, group: string) {
-    this.inMemoryCache.deleteFromGroup(key, group)
+    // Evict the running load first so an in-flight result is fenced out of the caches.
+    this.evictGroupRunningLoad(group, key)
     if (this.asyncCache) {
       await this.asyncCache.deleteFromGroup(key, group).catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
       })
     }
 
-    const groupLoads = this.resolveGroupLoads(group)
-    this.deleteGroupRunningLoad(groupLoads, group, key)
+    // Evict again: a load that started while the async delete was in flight may have
+    // read the not-yet-deleted async value; fencing it out here stops it from
+    // repopulating the caches after this invalidation resolves. The in-memory delete
+    // comes last for the same reason.
+    this.evictGroupRunningLoad(group, key)
+    this.inMemoryCache.deleteFromGroup(key, group)
 
     if (this.notificationPublisher) {
       void this.notificationPublisher.deleteFromGroup(key, group).catch((err) => {
@@ -178,6 +197,13 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     }
   }
 
+  private evictGroupRunningLoad(group: string, key: string) {
+    const groupLoads = this.runningLoads.get(group)
+    if (groupLoads) {
+      this.deleteGroupRunningLoad(groupLoads, group, key)
+    }
+  }
+
   protected resolveGroupLoads(group: string) {
     const load = this.runningLoads.get(group)
     if (load) {
@@ -191,7 +217,10 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
   protected deleteGroupRunningLoad(groupLoads: Map<string, unknown>, group: string, key: string) {
     groupLoads.delete(key)
-    if (groupLoads.size === 0) {
+    // Only drop the group entry if it still points at this map — a group invalidation
+    // may have detached it and a newer load registered a fresh map under the same group,
+    // which must not be evicted by a load settling against the stale map.
+    if (groupLoads.size === 0 && this.runningLoads.get(group) === groupLoads) {
       this.runningLoads.delete(group)
     }
   }
