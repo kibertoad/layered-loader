@@ -41,7 +41,9 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
           let isAlreadyRefreshing = groupSet?.has(key)
 
           if (!isAlreadyRefreshing) {
-            this.asyncCache.expirationTimeLoadingGroupedOperation.get(key, group).then((expirationTime) => {
+            this.asyncCache.expirationTimeLoadingGroupedOperation
+              .get(key, group)
+              .then((expirationTime) => {
               if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
                 // Check if someone else didn't start refreshing while we were checking expiration time
                 groupSet = this.groupRefreshFlags.get(group)
@@ -54,6 +56,16 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                   groupSet.add(key)
 
                   this.loadFromLoaders(key, group, loadParams)
+                    .then((freshValue) => {
+                      // Propagate the freshly loaded value to the in-memory cache as well.
+                      // Without this, the in-memory layer keeps serving the stale value that
+                      // was read from the async cache before this background refresh started,
+                      // and its TTL is reset on the next read, so subsequent reads stay stale
+                      // for another full ttlInMsecs window even though the async cache is fresh.
+                      if (freshValue !== undefined) {
+                        this.inMemoryCache.setForGroup(key, freshValue, group)
+                      }
+                    })
                     .catch((err) => {
                       this.logger.error(err.message)
                     })
@@ -66,6 +78,11 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                 }
               }
             })
+              .catch((err) => {
+                // expiration lookup is fire-and-forget; a rejection here must not become
+                // an unhandled promise rejection
+                this.logger.error(err.message)
+              })
           }
         }
         return cachedValue

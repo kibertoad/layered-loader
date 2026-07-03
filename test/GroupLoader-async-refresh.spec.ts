@@ -214,6 +214,55 @@ describe('GroupLoader Async Refresh', () => {
       expect(expirationTimePost! > expirationTimePre!).toBe(true)
     })
 
+    it('two-layer cache propagates fresh value to in-memory after background refresh', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+      const asyncCache = new RedisGroupCache<User>(redis, {
+        ttlInMsecs: 5000,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 4500,
+      })
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: {
+          cacheId: 'two-layer-group-refresh',
+          cacheType: 'lru-object',
+          ttlInMsecs: 5000,
+          ttlLeftBeforeRefreshInMsecs: 4500,
+        },
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      // Populates both layers with the initial value
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      expect(loader.counter).toBe(1)
+
+      // Source value changes
+      const updatedUser1: User = { ...user1, parametrized: 'updated' }
+      loader.groupValues![user1.companyId][user1.userId] = updatedUser1
+
+      // Wait until both layers' entries are within the refresh window
+      await setTimeout(600)
+
+      // SWR: returns stale value and triggers a background refresh
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      // Wait for the background refresh to actually call the data source
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
+      expect(loader.counter).toBe(2)
+
+      // Sanity check: Redis is now fresh
+      // @ts-expect-error
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toEqual(
+        updatedUser1,
+      )
+
+      // The next read should observe the fresh value that the background refresh fetched
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(updatedUser1)
+    })
+
     it('cleans up groupRefreshFlags after background refresh completes', async () => {
       const loader = new CountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {

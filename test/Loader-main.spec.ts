@@ -8,6 +8,7 @@ import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import { CountingDataSource } from './fakes/CountingDataSource'
 import { CountingRecordLoader } from './fakes/CountingRecordLoader'
 import { CountingTimedCache } from './fakes/CountingTimedCache'
+import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
 import { DummyCache } from './fakes/DummyCache'
 import { DummyDataSource } from './fakes/DummyDataSource'
 import {
@@ -1055,6 +1056,23 @@ describe('Loader Main', () => {
       expect(valuePost).toBe('value2')
       expect(loader.counter).toBe(1)
     })
+
+    it('is not overwritten by a load that was in flight when the value was set', async () => {
+      const loader = new DelayedCountingLoader('stale')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get('key')
+      await operation.forceSetValue('key', 'fresh')
+      await loader.finishLoading()
+      expect(await loadPromise).toBe('stale')
+
+      expect(operation.getInMemoryOnly('key')).toBe('fresh')
+      expect(await operation.get('key')).toBe('fresh')
+    })
   })
 
   describe('invalidateCacheFor', () => {
@@ -1077,6 +1095,23 @@ describe('Loader Main', () => {
       expect(valuePre).toBe('value')
       expect(valuePost).toBe('value')
       expect(loader2.counter).toBe(2)
+    })
+
+    it('is not undone by a load that was in flight when the key was invalidated', async () => {
+      const loader = new DelayedCountingLoader('stale')
+
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get('key')
+      await operation.invalidateCacheFor('key')
+      await loader.finishLoading()
+      expect(await loadPromise).toBe('stale')
+
+      // the resolved in-flight load must not resurrect the invalidated entry
+      expect(operation.getInMemoryOnly('key')).toBeUndefined()
     })
 
     it('correctly handles errors during invalidation', async () => {

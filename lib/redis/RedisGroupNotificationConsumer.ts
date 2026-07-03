@@ -7,6 +7,7 @@ import type {
   GroupNotificationCommand,
 } from './RedisGroupNotificationPublisher'
 import type { RedisConsumerConfig } from './RedisNotificationConsumer'
+import { defaultLogger } from '../util/Logger'
 
 export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
   LoadedValue,
@@ -41,7 +42,20 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   subscribe(): Promise<void> {
     return this.redis.subscribe(this.channel).then(() => {
       this.messageHandler = (channel, message) => {
-        const parsedMessage: GroupNotificationCommand = JSON.parse(message)
+        // ioredis emits 'message' for every channel the connection is subscribed to;
+        // without this check a shared consumer connection would cross-apply commands
+        // from other channels against this target cache
+        if (channel !== this.channel) {
+          return
+        }
+
+        let parsedMessage: GroupNotificationCommand
+        try {
+          parsedMessage = JSON.parse(message)
+        } catch (err) {
+          this.errorHandler(err as Error, this.channel, defaultLogger)
+          return
+        }
         // this is a local message, ignore
         if (parsedMessage.originUuid === this.serverUuid) {
           return

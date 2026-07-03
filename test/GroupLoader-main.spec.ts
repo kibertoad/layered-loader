@@ -4,6 +4,7 @@ import type { CacheKeyResolver } from '../lib/AbstractCache'
 import { GroupLoader } from '../lib/GroupLoader'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
+import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
 import type { DummyLoaderManyParams, DummyLoaderParams } from './fakes/DummyDataSourceWithParams'
 import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { DummyGroupedDataSourceWithParams } from './fakes/DummyGroupedDataSourceWithParams'
@@ -872,6 +873,40 @@ describe('GroupLoader Main', () => {
       expect(valuePre).toEqual(user1)
       expect(valuePost).toEqual(user1)
       expect(loader2.counter).toBe(2)
+    })
+
+    it('is not undone by a load that was in flight when the key was invalidated', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get(user1.userId, user1.companyId)
+      await operation.invalidateCacheFor(user1.userId, user1.companyId)
+      await loader.finishLoading()
+      expect(await loadPromise).toEqual(user1)
+
+      // the resolved in-flight load must not resurrect the invalidated entry
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+    })
+
+    it('is not undone by a load that was in flight when the group was invalidated', async () => {
+      const loader = new DelayedCountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [loader],
+      })
+
+      const loadPromise = operation.get(user1.userId, user1.companyId)
+      await operation.invalidateCacheForGroup(user1.companyId)
+      await loader.finishLoading()
+      expect(await loadPromise).toEqual(user1)
+
+      // the resolved in-flight load must not resurrect the invalidated entry
+      expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
     })
 
     it('correctly handles errors during invalidation', async () => {

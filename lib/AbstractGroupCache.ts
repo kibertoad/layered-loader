@@ -67,13 +67,20 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
     loadingPromise
       .then((resolvedValue) => {
-        if (resolvedValue !== undefined) {
-          this.inMemoryCache.setForGroup(key, resolvedValue, group)
+        // Only apply the result if this load still owns the key - a concurrent set() or
+        // invalidation deletes the runningLoads entry (or the whole group map), and writing
+        // the (now stale) loaded value would clobber the newer state.
+        if (this.runningLoads.get(group) === groupLoads && groupLoads.get(key) === loadingPromise) {
+          if (resolvedValue !== undefined) {
+            this.inMemoryCache.setForGroup(key, resolvedValue, group)
+          }
+          this.deleteGroupRunningLoad(groupLoads, group, key)
         }
-        this.deleteGroupRunningLoad(groupLoads, group, key)
       })
       .catch(() => {
-        this.deleteGroupRunningLoad(groupLoads, group, key)
+        if (this.runningLoads.get(group) === groupLoads && groupLoads.get(key) === loadingPromise) {
+          this.deleteGroupRunningLoad(groupLoads, group, key)
+        }
       })
 
     return loadingPromise

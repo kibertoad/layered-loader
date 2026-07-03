@@ -469,6 +469,101 @@ describe('RedisNotificationPublisher', () => {
     expect(redisConsumer.listenerCount('message')).toBe(0)
   })
 
+  it('Ignores messages from other channels on a shared consumer connection', async () => {
+    const { publisher: notificationPublisherA, consumer: notificationConsumerA } =
+      createNotificationPair<string>({
+        channel: 'channel_a',
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const { publisher: notificationPublisherB, consumer: notificationConsumerB } =
+      createNotificationPair<string>({
+        channel: 'channel_b',
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operationA = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumerA,
+      notificationPublisher: notificationPublisherA,
+    })
+    const operationB = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumerB,
+      notificationPublisher: notificationPublisherB,
+    })
+    await operationA.init()
+    await operationB.init()
+
+    await operationA.getAsyncOnly('key')
+    await operationB.getAsyncOnly('key')
+    expect(operationA.getInMemoryOnly('key')).toBe('value')
+    expect(operationB.getInMemoryOnly('key')).toBe('value')
+
+    // Publish a DELETE on channel_a only, from a foreign origin
+    await redisPublisher.publish(
+      'channel_a',
+      JSON.stringify({
+        actionId: 'DELETE',
+        key: 'key',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    // consumer A must apply it...
+    await waitAndRetry(() => operationA.getInMemoryOnly('key') === undefined, 50, 100)
+    expect(operationA.getInMemoryOnly('key')).toBeUndefined()
+
+    // ...but consumer B, sharing the same Redis connection on another channel, must not
+    expect(operationB.getInMemoryOnly('key')).toBe('value')
+
+    await notificationConsumerA.close()
+    await notificationPublisherA.close()
+  })
+
+  it('Survives malformed messages', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createNotificationPair<string>({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyCache('value'),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+    await operation.init()
+
+    const resultPre = await operation.get('key')
+    expect(resultPre).toBe('value')
+
+    // A non-JSON payload must not crash the consumer
+    await redisPublisher.publish(CHANNEL_ID, 'this is not json')
+
+    // A valid message afterwards must still be processed
+    await redisPublisher.publish(
+      CHANNEL_ID,
+      JSON.stringify({
+        actionId: 'DELETE',
+        key: 'key',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    await waitAndRetry(() => operation.getInMemoryOnly('key') === undefined, 50, 100)
+    expect(operation.getInMemoryOnly('key')).toBeUndefined()
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
   it('Handles error by default', async () => {
     expect.assertions(1)
     const { publisher: notificationPublisher, consumer: notificationConsumer } =

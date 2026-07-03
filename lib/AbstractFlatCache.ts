@@ -48,13 +48,20 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
     loadingPromise
       .then((resolvedValue) => {
-        if (resolvedValue !== undefined) {
-          this.inMemoryCache.set(key, resolvedValue)
+        // Only apply the result if this load still owns the key - a concurrent set(),
+        // forceSetValue() or invalidation deletes the runningLoads entry, and writing
+        // the (now stale) loaded value would clobber the newer state.
+        if (this.runningLoads.get(key) === loadingPromise) {
+          if (resolvedValue !== undefined) {
+            this.inMemoryCache.set(key, resolvedValue)
+          }
+          this.runningLoads.delete(key)
         }
-        this.runningLoads.delete(key)
       })
       .catch(() => {
-        this.runningLoads.delete(key)
+        if (this.runningLoads.get(key) === loadingPromise) {
+          this.runningLoads.delete(key)
+        }
       })
 
     return loadingPromise

@@ -1,6 +1,7 @@
 import type { Redis } from 'ioredis'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
 import type { SynchronousCache } from '../types/SyncDataSources'
+import { defaultLogger } from '../util/Logger'
 import type {
   DeleteManyNotificationCommand,
   DeleteNotificationCommand,
@@ -46,7 +47,20 @@ export class RedisNotificationConsumer<LoadedValue> extends AbstractNotification
   subscribe(): Promise<void> {
     return this.redis.subscribe(this.channel).then(() => {
       this.messageHandler = (channel, message) => {
-        const parsedMessage: NotificationCommand = JSON.parse(message)
+        // ioredis emits 'message' for every channel the connection is subscribed to;
+        // without this check a shared consumer connection would cross-apply commands
+        // from other channels against this target cache
+        if (channel !== this.channel) {
+          return
+        }
+
+        let parsedMessage: NotificationCommand
+        try {
+          parsedMessage = JSON.parse(message)
+        } catch (err) {
+          this.errorHandler(err as Error, this.channel, defaultLogger)
+          return
+        }
         // this is a local message, ignore
         if (parsedMessage.originUuid === this.serverUuid) {
           return
