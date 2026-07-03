@@ -5,8 +5,10 @@ import { GroupLoader } from '../lib/GroupLoader'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
+import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { redisOptions } from './fakes/TestRedisConfig'
 import type { User } from './types/testTypes'
+import { waitAndRetry } from './utils/waitUtils'
 
 const user1: User = {
   companyId: '1',
@@ -323,6 +325,28 @@ describe('GroupLoader Async Refresh', () => {
       )
       await Promise.resolve()
       expect(loader.counter).toBe(3)
+    })
+
+    it('does not crash when async expiration lookup rejects', async () => {
+      const asyncCache = new DummyGroupedCache(userValues)
+      // Force the fire-and-forget expiration lookup to reject
+      ;(asyncCache as any).ttlLeftBeforeRefreshInMsecs = 999999
+      ;(asyncCache as any).expirationTimeLoadingGroupedOperation = {
+        get: () => Promise.reject(new Error('expiration lookup failed')),
+      }
+
+      const errors: unknown[] = []
+      const operation = new GroupLoader<User>({
+        asyncCache,
+        logger: { error: (msg) => errors.push(msg) },
+      })
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      await waitAndRetry(() => errors.length > 0, 5, 20)
+      expect(errors).toContain('expiration lookup failed')
+
+      await asyncCache.close()
     })
   })
 })

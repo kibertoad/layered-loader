@@ -5,7 +5,9 @@ import { Loader } from '../lib/Loader'
 import { RedisCache } from '../lib/redis'
 import { CountingDataSource } from './fakes/CountingDataSource'
 import { DelayedCountingLoader } from './fakes/DelayedCountingLoader'
+import { DummyCache } from './fakes/DummyCache'
 import { redisOptions } from './fakes/TestRedisConfig'
+import { waitAndRetry } from './utils/waitUtils'
 
 describe('Loader Async', () => {
   let redis: Redis
@@ -184,6 +186,27 @@ describe('Loader Async', () => {
       )
       await Promise.resolve()
       expect(loader.counter).toBe(3)
+    })
+
+    it('does not crash when async expiration lookup rejects', async () => {
+      const asyncCache = new DummyCache('value')
+      // Force the fire-and-forget expiration lookup to reject
+      ;(asyncCache as any).expirationTimeLoadingOperation = {
+        get: () => Promise.reject(new Error('expiration lookup failed')),
+      }
+
+      const errors: unknown[] = []
+      const operation = new Loader<string>({
+        asyncCache,
+        logger: { error: (msg) => errors.push(msg) },
+      })
+
+      expect(await operation.get('key')).toBe('value')
+
+      await waitAndRetry(() => errors.length > 0, 5, 20)
+      expect(errors).toContain('expiration lookup failed')
+
+      await asyncCache.close()
     })
   })
 })

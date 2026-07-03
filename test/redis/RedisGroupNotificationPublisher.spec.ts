@@ -407,6 +407,101 @@ describe('RedisGroupNotificationPublisher', () => {
     await notificationPublisher1.close()
   })
 
+  it('Survives malformed messages', async () => {
+    const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
+      createGroupNotificationPair({
+        channel: CHANNEL_ID,
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operation = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumer1,
+      notificationPublisher: notificationPublisher1,
+    })
+    await operation.init()
+
+    await operation.getAsyncOnly('key', 'group')
+    expect(operation.getInMemoryOnly('key', 'group')).toEqual(user1)
+
+    // A non-JSON payload must not crash the consumer
+    await redisPublisher.publish(CHANNEL_ID, 'this is not json')
+
+    // A valid message afterwards must still be processed
+    await redisPublisher.publish(
+      CHANNEL_ID,
+      JSON.stringify({
+        actionId: 'DELETE_GROUP',
+        group: 'group',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    await waitAndRetry(() => operation.getInMemoryOnly('key', 'group') === undefined, 50, 100)
+    expect(operation.getInMemoryOnly('key', 'group')).toBeUndefined()
+
+    await notificationConsumer1.close()
+    await notificationPublisher1.close()
+  })
+
+  it('Ignores messages from other channels on a shared consumer connection', async () => {
+    const { publisher: notificationPublisherA, consumer: notificationConsumerA } =
+      createGroupNotificationPair({
+        channel: 'channel_a',
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const { publisher: notificationPublisherB, consumer: notificationConsumerB } =
+      createGroupNotificationPair({
+        channel: 'channel_b',
+        consumerRedis: redisConsumer,
+        publisherRedis: redisPublisher,
+      })
+
+    const operationA = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumerA,
+      notificationPublisher: notificationPublisherA,
+    })
+    const operationB = new GroupLoader({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache: new DummyGroupedCache(userValues),
+      notificationConsumer: notificationConsumerB,
+      notificationPublisher: notificationPublisherB,
+    })
+    await operationA.init()
+    await operationB.init()
+
+    await operationA.getAsyncOnly('key', 'group')
+    await operationB.getAsyncOnly('key', 'group')
+    expect(operationA.getInMemoryOnly('key', 'group')).toEqual(user1)
+    expect(operationB.getInMemoryOnly('key', 'group')).toEqual(user1)
+
+    // Publish a DELETE_GROUP on channel_a only, from a foreign origin
+    await redisPublisher.publish(
+      'channel_a',
+      JSON.stringify({
+        actionId: 'DELETE_GROUP',
+        group: 'group',
+        originUuid: 'different-uuid',
+      }),
+    )
+
+    // consumer A must apply it...
+    await waitAndRetry(() => operationA.getInMemoryOnly('key', 'group') === undefined, 50, 100)
+    expect(operationA.getInMemoryOnly('key', 'group')).toBeUndefined()
+
+    // ...but consumer B, sharing the same Redis connection on another channel, must not
+    expect(operationB.getInMemoryOnly('key', 'group')).toEqual(user1)
+
+    await notificationConsumerA.close()
+    await notificationPublisherA.close()
+  })
+
   it('Removes message listeners on close', async () => {
     const { publisher: notificationPublisher1, consumer: notificationConsumer1 } =
       createGroupNotificationPair({
