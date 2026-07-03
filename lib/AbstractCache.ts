@@ -170,6 +170,7 @@ export abstract class AbstractCache<
    */
   protected assertStalenessCheckSupported(
     isEntryStillCurrentFn: unknown,
+    resetTtlMethod: unknown,
     resetTtlMethodName: 'resetTtl' | 'resetTtlFromGroup',
   ): void {
     if (!isEntryStillCurrentFn) {
@@ -180,7 +181,7 @@ export abstract class AbstractCache<
         'isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.',
       )
     }
-    if (typeof (this.asyncCache as unknown as Record<string, unknown>)[resetTtlMethodName] !== 'function') {
+    if (typeof resetTtlMethod !== 'function') {
       throw new Error(
         `The configured asyncCache does not support ${resetTtlMethodName}, which is required by isEntryStillCurrentFn.`,
       )
@@ -190,6 +191,37 @@ export abstract class AbstractCache<
         'isEntryStillCurrentFn requires the asyncCache to have ttlLeftBeforeRefreshInMsecs configured - the staleness check only runs inside the preemptive refresh window.',
       )
     }
+  }
+
+  /**
+   * Runs the staleness check for an entry entering its refresh window and, when the check reports
+   * the entry as still current, extends its async cache TTL instead of refetching. Returns true
+   * only when the entry was confirmed current AND its TTL was successfully bumped, so the caller
+   * can safely skip the full background refresh. A check that throws is routed to loadErrorHandler
+   * and treated as stale; a bump that rejects is routed to cacheUpdateErrorHandler and also treated
+   * as stale, so the worst case degrades to a normal full refresh.
+   */
+  protected async isCurrentEntryTtlBumped(
+    key: string,
+    runStalenessCheck: () => Promise<boolean>,
+    runResetTtl: () => Promise<boolean>,
+  ): Promise<boolean> {
+    let isCurrent = false
+    try {
+      isCurrent = await runStalenessCheck()
+    } catch (err) {
+      // a failing check cannot confirm freshness, so fall through to a full refresh
+      this.loadErrorHandler(err as Error, key, { name: 'isEntryStillCurrentFn' }, this.logger)
+    }
+
+    if (!isCurrent) {
+      return false
+    }
+
+    return runResetTtl().catch((err) => {
+      this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      return false
+    })
   }
 
   public async invalidateCache() {

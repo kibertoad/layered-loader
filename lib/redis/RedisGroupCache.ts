@@ -140,7 +140,12 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
       return false
     }
     if (this.ttlLeftBeforeRefreshInMsecs) {
-      void this.expirationTimeLoadingGroupedOperation.invalidateCacheFor(key, groupId)
+      // warm the cached expiration time with the value we just set (see RedisCache.resetTtl)
+      void this.expirationTimeLoadingGroupedOperation.forceSetValueForGroup(
+        key,
+        Date.now() + this.config.ttlInMsecs!,
+        groupId,
+      )
     }
     return true
   }

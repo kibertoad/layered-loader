@@ -853,6 +853,29 @@ describe('GroupLoader Main', () => {
     })
   })
 
+  describe('forceSetValueForGroup', () => {
+    it('sets the explicit value in both cache layers without hitting the data source', async () => {
+      const asyncCache = new DummyGroupedCache(userValuesUndefined)
+      const loader = new CountingGroupedLoader(userValues)
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      const valuePre = await operation.get(user1.userId, user1.companyId)
+      await operation.forceSetValueForGroup(user1.userId, user2, user1.companyId)
+      const valuePost = await operation.get(user1.userId, user1.companyId)
+
+      expect(valuePre).toEqual(user1)
+      expect(valuePost).toEqual(user2)
+      expect(await asyncCache.getFromGroup(user1.userId, user1.companyId)).toEqual(user2)
+      // the forced write did not trigger a data source load
+      expect(loader.counter).toBe(1)
+    })
+  })
+
   describe('invalidateCacheFor', () => {
     it('invalidates cache', async () => {
       const cache2 = new DummyGroupedCache(userValuesUndefined)

@@ -749,6 +749,8 @@ Things to keep in mind:
 - Errors thrown by the check are routed to `loadErrorHandler` and treated as "stale", so the worst case degrades to a regular full background refresh.
 - Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis.
 - No update notifications are published when a TTL is merely bumped, since the data has not changed; in-memory copies on other nodes expire on their own schedule and re-read the shared cache.
+- The check receives the value exactly as the async cache returns it. `RedisCache` / `RedisGroupCache` with `json: true` store an explicitly cached `null` as an empty string, so a null entry is passed to the check as `''`, not `null`. If you cache null values, handle that representation in your check.
+- A successful TTL bump extends only the entry, not the group index. Like adding entries to a group, it does not reset `groupTtlInMsecs`, so a bumped entry still becomes inaccessible once its group index expires and is reloaded from the data sources on the next read.
 
 ## Group operations
 

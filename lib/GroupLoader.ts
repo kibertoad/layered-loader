@@ -27,7 +27,11 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     super(config)
     this.dataSources = config.dataSources ?? []
 
-    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, 'resetTtlFromGroup')
+    this.assertStalenessCheckSupported(
+      config.isEntryStillCurrentFn,
+      this.asyncCache?.resetTtlFromGroup,
+      'resetTtlFromGroup',
+    )
     this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
 
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -87,29 +91,21 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     loadParams: LoadParams,
     cachedValue: LoadedValue | null,
   ): Promise<void> {
-    if (this.isEntryStillCurrentFn) {
-      let isCurrent = false
-      try {
-        isCurrent = await this.isEntryStillCurrentFn(cachedValue, loadParams, group)
-      } catch (err) {
-        // a failing check cannot confirm freshness, so fall through to a full refresh
-        this.loadErrorHandler(err as Error, key, { name: 'isEntryStillCurrentFn' }, this.logger)
-      }
-
-      if (isCurrent) {
-        const isTtlBumped = await this.asyncCache!.resetTtlFromGroup!(key, group).catch((err) => {
-          this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
-          return false
-        })
-        if (isTtlBumped) {
-          // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
-          // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
-          return
-        }
-        // the entry expired or its group was invalidated between the read and the bump, fall through to a full refresh
-      }
+    if (
+      this.isEntryStillCurrentFn &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
+        () => this.asyncCache!.resetTtlFromGroup!(key, group),
+      ))
+    ) {
+      // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
+      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+      return
     }
 
+    // The entry is stale, the check failed, or the bump failed (entry expired or the group was
+    // invalidated meanwhile), so run the full background refresh from the data sources.
     const freshValue = await this.loadFromLoaders(key, group, loadParams)
     // Propagate the freshly loaded value to the in-memory group cache as well.
     // Without this, the in-memory layer keeps serving the stale value that
@@ -119,6 +115,19 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     if (freshValue !== undefined) {
       this.inMemoryCache.setForGroup(key, freshValue, group)
     }
+  }
+
+  public async forceSetValueForGroup(key: string, newValue: LoadedValue | null, group: string) {
+    this.inMemoryCache.setForGroup(key, newValue, group)
+    this.deleteGroupRunningLoad(this.resolveGroupLoads(group), group, key)
+
+    if (this.asyncCache) {
+      await this.asyncCache.setForGroup(key, newValue, group).catch((err) => {
+        this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      })
+    }
+    // GroupNotificationPublisher only broadcasts deletions, so there is no set notification to
+    // publish here; other nodes converge via their own TTL expiry, same as setForGroup.
   }
 
   protected override async resolveManyGroupValues(

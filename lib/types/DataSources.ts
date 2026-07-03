@@ -57,7 +57,8 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
   /**
    * Resets the entry's TTL back to the full configured ttlInMsecs without rewriting the value.
    * Returns `true` if the entry existed and its TTL was extended, `false` otherwise.
-   * Implementations must invalidate their cached expiration time for the key on success.
+   * Implementations that cache expiration times must refresh the cached value for the key on
+   * success (invalidate it, or update it to the new expiration).
    */
   resetTtl?: (key: string) => Promise<boolean>
 }
@@ -82,7 +83,8 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   /**
    * Resets the entry's TTL back to the full configured ttlInMsecs without rewriting the value.
    * Returns `true` if the entry existed and its TTL was extended, `false` otherwise.
-   * Implementations must invalidate their cached expiration time for the key on success.
+   * Implementations that cache expiration times must refresh the cached value for the key on
+   * success (invalidate it, or update it to the new expiration).
    */
   resetTtlFromGroup?: (key: string, group: string) => Promise<boolean>
 }

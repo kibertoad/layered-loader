@@ -91,7 +91,9 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
         return false
       }
       if (this.ttlLeftBeforeRefreshInMsecs) {
-        void this.expirationTimeLoadingOperation.invalidateCacheFor(key)
+        // warm the cached expiration time with the value we just set, so the next read inside the
+        // refresh window does not have to issue an extra PTTL round-trip to relearn it
+        void this.expirationTimeLoadingOperation.forceSetValue(key, Date.now() + this.config.ttlInMsecs!)
       }
       return true
     })

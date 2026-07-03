@@ -67,7 +67,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       this.dataSources = []
     }
 
-    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, 'resetTtl')
+    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, this.asyncCache?.resetTtl, 'resetTtl')
     this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
 
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -147,29 +147,21 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
   }
 
   private async refreshOrBumpTtl(key: string, loadParams: LoadParams, cachedValue: LoadedValue | null): Promise<void> {
-    if (this.isEntryStillCurrentFn) {
-      let isCurrent = false
-      try {
-        isCurrent = await this.isEntryStillCurrentFn(cachedValue, loadParams)
-      } catch (err) {
-        // a failing check cannot confirm freshness, so fall through to a full refresh
-        this.loadErrorHandler(err as Error, key, { name: 'isEntryStillCurrentFn' }, this.logger)
-      }
-
-      if (isCurrent) {
-        const isTtlBumped = await this.asyncCache!.resetTtl!(key).catch((err) => {
-          this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
-          return false
-        })
-        if (isTtlBumped) {
-          // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
-          // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
-          return
-        }
-        // the entry expired or was deleted between the read and the bump, fall through to a full refresh
-      }
+    if (
+      this.isEntryStillCurrentFn &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams),
+        () => this.asyncCache!.resetTtl!(key),
+      ))
+    ) {
+      // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
+      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+      return
     }
 
+    // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
+    // so run the full background refresh from the data sources.
     const freshValue = await this.loadFromLoaders(key, loadParams)
     // Propagate the freshly loaded value to the in-memory cache as well.
     // Without this, the in-memory layer keeps serving the stale value that
