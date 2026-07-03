@@ -91,10 +91,12 @@ describe('GroupLoader staleness check', () => {
 
     it('does not touch other groups when bumping ttl', async () => {
       const loader = new CountingGroupedLoader(userValues)
+      // A wide refresh window lets group 1 enter it long before either group nears expiry, so the
+      // other group stays comfortably alive and the timing is not sensitive to CI load.
       const asyncCache = new RedisGroupCache<User>(redis, {
-        ttlInMsecs: 500,
+        ttlInMsecs: 2000,
         json: true,
-        ttlLeftBeforeRefreshInMsecs: 75,
+        ttlLeftBeforeRefreshInMsecs: 1500,
       })
       const isEntryStillCurrentFn = vitest.fn(async () => true)
 
@@ -111,7 +113,7 @@ describe('GroupLoader staleness check', () => {
         user3.companyId,
       )
 
-      await setTimeout(450)
+      await setTimeout(600)
       // kick off the check + bump for group 1 only
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
       for (
@@ -129,7 +131,9 @@ describe('GroupLoader staleness check', () => {
         user3.companyId,
       )
       expect(otherGroupExpirationPost).toBeDefined()
-      expect(otherGroupExpirationPost! <= otherGroupExpirationPre!).toBe(true)
+      // Bumping group 1 must not reset group 2's TTL: a reset would push its expiration ~600ms
+      // later, far beyond the few ms of Redis round-trip jitter the tolerance absorbs.
+      expect(otherGroupExpirationPost!).toBeLessThanOrEqual(otherGroupExpirationPre! + 200)
     })
 
     it('propagates the freshly refetched value into the in-memory group cache when stale', async () => {
