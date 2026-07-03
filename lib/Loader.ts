@@ -67,14 +67,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       this.dataSources = []
     }
 
-    if (config.isEntryStillCurrentFn) {
-      if (!config.asyncCache) {
-        throw new Error('isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.')
-      }
-      if (typeof config.asyncCache.resetTtl !== 'function') {
-        throw new Error('The configured asyncCache does not support resetTtl, which is required by isEntryStillCurrentFn.')
-      }
-    }
+    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, 'resetTtl')
     this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
 
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -169,8 +162,8 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
           return false
         })
         if (isTtlBumped) {
-          // re-set to reset the in-memory TTL as well; toad-cache has no touch operation
-          this.inMemoryCache.set(key, cachedValue)
+          // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
+          // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
           return
         }
         // the entry expired or was deleted between the read and the bump, fall through to a full refresh

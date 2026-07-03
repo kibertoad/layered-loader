@@ -132,6 +132,46 @@ describe('GroupLoader staleness check', () => {
       expect(otherGroupExpirationPost! <= otherGroupExpirationPre!).toBe(true)
     })
 
+    it('propagates the freshly refetched value into the in-memory group cache when stale', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+      const asyncCache = new RedisGroupCache<User>(redis, {
+        ttlInMsecs: 300,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 150,
+      })
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: {
+          cacheId: 'group-staleness-two-layer',
+          ttlInMsecs: 300,
+          ttlLeftBeforeRefreshInMsecs: 150,
+        },
+        asyncCache,
+        dataSources: [loader],
+        isEntryStillCurrentFn: async () => false,
+      })
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      expect(loader.counter).toBe(1)
+
+      // the data source now returns an updated entity
+      const updatedUser1: User = { ...user1, parametrized: 'updated' }
+      loader.groupValues![user1.companyId][user1.userId] = updatedUser1
+
+      await setTimeout(200)
+      // kick off the check, which reports the entry as stale and triggers a refetch
+      await operation.get(user1.userId, user1.companyId)
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
+      expect(loader.counter).toBe(2)
+
+      // the in-memory layer must now serve the fresh value, not the stale one
+      // @ts-expect-error accessing protected member for assertion
+      expect(operation.inMemoryCache.getFromGroup(user1.userId, user1.companyId)).toEqual(
+        updatedUser1,
+      )
+    })
+
     it('falls back to full background refetch when entry is stale', async () => {
       const loader = new CountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {
@@ -322,6 +362,17 @@ describe('GroupLoader staleness check', () => {
             isEntryStillCurrentFn: async () => true,
           }),
       ).toThrow(/does not support resetTtlFromGroup/)
+    })
+
+    it('throws when the asyncCache has no ttlLeftBeforeRefreshInMsecs configured', () => {
+      expect(
+        () =>
+          new GroupLoader<User>({
+            asyncCache: new RedisGroupCache<User>(redis, { ttlInMsecs: 150, json: true }),
+            dataSources: [new CountingGroupedLoader(userValues)],
+            isEntryStillCurrentFn: async () => true,
+          }),
+      ).toThrow(/ttlLeftBeforeRefreshInMsecs/)
     })
   })
 })

@@ -350,5 +350,16 @@ describe('Loader staleness check', () => {
           }),
       ).toThrow(/does not support resetTtl/)
     })
+
+    it('throws when the asyncCache has no ttlLeftBeforeRefreshInMsecs configured', () => {
+      expect(
+        () =>
+          new Loader<string>({
+            asyncCache: new RedisCache<string>(redis, { ttlInMsecs: 150 }),
+            dataSources: [new CountingDataSource('value')],
+            isEntryStillCurrentFn: async () => true,
+          }),
+      ).toThrow(/ttlLeftBeforeRefreshInMsecs/)
+    })
   })
 })

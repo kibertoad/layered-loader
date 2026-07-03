@@ -162,6 +162,36 @@ export abstract class AbstractCache<
     this.initPromises = []
   }
 
+  /**
+   * Validates that an isEntryStillCurrentFn can actually run: it needs an asyncCache that has a
+   * refresh window configured (the check only fires inside it) and exposes the TTL-reset method
+   * used to bump the entry. Throws otherwise, so misconfiguration fails fast instead of silently
+   * turning the feature into a no-op.
+   */
+  protected assertStalenessCheckSupported(
+    isEntryStillCurrentFn: unknown,
+    resetTtlMethodName: 'resetTtl' | 'resetTtlFromGroup',
+  ): void {
+    if (!isEntryStillCurrentFn) {
+      return
+    }
+    if (!this.asyncCache) {
+      throw new Error(
+        'isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.',
+      )
+    }
+    if (typeof (this.asyncCache as unknown as Record<string, unknown>)[resetTtlMethodName] !== 'function') {
+      throw new Error(
+        `The configured asyncCache does not support ${resetTtlMethodName}, which is required by isEntryStillCurrentFn.`,
+      )
+    }
+    if (!this.asyncCache.ttlLeftBeforeRefreshInMsecs) {
+      throw new Error(
+        'isEntryStillCurrentFn requires the asyncCache to have ttlLeftBeforeRefreshInMsecs configured - the staleness check only runs inside the preemptive refresh window.',
+      )
+    }
+  }
+
   public async invalidateCache() {
     this.inMemoryCache.clear()
     if (this.asyncCache) {

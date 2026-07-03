@@ -745,7 +745,7 @@ const operation = new GroupLoader<UserEntity>({
 
 Things to keep in mind:
 
-- `isEntryStillCurrentFn` requires an `asyncCache` that implements `resetTtl` (`resetTtlFromGroup` for group caches). `RedisCache` and `RedisGroupCache` do; if you implement the `Cache` interface yourself, add the method to support conditional refresh.
+- `isEntryStillCurrentFn` requires an `asyncCache` that has `ttlLeftBeforeRefreshInMsecs` configured (the check only runs inside that refresh window) and implements `resetTtl` (`resetTtlFromGroup` for group caches). `RedisCache` and `RedisGroupCache` implement the reset method; if you implement the `Cache` interface yourself, add the method to support conditional refresh. The loader throws at construction time if either requirement is missing.
 - Errors thrown by the check are routed to `loadErrorHandler` and treated as "stale", so the worst case degrades to a regular full background refresh.
 - Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis.
 - No update notifications are published when a TTL is merely bumped, since the data has not changed; in-memory copies on other nodes expire on their own schedule and re-read the shared cache.

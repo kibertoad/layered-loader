@@ -27,14 +27,7 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     super(config)
     this.dataSources = config.dataSources ?? []
 
-    if (config.isEntryStillCurrentFn) {
-      if (!config.asyncCache) {
-        throw new Error('isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.')
-      }
-      if (typeof config.asyncCache.resetTtlFromGroup !== 'function') {
-        throw new Error('The configured asyncCache does not support resetTtlFromGroup, which is required by isEntryStillCurrentFn.')
-      }
-    }
+    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, 'resetTtlFromGroup')
     this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
 
     this.throwIfLoadError = config.throwIfLoadError ?? true
@@ -109,15 +102,23 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
           return false
         })
         if (isTtlBumped) {
-          // re-set to reset the in-memory TTL as well; toad-cache has no touch operation
-          this.inMemoryCache.setForGroup(key, cachedValue, group)
+          // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
+          // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
           return
         }
         // the entry expired or its group was invalidated between the read and the bump, fall through to a full refresh
       }
     }
 
-    await this.loadFromLoaders(key, group, loadParams)
+    const freshValue = await this.loadFromLoaders(key, group, loadParams)
+    // Propagate the freshly loaded value to the in-memory group cache as well.
+    // Without this, the in-memory layer keeps serving the stale value that
+    // was read from the async cache before this background refresh started,
+    // and its TTL is reset on the next read, so subsequent reads stay stale
+    // for another full ttlInMsecs window even though the async cache is fresh.
+    if (freshValue !== undefined) {
+      this.inMemoryCache.setForGroup(key, freshValue, group)
+    }
   }
 
   protected override async resolveManyGroupValues(
