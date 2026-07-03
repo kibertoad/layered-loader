@@ -20,11 +20,14 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   public getInMemoryOnly(loadParams: LoadParams): LoadedValue | undefined | null {
-    const key = this.cacheKeyFromLoadParamsResolver(loadParams)
+    return this.getInMemoryOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams)
+  }
+
+  private getInMemoryOnlyResolved(key: string, loadParams: LoadParams): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
       if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-        void this.getAsyncOnly(loadParams)
+        void this.getAsyncOnlyResolved(key, loadParams)
       }
     }
 
@@ -37,7 +40,10 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   public getAsyncOnly(loadParams: LoadParams): Promise<LoadedValue | undefined | null> {
-    const key = this.cacheKeyFromLoadParamsResolver(loadParams)
+    return this.getAsyncOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams)
+  }
+
+  private getAsyncOnlyResolved(key: string, loadParams: LoadParams): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad
@@ -86,12 +92,13 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   public get(loadParams: LoadParams): Promise<LoadedValue | undefined | null> {
-    const inMemoryValue = this.getInMemoryOnly(loadParams)
+    const key = this.cacheKeyFromLoadParamsResolver(loadParams)
+    const inMemoryValue = this.getInMemoryOnlyResolved(key, loadParams)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(loadParams)
+    return this.getAsyncOnlyResolved(key, loadParams)
   }
 
   public getMany(keys: string[], loadParams?: LoadManyParams): Promise<LoadedValue[]> {
@@ -103,7 +110,12 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     }
 
     return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, loadParams).then((asyncRetrievedValues) => {
-      return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
+      // in-memory caches always return a fresh array, so it is safe to append to it in place
+      const mergedValues = inMemoryValues.resolvedValues
+      for (let i = 0; i < asyncRetrievedValues.resolvedValues.length; i++) {
+        mergedValues.push(asyncRetrievedValues.resolvedValues[i])
+      }
+      return mergedValues
     })
   }
 
