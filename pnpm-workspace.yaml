@@ -1,5 +1,8 @@
 packages:
   - 'packages/*'
 
+minimumReleaseAgeExclude:
+  - toad-cache@3.7.4
+
 onlyBuiltDependencies:
   - '@biomejs/biome'
