@@ -5,8 +5,10 @@ import { GroupLoader } from '../lib/GroupLoader'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { DelayedCountingGroupedLoader } from './fakes/DelayedCountingGroupedLoader'
+import { DummyGroupedCache } from './fakes/DummyGroupedCache'
 import { redisOptions } from './fakes/TestRedisConfig'
 import type { User } from './types/testTypes'
+import { waitAndRetry } from './utils/waitUtils'
 
 const user1: User = {
   companyId: '1',
@@ -242,6 +244,55 @@ describe('GroupLoader Async Refresh', () => {
       expect(groupRefreshFlags.has(user1.companyId)).toBe(false)
     })
 
+    it('two-layer cache propagates fresh value to in-memory after background refresh', async () => {
+      const loader = new CountingGroupedLoader(userValues)
+      const asyncCache = new RedisGroupCache<User>(redis, {
+        ttlInMsecs: 5000,
+        json: true,
+        ttlLeftBeforeRefreshInMsecs: 4500,
+      })
+
+      const operation = new GroupLoader<User>({
+        inMemoryCache: {
+          cacheId: 'two-layer-group-refresh',
+          cacheType: 'lru-object',
+          ttlInMsecs: 5000,
+          ttlLeftBeforeRefreshInMsecs: 4500,
+        },
+        asyncCache,
+        dataSources: [loader],
+      })
+
+      // Populates both layers with the initial value
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+      expect(loader.counter).toBe(1)
+
+      // Source value changes
+      const updatedUser1: User = { ...user1, parametrized: 'updated' }
+      loader.groupValues![user1.companyId][user1.userId] = updatedUser1
+
+      // Wait until both layers' entries are within the refresh window
+      await setTimeout(600)
+
+      // SWR: returns stale value and triggers a background refresh
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      // Wait for the background refresh to actually call the data source
+      for (let attempt = 0; attempt < 20 && loader.counter < 2; attempt++) {
+        await setTimeout(10)
+      }
+      expect(loader.counter).toBe(2)
+
+      // Sanity check: Redis is now fresh
+      // @ts-expect-error
+      expect(await operation.asyncCache.getFromGroup(user1.userId, user1.companyId)).toEqual(
+        updatedUser1,
+      )
+
+      // The next read should observe the fresh value that the background refresh fetched
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(updatedUser1)
+    })
+
     it('async background refresh errors do not crash app', async () => {
       const loader = new CountingGroupedLoader(userValues)
       const asyncCache = new RedisGroupCache<User>(redis, {
@@ -274,6 +325,28 @@ describe('GroupLoader Async Refresh', () => {
       )
       await Promise.resolve()
       expect(loader.counter).toBe(3)
+    })
+
+    it('does not crash when async expiration lookup rejects', async () => {
+      const asyncCache = new DummyGroupedCache(userValues)
+      // Force the fire-and-forget expiration lookup to reject
+      ;(asyncCache as any).ttlLeftBeforeRefreshInMsecs = 999999
+      ;(asyncCache as any).expirationTimeLoadingGroupedOperation = {
+        get: () => Promise.reject(new Error('expiration lookup failed')),
+      }
+
+      const errors: unknown[] = []
+      const operation = new GroupLoader<User>({
+        asyncCache,
+        logger: { error: (msg) => errors.push(msg) },
+      })
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      await waitAndRetry(() => errors.length > 0, 5, 20)
+      expect(errors).toContain('expiration lookup failed')
+
+      await asyncCache.close()
     })
   })
 })

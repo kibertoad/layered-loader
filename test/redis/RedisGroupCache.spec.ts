@@ -475,6 +475,32 @@ describe('RedisGroupCache', () => {
       expect(value).toBeUndefined()
     })
 
+    it('expires the group index with groupTtlInMsecs, not the entry ttl', async () => {
+      const cache = new RedisGroupCache(redis, {
+        ttlInMsecs: 500,
+        groupTtlInMsecs: 60000,
+      })
+      await cache.setForGroup('key', 'value', 'group')
+
+      await cache.deleteGroup('group')
+
+      const indexTtl = await redis.pttl(cache.resolveGroupIndexPrefix('group'))
+      // the group index counter must live as long as groupTtlInMsecs dictates;
+      // scoping it to the entry ttl would let the counter expire and reset early
+      expect(indexTtl).toBeGreaterThan(500)
+      expect(indexTtl).toBeLessThanOrEqual(60000)
+    })
+
+    it('does not expire the group index when groupTtlInMsecs is not set', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: 500 })
+      await cache.setForGroup('key', 'value', 'group')
+
+      await cache.deleteGroup('group')
+
+      const indexTtl = await redis.pttl(cache.resolveGroupIndexPrefix('group'))
+      expect(indexTtl).toBe(-1) // no TTL, consistent with setForGroup
+    })
+
     it('deletes values matching the group pattern', async () => {
       const cache = new RedisGroupCache(redis)
 

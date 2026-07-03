@@ -120,21 +120,28 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
-            this.asyncCache.expirationTimeLoadingOperation.get(key).then((expirationTime) => {
-              if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-                // check second time, maybe someone obtained the lock while we were checking the expiration date
-                if (!this.isKeyRefreshing.has(key)) {
-                  this.isKeyRefreshing.add(key)
-                  this.refreshOrBumpTtl(key, loadParams, cachedValue)
-                    .catch((err) => {
-                      this.logger.error(err.message)
-                    })
-                    .finally(() => {
-                      this.isKeyRefreshing.delete(key)
-                    })
+            this.asyncCache.expirationTimeLoadingOperation
+              .get(key)
+              .then((expirationTime) => {
+                if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                  // check second time, maybe someone obtained the lock while we were checking the expiration date
+                  if (!this.isKeyRefreshing.has(key)) {
+                    this.isKeyRefreshing.add(key)
+                    this.refreshOrBumpTtl(key, loadParams, cachedValue)
+                      .catch((err) => {
+                        this.logger.error(err.message)
+                      })
+                      .finally(() => {
+                        this.isKeyRefreshing.delete(key)
+                      })
+                  }
                 }
-              }
-            })
+              })
+              .catch((err) => {
+                // expiration lookup is fire-and-forget; a rejection here must not become
+                // an unhandled promise rejection
+                this.logger.error(err.message)
+              })
           }
         }
 
