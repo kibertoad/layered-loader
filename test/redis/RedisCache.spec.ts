@@ -75,6 +75,45 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('resetTtl', () => {
+    it('resets ttl of an existing entry back to the full configured ttl', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('key', 'value')
+      await setTimeout(500)
+
+      const expiresAtPre = await cache.getExpirationTime('key')
+      const timeLeftPre = expiresAtPre! - Date.now()
+
+      const result = await cache.resetTtl('key')
+
+      const expiresAtPost = await cache.getExpirationTime('key')
+      const timeLeftPost = expiresAtPost! - Date.now()
+
+      expect(result).toBe(true)
+      expect(timeLeftPre < 530).toBe(true)
+      expect(timeLeftPost > 970).toBe(true)
+      // value was not rewritten
+      expect(await cache.get('key')).toBe('value')
+    })
+
+    it('returns false for non-existent entry', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+
+      const result = await cache.resetTtl('dummy')
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false when no ttl is configured', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: undefined })
+      await cache.set('key', 'value')
+
+      const result = await cache.resetTtl('key')
+
+      expect(result).toBe(false)
+    })
+  })
+
   describe('get', () => {
     it('retrieves value with timeout', async () => {
       const cache = new RedisCache(redis, {

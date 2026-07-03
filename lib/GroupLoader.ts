@@ -2,7 +2,7 @@ import { AbstractGroupCache } from './AbstractGroupCache'
 import type { LoaderConfig } from './Loader'
 import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { CacheEntry, GroupCache, GroupDataSource } from './types/DataSources'
+import type { CacheEntry, GroupCache, GroupDataSource, IsGroupEntryStillCurrentFn } from './types/DataSources'
 import type { GetManyResult } from './types/SyncDataSources'
 
 export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> = LoaderConfig<
@@ -13,17 +13,27 @@ export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams =
   GroupDataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryGroupCacheConfiguration,
   InMemoryGroupCache<LoadedValue>,
-  GroupNotificationPublisher<LoadedValue>
+  GroupNotificationPublisher<LoadedValue>,
+  IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
 >
 export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractGroupCache<LoadedValue, LoadParams, LoadManyParams> {
   private readonly dataSources: readonly GroupDataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly groupRefreshFlags: Map<string, Set<string>>
+  private readonly isEntryStillCurrentFn?: IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
   constructor(config: GroupLoaderConfig<LoadedValue, LoadParams, LoadManyParams>) {
     super(config)
     this.dataSources = config.dataSources ?? []
+
+    this.assertStalenessCheckSupported(
+      config.isEntryStillCurrentFn,
+      this.asyncCache?.resetTtlFromGroup,
+      'resetTtlFromGroup',
+    )
+    this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
+
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
     this.groupRefreshFlags = new Map()
@@ -53,7 +63,7 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                   }
                   groupSet.add(key)
 
-                  this.loadFromLoaders(key, group, loadParams)
+                  this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
                     .catch((err) => {
                       this.logger.error(err.message)
                     })
@@ -73,6 +83,52 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
 
       return this.loadFromLoaders(key, group, loadParams)
     })
+  }
+
+  private async refreshOrBumpTtl(
+    key: string,
+    group: string,
+    loadParams: LoadParams,
+    cachedValue: LoadedValue | null,
+  ): Promise<void> {
+    if (
+      this.isEntryStillCurrentFn &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
+        () => this.asyncCache!.resetTtlFromGroup!(key, group),
+      ))
+    ) {
+      // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
+      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+      return
+    }
+
+    // The entry is stale, the check failed, or the bump failed (entry expired or the group was
+    // invalidated meanwhile), so run the full background refresh from the data sources.
+    const freshValue = await this.loadFromLoaders(key, group, loadParams)
+    // Propagate the freshly loaded value to the in-memory group cache as well.
+    // Without this, the in-memory layer keeps serving the stale value that
+    // was read from the async cache before this background refresh started,
+    // and its TTL is reset on the next read, so subsequent reads stay stale
+    // for another full ttlInMsecs window even though the async cache is fresh.
+    if (freshValue !== undefined) {
+      this.inMemoryCache.setForGroup(key, freshValue, group)
+    }
+  }
+
+  public async forceSetValueForGroup(key: string, newValue: LoadedValue | null, group: string) {
+    this.inMemoryCache.setForGroup(key, newValue, group)
+    this.deleteGroupRunningLoad(this.resolveGroupLoads(group), group, key)
+
+    if (this.asyncCache) {
+      await this.asyncCache.setForGroup(key, newValue, group).catch((err) => {
+        /* v8 ignore next -- @preserve */
+        this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      })
+    }
+    // GroupNotificationPublisher only broadcasts deletions, so there is no set notification to
+    // publish here; other nodes converge via their own TTL expiry, same as setForGroup.
   }
 
   protected override async resolveManyGroupValues(

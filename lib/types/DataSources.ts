@@ -18,6 +18,26 @@ export type CacheEntry<LoadedValue> = {
   value: LoadedValue
 }
 
+/**
+ * Lightweight staleness check invoked when a cached entry enters the refresh window.
+ *
+ * Return `true` if the cached value is still up-to-date (its TTL will be reset without a refetch),
+ * `false` to trigger a full background refetch from the data sources.
+ */
+export type IsEntryStillCurrentFn<LoadedValue, LoadParams = string> = (
+  cachedValue: LoadedValue | null,
+  loadParams: LoadParams,
+) => Promise<boolean>
+
+/**
+ * Group variant of {@link IsEntryStillCurrentFn}.
+ */
+export type IsGroupEntryStillCurrentFn<LoadedValue, LoadParams = string> = (
+  cachedValue: LoadedValue | null,
+  loadParams: LoadParams,
+  group: string,
+) => Promise<boolean>
+
 export interface WriteCache<LoadedValue> {
   set: (key: string, value: LoadedValue | null) => Promise<unknown>
   setMany: (entries: readonly CacheEntry<LoadedValue>[]) => Promise<unknown>
@@ -33,6 +53,14 @@ export interface Cache<LoadedValue> extends WriteCache<LoadedValue> {
   get: (key: string) => Promise<LoadedValue | undefined | null>
   getMany: (keys: string[]) => Promise<GetManyResult<LoadedValue>>
   getExpirationTime: (key: string) => Promise<number | undefined>
+
+  /**
+   * Resets the entry's TTL back to the full configured ttlInMsecs without rewriting the value.
+   * Returns `true` if the entry existed and its TTL was extended, `false` otherwise.
+   * Implementations that cache expiration times must refresh the cached value for the key on
+   * success (invalidate it, or update it to the new expiration).
+   */
+  resetTtl?: (key: string) => Promise<boolean>
 }
 
 export interface GroupWriteCache<LoadedValue> {
@@ -51,6 +79,14 @@ export interface GroupCache<LoadedValue> extends GroupWriteCache<LoadedValue> {
   getFromGroup: (key: string, group: string) => Promise<LoadedValue | undefined | null>
   getManyFromGroup: (keys: string[], group: string) => Promise<GetManyResult<LoadedValue>>
   getExpirationTimeFromGroup: (key: string, group: string) => Promise<number | undefined>
+
+  /**
+   * Resets the entry's TTL back to the full configured ttlInMsecs without rewriting the value.
+   * Returns `true` if the entry existed and its TTL was extended, `false` otherwise.
+   * Implementations that cache expiration times must refresh the cached value for the key on
+   * success (invalidate it, or update it to the new expiration).
+   */
+  resetTtlFromGroup?: (key: string, group: string) => Promise<boolean>
 }
 
 /**

@@ -5,7 +5,7 @@ import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
 import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
 import type { NotificationPublisher } from './notifications/NotificationPublisher'
-import type { Cache, CacheEntry, DataSource, GroupCache } from './types/DataSources'
+import type { Cache, CacheEntry, DataSource, GroupCache, IsEntryStillCurrentFn } from './types/DataSources'
 import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
 
 export type LoaderConfig<
@@ -22,12 +22,14 @@ export type LoaderConfig<
     | SynchronousGroupCache<LoadedValue> = SynchronousCache<LoadedValue>,
   NotificationPublisherType extends
     | NotificationPublisher<LoadedValue>
-    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>
+    | GroupNotificationPublisher<LoadedValue> = NotificationPublisher<LoadedValue>,
+  IsEntryStillCurrentFnType = IsEntryStillCurrentFn<LoadedValue, LoadParams>
 > = {
   dataSources?: readonly DataSourceType[]
   dataSourceGetOneFn?: (loadParams: LoadParams) => Promise<LoadedValue | undefined | null>
   dataSourceGetManyFn?: (keys: string[], loadParams?: LoadManyParams) => Promise<LoadedValue[]>
   dataSourceName?: string
+  isEntryStillCurrentFn?: IsEntryStillCurrentFnType
   throwIfLoadError?: boolean
   throwIfUnresolved?: boolean
 } & CommonCacheConfig<LoadedValue, CacheType, InMemoryCacheConfigType, InMemoryCacheType, NotificationPublisherType, LoadParams>
@@ -35,6 +37,7 @@ export type LoaderConfig<
 export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractFlatCache<LoadedValue, LoadParams, LoadManyParams> {
   private readonly dataSources: readonly DataSource<LoadedValue, LoadParams, LoadManyParams>[]
   private readonly isKeyRefreshing: Set<string>
+  private readonly isEntryStillCurrentFn?: IsEntryStillCurrentFn<LoadedValue, LoadParams>
   protected readonly throwIfLoadError: boolean
   protected readonly throwIfUnresolved: boolean
 
@@ -63,6 +66,9 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     else {
       this.dataSources = []
     }
+
+    this.assertStalenessCheckSupported(config.isEntryStillCurrentFn, this.asyncCache?.resetTtl, 'resetTtl')
+    this.isEntryStillCurrentFn = config.isEntryStillCurrentFn
 
     this.throwIfLoadError = config.throwIfLoadError ?? true
     this.throwIfUnresolved = config.throwIfUnresolved ?? false
@@ -119,17 +125,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
                 // check second time, maybe someone obtained the lock while we were checking the expiration date
                 if (!this.isKeyRefreshing.has(key)) {
                   this.isKeyRefreshing.add(key)
-                  this.loadFromLoaders(key, loadParams)
-                    .then((freshValue) => {
-                      // Propagate the freshly loaded value to the in-memory cache as well.
-                      // Without this, the in-memory layer keeps serving the stale value that
-                      // was read from the async cache before this background refresh started,
-                      // and its TTL is reset on the next read, so subsequent reads stay stale
-                      // for another full ttlInMsecs window even though the async cache is fresh.
-                      if (freshValue !== undefined) {
-                        this.inMemoryCache.set(key, freshValue)
-                      }
-                    })
+                  this.refreshOrBumpTtl(key, loadParams, cachedValue)
                     .catch((err) => {
                       this.logger.error(err.message)
                     })
@@ -148,6 +144,33 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       // No cached value, we have to load instead
       return this.loadFromLoaders(key, loadParams)
     })
+  }
+
+  private async refreshOrBumpTtl(key: string, loadParams: LoadParams, cachedValue: LoadedValue | null): Promise<void> {
+    if (
+      this.isEntryStillCurrentFn &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams),
+        () => this.asyncCache!.resetTtl!(key),
+      ))
+    ) {
+      // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
+      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+      return
+    }
+
+    // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
+    // so run the full background refresh from the data sources.
+    const freshValue = await this.loadFromLoaders(key, loadParams)
+    // Propagate the freshly loaded value to the in-memory cache as well.
+    // Without this, the in-memory layer keeps serving the stale value that
+    // was read from the async cache before this background refresh started,
+    // and its TTL is reset on the next read, so subsequent reads stay stale
+    // for another full ttlInMsecs window even though the async cache is fresh.
+    if (freshValue !== undefined) {
+      this.inMemoryCache.set(key, freshValue)
+    }
   }
 
   private async loadFromLoaders(key: string, loadParams: LoadParams) {

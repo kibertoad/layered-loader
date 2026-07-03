@@ -86,6 +86,64 @@ describe('RedisGroupCache', () => {
     })
   })
 
+  describe('resetTtlFromGroup', () => {
+    it('resets ttl of an existing entry back to the full configured ttl', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.setForGroup('key', 'value', 'group')
+      await setTimeout(500)
+
+      const expiresAtPre = await cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPre = expiresAtPre! - Date.now()
+
+      const result = await cache.resetTtlFromGroup('key', 'group')
+
+      const expiresAtPost = await cache.getExpirationTimeFromGroup('key', 'group')
+      const timeLeftPost = expiresAtPost! - Date.now()
+
+      expect(result).toBe(true)
+      expect(timeLeftPre < 530).toBe(true)
+      expect(timeLeftPost > 970).toBe(true)
+      // value was not rewritten
+      expect(await cache.getFromGroup('key', 'group')).toBe('value')
+    })
+
+    it('returns false for non-existent entry', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.setForGroup('other-key', 'value', 'group')
+
+      const result = await cache.resetTtlFromGroup('dummy', 'group')
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false if there is no dynamic group key registered in redis', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+
+      const result = await cache.resetTtlFromGroup('dummy', 'fake')
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false after the group was invalidated', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.setForGroup('key', 'value', 'group')
+      await cache.deleteGroup('group')
+
+      const result = await cache.resetTtlFromGroup('key', 'group')
+
+      expect(result).toBe(false)
+    })
+
+    it('returns false when no ttl is configured', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: undefined })
+      await cache.setForGroup('key', 'value', 'group')
+
+      const result = await cache.resetTtlFromGroup('key', 'group')
+
+      expect(result).toBe(false)
+    })
+  })
+
   describe('getFromGroup', () => {
     it('returns undefined if there is no dynamic group key registered in redis', async () => {
       const cache = new RedisGroupCache(redis)
