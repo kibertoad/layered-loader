@@ -147,6 +147,25 @@ describe('InMemoryCache', () => {
         resolvedValues: ['value', 'value2'],
       })
     })
+
+    it('resolves cached null and falsy values', () => {
+      const cache = new InMemoryCache<string | number | boolean>({
+        cacheId: 'dummy',
+        cacheType: 'lru-map',
+        maxItems: 5,
+        ttlInMsecs: 999,
+      })
+      cache.set('key', null)
+      cache.set('key2', '')
+      cache.set('key3', 0)
+      cache.set('key4', false)
+
+      const values = cache.getMany(['key', 'key2', 'key3', 'key4', 'key5'])
+      expect(values).toEqual({
+        unresolvedKeys: ['key5'],
+        resolvedValues: [null, '', 0, false],
+      })
+    })
   })
 
   describe('getExpirationTime', () => {

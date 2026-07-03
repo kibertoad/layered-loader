@@ -77,19 +77,26 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   getFromGroup(key: string, groupId: string) {
-    const group = this.resolveGroup(groupId)
-    return group.get(key)
+    return this.groups.get(groupId)?.get(key)
   }
 
   getManyFromGroup(keys: string[], group: string): GetManyResult<T> {
+    const groupCache = this.groups.get(group)
+    if (!groupCache) {
+      return {
+        resolvedValues: [],
+        unresolvedKeys: keys,
+      }
+    }
+
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
-    const groupCache = this.resolveGroup(group)
 
     for (let i = 0; i < keys.length; i++) {
       const resolvedValue = groupCache.get(keys[i])
-      if (resolvedValue) {
-        resolvedValues.push(resolvedValue)
+      // null means "resolved to an empty value" and is served from cache, same as in single-key get
+      if (resolvedValue !== undefined) {
+        resolvedValues.push(resolvedValue as T)
       } else {
         unresolvedKeys.push(keys[i])
       }
@@ -107,8 +114,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   deleteFromGroup(key: string, groupId: string): void {
-    const group = this.resolveGroup(groupId)
-    group.delete(key)
+    this.groups.get(groupId)?.delete(key)
   }
 
   clear(): void {
@@ -116,7 +122,6 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   getExpirationTimeFromGroup(key: string, groupId: string): number | undefined {
-    const group = this.resolveGroup(groupId)
-    return group.expiresAt(key)
+    return this.groups.get(groupId)?.expiresAt(key)
   }
 }

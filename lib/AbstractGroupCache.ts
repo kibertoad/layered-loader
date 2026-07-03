@@ -36,12 +36,19 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   }
 
   public getInMemoryOnly(loadParams: LoadParams, group: string): LoadedValue | undefined | null {
-    const key = this.cacheKeyFromLoadParamsResolver(loadParams)
+    return this.getInMemoryOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams, group)
+  }
+
+  private getInMemoryOnlyResolved(
+    key: string,
+    loadParams: LoadParams,
+    group: string,
+  ): LoadedValue | undefined | null {
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
       if (!this.runningLoads.get(group)?.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
         if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-          void this.getAsyncOnly(loadParams, group)
+          void this.getAsyncOnlyResolved(key, loadParams, group)
         }
       }
     }
@@ -55,7 +62,14 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   }
 
   public getAsyncOnly(loadParams: LoadParams, group: string): Promise<LoadedValue | undefined | null> {
-    const key = this.cacheKeyFromLoadParamsResolver(loadParams)
+    return this.getAsyncOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams, group)
+  }
+
+  private getAsyncOnlyResolved(
+    key: string,
+    loadParams: LoadParams,
+    group: string,
+  ): Promise<LoadedValue | undefined | null> {
     const groupLoads = this.resolveGroupLoads(group)
     const existingLoad = groupLoads.get(key)
     if (existingLoad) {
@@ -97,12 +111,12 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
   public get(loadParams: LoadParams, group: string): Promise<LoadedValue | undefined | null> {
     const key = this.cacheKeyFromLoadParamsResolver(loadParams)
-    const inMemoryValue = this.getInMemoryOnly(loadParams, group)
+    const inMemoryValue = this.getInMemoryOnlyResolved(key, loadParams, group)
     if (inMemoryValue !== undefined) {
       return Promise.resolve(inMemoryValue)
     }
 
-    return this.getAsyncOnly(loadParams, group)
+    return this.getAsyncOnlyResolved(key, loadParams, group)
   }
 
   public getMany(
@@ -119,7 +133,12 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
     return this.getManyAsyncOnly(inMemoryValues.unresolvedKeys, group, loadParams).then(
       (asyncRetrievedValues) => {
-        return [...inMemoryValues.resolvedValues, ...asyncRetrievedValues.resolvedValues]
+        // in-memory caches always return a fresh array, so it is safe to append to it in place
+        const mergedValues = inMemoryValues.resolvedValues
+        for (let i = 0; i < asyncRetrievedValues.resolvedValues.length; i++) {
+          mergedValues.push(asyncRetrievedValues.resolvedValues[i])
+        }
+        return mergedValues
       },
     )
   }

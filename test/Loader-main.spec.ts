@@ -691,6 +691,23 @@ describe('Loader Main', () => {
   })
 
   describe('getMany', () => {
+    it('serves cached null value without hitting the data source again', async () => {
+      const dataSource = new CountingDataSource(null)
+      const operation = new Loader<string>({
+        inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+        dataSources: [dataSource],
+        cacheKeyFromValueResolver: idResolver,
+      })
+
+      const value = await operation.get('key1')
+      expect(value).toBeNull()
+      expect(dataSource.counter).toBe(1)
+
+      const values = await operation.getMany(['key1'])
+      expect(values).toEqual([null])
+      expect(dataSource.counter).toBe(1)
+    })
+
     it('returns empty list when fails to resolve value', async () => {
       const operation = new Loader<string>({
         cacheKeyFromValueResolver: idResolver,

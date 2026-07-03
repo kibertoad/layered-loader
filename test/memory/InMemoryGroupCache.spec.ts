@@ -130,6 +130,77 @@ describe('InMemoryCache', () => {
         resolvedValues: ['value', 'value2'],
       })
     })
+
+    it('resolves cached null and falsy values', () => {
+      const cache = new InMemoryGroupCache<string | number | boolean>({
+        maxGroups: 2,
+        ttlInMsecs: 999,
+      })
+      cache.setForGroup('key', null, 'group')
+      cache.setForGroup('key2', '', 'group')
+      cache.setForGroup('key3', 0, 'group')
+      cache.setForGroup('key4', false, 'group')
+
+      const values = cache.getManyFromGroup(['key', 'key2', 'key3', 'key4', 'key5'], 'group')
+      expect(values).toEqual({
+        unresolvedKeys: ['key5'],
+        resolvedValues: [null, '', 0, false],
+      })
+    })
+
+    it('returns all keys as unresolved for a group that was never written to', () => {
+      const cache = new InMemoryGroupCache(IN_MEMORY_CACHE_CONFIG)
+
+      const values = cache.getManyFromGroup(['key', 'key2'], 'group')
+      expect(values).toEqual({
+        unresolvedKeys: ['key', 'key2'],
+        resolvedValues: [],
+      })
+    })
+  })
+
+  describe('reads on non-existent groups', () => {
+    it('getFromGroup does not create the group or evict existing groups', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 1,
+        ttlInMsecs: 999,
+      })
+      cache.setForGroup('key', 'value', 'group')
+
+      const missingValue = cache.getFromGroup('key', 'other-group')
+      expect(missingValue).toBeUndefined()
+
+      // reading an unknown group must not insert it into the bounded LRU and push the real group out
+      const existingValue = cache.getFromGroup('key', 'group')
+      expect(existingValue).toBe('value')
+    })
+
+    it('getExpirationTimeFromGroup does not create the group or evict existing groups', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 1,
+        ttlInMsecs: 999,
+      })
+      cache.setForGroup('key', 'value', 'group')
+
+      const expirationTime = cache.getExpirationTimeFromGroup('key', 'other-group')
+      expect(expirationTime).toBeUndefined()
+
+      const existingValue = cache.getFromGroup('key', 'group')
+      expect(existingValue).toBe('value')
+    })
+
+    it('deleteFromGroup is a no-op for a non-existent group', () => {
+      const cache = new InMemoryGroupCache({
+        maxGroups: 1,
+        ttlInMsecs: 999,
+      })
+      cache.setForGroup('key', 'value', 'group')
+
+      cache.deleteFromGroup('key', 'other-group')
+
+      const existingValue = cache.getFromGroup('key', 'group')
+      expect(existingValue).toBe('value')
+    })
   })
 
   describe('getExpirationTimeFromGroup', () => {

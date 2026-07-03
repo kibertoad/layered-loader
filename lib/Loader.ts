@@ -152,8 +152,9 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
   private async loadFromLoaders(key: string, loadParams: LoadParams) {
     for (let index = 0; index < this.dataSources.length; index++) {
-      const resolvedValue = await this.dataSources[index].get(loadParams).catch((err) => {
-        this.loadErrorHandler(err, key, this.dataSources[index], this.logger)
+      const dataSource = this.dataSources[index]
+      const resolvedValue = await dataSource.get(loadParams).catch((err) => {
+        this.loadErrorHandler(err, key, dataSource, this.logger)
         if (this.throwIfLoadError) {
           throw err
         }
@@ -192,12 +193,13 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     const loadValues = await this.loadManyFromLoaders(cachedValues.unresolvedKeys, loadParams)
 
     if (this.asyncCache) {
-      const cacheEntries: CacheEntry<LoadedValue>[] = loadValues.map((loadValue) => {
-        return {
-          key: this.cacheKeyFromValueResolver(loadValue),
-          value: loadValue,
-        }
-      })
+      const cacheEntries: CacheEntry<LoadedValue>[] = []
+      for (let i = 0; i < loadValues.length; i++) {
+        cacheEntries.push({
+          key: this.cacheKeyFromValueResolver(loadValues[i]),
+          value: loadValues[i],
+        })
+      }
 
       await this.asyncCache.setMany(cacheEntries).catch((err) => {
         this.cacheUpdateErrorHandler(
@@ -210,7 +212,8 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     }
 
     return {
-      resolvedValues: [...cachedValues.resolvedValues, ...loadValues],
+      // concat instead of in-place push, as cachedValues may be owned by a user-implemented async cache
+      resolvedValues: cachedValues.resolvedValues.concat(loadValues),
 
       // there actually may still be some unresolved keys, but we no longer know that
       unresolvedKeys: [],
@@ -220,8 +223,9 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
   private async loadManyFromLoaders(keys: string[], loadParams: LoadManyParams) {
     let lastResolvedValues
     for (let index = 0; index < this.dataSources.length; index++) {
-      lastResolvedValues = await this.dataSources[index].getMany(keys, loadParams).catch((err) => {
-        this.loadErrorHandler(err, keys.toString(), this.dataSources[index], this.logger)
+      const dataSource = this.dataSources[index]
+      lastResolvedValues = await dataSource.getMany(keys, loadParams).catch((err) => {
+        this.loadErrorHandler(err, keys.toString(), dataSource, this.logger)
         if (this.throwIfLoadError) {
           throw err
         }
