@@ -249,6 +249,7 @@ Loader has the following config parameters:
 - `loadErrorHandler: LoaderErrorHandler` - error handler to use when non-last data source throws an error during data retrieval.
 - `cacheKeyFromLoadParamsResolver: CacheKeyResolver<LoadParams>` - mapper from LoadParams to a cache key. Defaults to a simple string passthrough when LoadParams are just a string key to begin with (which is the default)
 - `cacheKeyFromValueResolver: CacheKeyResolver<LoadParams>` - mapper from entity to be cached to a cache key. Defaults to a dummy resolver which throws an error when methods that depend on it are used. Make sure to provide a real resolver if you are using the bulk API (getMany/getManyFromGroup)
+- `isEntryStillCurrentFn` - optional lightweight staleness check that lets an entry entering the refresh window bump its TTL instead of refetching. See [Conditional refresh with a staleness check](#conditional-refresh-with-a-staleness-check).
 
 Loader provides following methods:
 
@@ -632,6 +633,12 @@ In certain cases you may want to explicitly store a specific value in all of you
 ```ts
 // This will set the value of all configured caches for the key "1" to a value "newValue", and fire a NotificationPublisher set value command, if publisher is set  
 await cache.forceSetValue('1', 'newValue')
+```
+
+For a `GroupLoader` use `forceSetValueForGroup`, which takes the extra `group` argument. Note that group notification publishers only broadcast deletions, so no set command is published; other nodes converge via their own TTL expiry.
+
+```ts
+await groupCache.forceSetValueForGroup('1', 'newValue', 'group1')
 ```
 
 ## Usage in high-performance systems
