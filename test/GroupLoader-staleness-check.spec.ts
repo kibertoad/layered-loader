@@ -347,21 +347,35 @@ describe('GroupLoader staleness check', () => {
   })
 
   describe('constructor', () => {
-    it('throws when isEntryStillCurrentFn is set without an asyncCache', () => {
+    it('throws when isEntryStillCurrentFn is set without any refresh window', () => {
       expect(
         () =>
           new GroupLoader<User>({
             dataSources: [new CountingGroupedLoader(userValues)],
             isEntryStillCurrentFn: async () => true,
           }),
-      ).toThrow(/isEntryStillCurrentFn requires an asyncCache/)
+      ).toThrow(/requires a preemptive refresh window/)
     })
 
-    it('throws when the asyncCache does not support resetTtlFromGroup', () => {
+    it('accepts isEntryStillCurrentFn with an in-memory-only refresh window', () => {
       expect(
         () =>
           new GroupLoader<User>({
-            asyncCache: new DummyGroupedCache(userValues),
+            inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+            dataSources: [new CountingGroupedLoader(userValues)],
+            isEntryStillCurrentFn: async () => true,
+          }),
+      ).not.toThrow()
+    })
+
+    it('throws when the asyncCache does not support resetTtlFromGroup', () => {
+      const asyncCache = new DummyGroupedCache(userValues)
+      // give the fake a refresh window so the async probe path (which requires resetTtlFromGroup) is reached
+      asyncCache.ttlLeftBeforeRefreshInMsecs = 999999
+      expect(
+        () =>
+          new GroupLoader<User>({
+            asyncCache,
             dataSources: [new CountingGroupedLoader(userValues)],
             isEntryStillCurrentFn: async () => true,
           }),

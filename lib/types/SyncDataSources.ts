@@ -15,6 +15,13 @@ export interface SynchronousCache<LoadedValue> extends SynchronousWriteCache<Loa
   get: (key: string) => LoadedValue | undefined | null
   getMany: (keys: string[]) => GetManyResult<LoadedValue>
   getExpirationTime: (key: string) => number | undefined
+
+  /**
+   * Resets the entry's TTL back to the full configured ttlInMsecs without changing the value.
+   * Returns `true` if the entry existed and its TTL was extended, `false` if it had already
+   * vanished (expired or invalidated).
+   */
+  resetTtl: (key: string) => boolean
 }
 
 export interface SynchronousWriteGroupCache<T> {
@@ -29,4 +36,11 @@ export interface SynchronousGroupCache<T> extends SynchronousWriteGroupCache<T> 
   getFromGroup: (key: string, group: string) => T | undefined | null
   getManyFromGroup: (keys: string[], group: string) => GetManyResult<T>
   getExpirationTimeFromGroup: (key: string, group: string) => number | undefined
+
+  /**
+   * Resets the entry's TTL back to the full configured ttlInMsecs without changing the value.
+   * Returns `true` if the entry existed and its TTL was extended, `false` if it (or its group)
+   * had already vanished (expired or invalidated).
+   */
+  resetTtlFromGroup: (key: string, group: string) => boolean
 }

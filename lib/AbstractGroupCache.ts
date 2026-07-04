@@ -54,12 +54,21 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
       if (!this.runningLoads.get(group)?.has(key)) {
         const expirationTime = this.inMemoryCache.getExpirationTimeFromGroup(key, group)
         if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-          void this.getAsyncOnlyResolved(key, loadParams, group)
+          this.scheduleInMemoryRefresh(key, loadParams, group)
         }
       }
     }
 
     return this.inMemoryCache.getFromGroup(key, group)
+  }
+
+  /**
+   * Kicks off a preemptive in-memory refresh for an entry entering its refresh window. The default
+   * runs the blind background reload; subclasses (GroupLoader) may override to run a staleness probe
+   * against the in-memory value and merely bump its TTL when it is still current.
+   */
+  protected scheduleInMemoryRefresh(key: string, loadParams: LoadParams, group: string): void {
+    void this.getAsyncOnlyResolved(key, loadParams, group)
   }
 
   public getManyInMemoryOnly(keys: string[], group: string) {
@@ -71,7 +80,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     return this.getAsyncOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams, group)
   }
 
-  private getAsyncOnlyResolved(
+  protected getAsyncOnlyResolved(
     key: string,
     loadParams: LoadParams,
     group: string,

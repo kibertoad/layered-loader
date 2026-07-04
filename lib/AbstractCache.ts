@@ -163,10 +163,11 @@ export abstract class AbstractCache<
   }
 
   /**
-   * Validates that an isEntryStillCurrentFn can actually run: it needs an asyncCache that has a
-   * refresh window configured (the check only fires inside it) and exposes the TTL-reset method
-   * used to bump the entry. Throws otherwise, so misconfiguration fails fast instead of silently
-   * turning the feature into a no-op.
+   * Validates that an isEntryStillCurrentFn can actually run: it needs a preemptive refresh window
+   * to fire inside. That window can be provided by the async cache (in which case the entry is bumped
+   * via its resetTtl/resetTtlFromGroup method) or, for in-memory-only loaders, by the in-memory
+   * cache. Throws otherwise, so misconfiguration fails fast instead of silently turning the feature
+   * into a no-op.
    */
   protected assertStalenessCheckSupported(
     isEntryStillCurrentFn: unknown,
@@ -176,30 +177,35 @@ export abstract class AbstractCache<
     if (!isEntryStillCurrentFn) {
       return
     }
-    if (!this.asyncCache) {
-      throw new Error(
-        'isEntryStillCurrentFn requires an asyncCache - the staleness check only applies to the async cache preemptive refresh path.',
-      )
+    // The async path takes precedence: when the async cache has a refresh window, the check runs
+    // there and needs the async cache's TTL-reset method.
+    if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+      if (typeof resetTtlMethod !== 'function') {
+        throw new Error(
+          `The configured asyncCache does not support ${resetTtlMethodName}, which is required by isEntryStillCurrentFn.`,
+        )
+      }
+      return
     }
-    if (typeof resetTtlMethod !== 'function') {
-      throw new Error(
-        `The configured asyncCache does not support ${resetTtlMethodName}, which is required by isEntryStillCurrentFn.`,
-      )
+    // Otherwise the check runs on the in-memory preemptive refresh path, which needs an in-memory
+    // refresh window (the in-memory cache always exposes resetTtl/resetTtlFromGroup).
+    if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
+      return
     }
-    if (!this.asyncCache.ttlLeftBeforeRefreshInMsecs) {
-      throw new Error(
-        'isEntryStillCurrentFn requires the asyncCache to have ttlLeftBeforeRefreshInMsecs configured - the staleness check only runs inside the preemptive refresh window.',
-      )
-    }
+    throw new Error(
+      'isEntryStillCurrentFn requires a preemptive refresh window: either an asyncCache with ttlLeftBeforeRefreshInMsecs and resetTtl/resetTtlFromGroup, or an inMemoryCache with ttlLeftBeforeRefreshInMsecs.',
+    )
   }
 
   /**
    * Runs the staleness check for an entry entering its refresh window and, when the check reports
-   * the entry as still current, extends its async cache TTL instead of refetching. Returns true
-   * only when the entry was confirmed current AND its TTL was successfully bumped, so the caller
-   * can safely skip the full background refresh. A check that throws is routed to loadErrorHandler
-   * and treated as stale; a bump that rejects is routed to cacheUpdateErrorHandler and also treated
-   * as stale, so the worst case degrades to a normal full refresh.
+   * the entry as still current, extends the entry's TTL (via the caller-supplied runResetTtl, which
+   * targets whichever tier owns the refresh window - the async cache or the in-memory cache) instead
+   * of refetching. Returns true only when the entry was confirmed current AND its TTL was
+   * successfully bumped, so the caller can safely skip the full background refresh. A check that
+   * throws is routed to loadErrorHandler and treated as stale; a bump that rejects is routed to
+   * cacheUpdateErrorHandler and also treated as stale, so the worst case degrades to a normal full
+   * refresh.
    */
   protected async isCurrentEntryTtlBumped(
     key: string,
@@ -219,7 +225,10 @@ export abstract class AbstractCache<
     }
 
     return runResetTtl().catch((err) => {
-      this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      // The reset runs on whichever tier owns the refresh window: the async cache when it has one,
+      // otherwise the in-memory cache. Report against the tier that actually failed so the handler
+      // never dereferences an undefined asyncCache on the in-memory-only path.
+      this.cacheUpdateErrorHandler(err, key, this.asyncCache ?? this.inMemoryCache, this.logger)
       return false
     })
   }

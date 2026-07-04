@@ -318,4 +318,31 @@ describe('InMemoryCache', () => {
       expect(value2group2).toBe('value2')
     })
   })
+
+  describe('resetTtlFromGroup', () => {
+    it('extends the ttl of an existing entry', async () => {
+      const cache = new InMemoryGroupCache({ ttlInMsecs: 1000 })
+      cache.setForGroup('key', 'value', 'group1')
+      await setTimeout(500)
+      const expiresAtPre = cache.getExpirationTimeFromGroup('key', 'group1')
+
+      const result = cache.resetTtlFromGroup('key', 'group1')
+
+      expect(result).toBe(true)
+      expect(cache.getExpirationTimeFromGroup('key', 'group1')! > expiresAtPre!).toBe(true)
+    })
+
+    it('returns false when the group does not exist', () => {
+      const cache = new InMemoryGroupCache({ ttlInMsecs: 1000 })
+
+      expect(cache.resetTtlFromGroup('key', 'missingGroup')).toBe(false)
+    })
+
+    it('returns false when the entry does not exist in an existing group', () => {
+      const cache = new InMemoryGroupCache({ ttlInMsecs: 1000 })
+      cache.setForGroup('other', 'value', 'group1')
+
+      expect(cache.resetTtlFromGroup('missing', 'group1')).toBe(false)
+    })
+  })
 })

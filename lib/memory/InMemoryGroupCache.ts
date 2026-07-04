@@ -128,4 +128,20 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
     // do not use resolveGroup here - reads must not insert empty groups into the LRU
     return this.groups.get(groupId)?.expiresAt(key)
   }
+
+  resetTtlFromGroup(key: string, groupId: string): boolean {
+    // do not use resolveGroup here - reads must not insert empty groups into the LRU
+    const group = this.groups.get(groupId)
+    if (!group) {
+      return false
+    }
+    // null is a valid cached value ("resolved to empty"); only undefined means the entry is gone.
+    const value = group.get(key)
+    if (value === undefined) {
+      return false
+    }
+    // Re-setting the same value slides toad-cache's expiry forward by a full ttlInMsecs.
+    group.set(key, value)
+    return true
+  }
 }

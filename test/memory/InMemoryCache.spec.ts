@@ -279,4 +279,34 @@ describe('InMemoryCache', () => {
       expect(value3).toBeUndefined()
     })
   })
+
+  describe('resetTtl', () => {
+    it('extends the ttl of an existing entry', async () => {
+      const cache = new InMemoryCache({ cacheId: 'dummy', ttlInMsecs: 1000 })
+      cache.set('key', 'value')
+      await setTimeout(500)
+      const expiresAtPre = cache.getExpirationTime('key')
+
+      const result = cache.resetTtl('key')
+
+      expect(result).toBe(true)
+      expect(cache.getExpirationTime('key')! > expiresAtPre!).toBe(true)
+    })
+
+    it('resets the ttl of an explicitly cached null entry', () => {
+      const cache = new InMemoryCache<string>({ cacheId: 'dummy', ttlInMsecs: 1000 })
+      cache.set('key', null)
+
+      const result = cache.resetTtl('key')
+
+      expect(result).toBe(true)
+      expect(cache.get('key')).toBeNull()
+    })
+
+    it('returns false when the entry does not exist', () => {
+      const cache = new InMemoryCache(IN_MEMORY_CACHE_CONFIG)
+
+      expect(cache.resetTtl('missing')).toBe(false)
+    })
+  })
 })

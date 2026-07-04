@@ -330,14 +330,25 @@ describe('Loader staleness check', () => {
   })
 
   describe('constructor', () => {
-    it('throws when isEntryStillCurrentFn is set without an asyncCache', () => {
+    it('throws when isEntryStillCurrentFn is set without any refresh window', () => {
       expect(
         () =>
           new Loader<string>({
             dataSources: [new CountingDataSource('value')],
             isEntryStillCurrentFn: async () => true,
           }),
-      ).toThrow(/isEntryStillCurrentFn requires an asyncCache/)
+      ).toThrow(/requires a preemptive refresh window/)
+    })
+
+    it('accepts isEntryStillCurrentFn with an in-memory-only refresh window', () => {
+      expect(
+        () =>
+          new Loader<string>({
+            inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+            dataSources: [new CountingDataSource('value')],
+            isEntryStillCurrentFn: async () => true,
+          }),
+      ).not.toThrow()
     })
 
     it('throws when the asyncCache does not support resetTtl', () => {
