@@ -27,11 +27,20 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     if (this.inMemoryCache.ttlLeftBeforeRefreshInMsecs && !this.runningLoads.has(key)) {
       const expirationTime = this.inMemoryCache.getExpirationTime(key)
       if (expirationTime && expirationTime - Date.now() < this.inMemoryCache.ttlLeftBeforeRefreshInMsecs) {
-        void this.getAsyncOnlyResolved(key, loadParams)
+        this.scheduleInMemoryRefresh(key, loadParams)
       }
     }
 
     return this.inMemoryCache.get(key)
+  }
+
+  /**
+   * Kicks off a preemptive in-memory refresh for an entry entering its refresh window. The default
+   * runs the blind background reload; subclasses (Loader) may override to run a staleness probe
+   * against the in-memory value and merely bump its TTL when it is still current.
+   */
+  protected scheduleInMemoryRefresh(key: string, loadParams: LoadParams): void {
+    void this.getAsyncOnlyResolved(key, loadParams)
   }
 
   public getManyInMemoryOnly(keys: string[]): GetManyResult<LoadedValue> {

@@ -92,6 +92,61 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     })
   }
 
+  protected override scheduleInMemoryRefresh(key: string, loadParams: LoadParams, group: string): void {
+    // No probe configured, or the async cache owns the probe (async wins) - use the default blind
+    // background reload, exactly as before.
+    if (!this.isEntryStillCurrentFn || this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+      super.scheduleInMemoryRefresh(key, loadParams, group)
+      return
+    }
+
+    // Reuse the per-(group, key) refresh guard so concurrent in-window hits schedule a single probe.
+    let groupSet = this.groupRefreshFlags.get(group)
+    if (groupSet?.has(key)) {
+      return
+    }
+    if (!groupSet) {
+      groupSet = new Set<string>()
+      this.groupRefreshFlags.set(group, groupSet)
+    }
+    groupSet.add(key)
+
+    this.refreshOrBumpInMemoryTtl(key, group, loadParams)
+      .catch((err) => {
+        this.logger.error(err.message)
+      })
+      .finally(() => {
+        groupSet!.delete(key)
+        if (groupSet!.size === 0) {
+          this.groupRefreshFlags.delete(group)
+        }
+      })
+  }
+
+  private async refreshOrBumpInMemoryTtl(key: string, group: string, loadParams: LoadParams): Promise<void> {
+    const cachedValue = this.inMemoryCache.getFromGroup(key, group)
+    if (
+      this.isEntryStillCurrentFn &&
+      // undefined means the entry vanished (expired/invalidated) between the read and the probe.
+      cachedValue !== undefined &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
+        () => Promise.resolve(this.inMemoryCache.resetTtlFromGroup(key, group)),
+      ))
+    ) {
+      // Still current - the in-memory TTL was bumped, nothing else to do.
+      return
+    }
+
+    // The entry is stale, the check failed, or the bump failed (entry expired or the group was
+    // invalidated meanwhile), so run the full background refresh from the data sources.
+    const freshValue = await this.loadFromLoaders(key, group, loadParams)
+    if (freshValue !== undefined) {
+      this.inMemoryCache.setForGroup(key, freshValue, group)
+    }
+  }
+
   private async refreshOrBumpTtl(
     key: string,
     group: string,

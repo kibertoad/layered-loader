@@ -9,6 +9,11 @@
   check instead of unconditionally refetching, and reset the entry's TTL when it is still current.
   Backed by new optional `resetTtl` / `resetTtlFromGroup` cache methods (implemented by `RedisCache`
   and `RedisGroupCache`). See the README section "Conditional refresh with a staleness check".
+- `isEntryStillCurrentFn` now also works on in-memory-only loaders: when no async cache is
+  configured, the check runs on the in-memory preemptive refresh path as long as the in-memory cache
+  has `ttlLeftBeforeRefreshInMsecs` set. `InMemoryCache` and `InMemoryGroupCache` gained `resetTtl` /
+  `resetTtlFromGroup` to support this. When both tiers have a refresh window, the async cache takes
+  precedence, so existing configurations are unaffected.
 - `GroupLoader.forceSetValueForGroup`, the group counterpart to `Loader.forceSetValue`.
 
 ### Changed

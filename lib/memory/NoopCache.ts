@@ -46,4 +46,12 @@ export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupCache<
   }
 
   set(): void {}
+
+  resetTtl(): boolean {
+    return false
+  }
+
+  resetTtlFromGroup(): boolean {
+    return false
+  }
 }

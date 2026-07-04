@@ -153,6 +153,52 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     })
   }
 
+  protected override scheduleInMemoryRefresh(key: string, loadParams: LoadParams): void {
+    // No probe configured, or the async cache owns the probe (async wins) - use the default blind
+    // background reload, exactly as before.
+    if (!this.isEntryStillCurrentFn || this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
+      super.scheduleInMemoryRefresh(key, loadParams)
+      return
+    }
+
+    // Reuse the flat refresh guard so concurrent in-window hits schedule a single probe.
+    if (this.isKeyRefreshing.has(key)) {
+      return
+    }
+    this.isKeyRefreshing.add(key)
+    this.refreshOrBumpInMemoryTtl(key, loadParams)
+      .catch((err) => {
+        this.logger.error(err.message)
+      })
+      .finally(() => {
+        this.isKeyRefreshing.delete(key)
+      })
+  }
+
+  private async refreshOrBumpInMemoryTtl(key: string, loadParams: LoadParams): Promise<void> {
+    const cachedValue = this.inMemoryCache.get(key)
+    if (
+      this.isEntryStillCurrentFn &&
+      // undefined means the entry vanished (expired/invalidated) between the read and the probe.
+      cachedValue !== undefined &&
+      (await this.isCurrentEntryTtlBumped(
+        key,
+        () => this.isEntryStillCurrentFn!(cachedValue, loadParams),
+        () => Promise.resolve(this.inMemoryCache.resetTtl(key)),
+      ))
+    ) {
+      // Still current - the in-memory TTL was bumped, nothing else to do.
+      return
+    }
+
+    // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
+    // so run the full background refresh from the data sources.
+    const freshValue = await this.loadFromLoaders(key, loadParams)
+    if (freshValue !== undefined) {
+      this.inMemoryCache.set(key, freshValue)
+    }
+  }
+
   private async refreshOrBumpTtl(key: string, loadParams: LoadParams, cachedValue: LoadedValue | null): Promise<void> {
     if (
       this.isEntryStillCurrentFn &&

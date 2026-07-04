@@ -81,4 +81,15 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
   set(key: string, value: T | null): void {
     this.cache.set(key, value)
   }
+
+  resetTtl(key: string): boolean {
+    // null is a valid cached value ("resolved to empty"); only undefined means the entry is gone.
+    const value = this.cache.get(key)
+    if (value === undefined) {
+      return false
+    }
+    // Re-setting the same value slides toad-cache's expiry forward by a full ttlInMsecs.
+    this.cache.set(key, value)
+    return true
+  }
 }

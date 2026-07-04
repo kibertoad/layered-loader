@@ -714,8 +714,10 @@ If refetching an entry is expensive, but *verifying* that it is still up-to-date
 
 When an entry enters the `ttlLeftBeforeRefreshInMsecs` window, the loader first invokes your check with the cached value instead of immediately starting a full background refresh:
 
-- if it resolves to `true`, the entry's TTL is reset to the full `ttlInMsecs` in both the async cache and the in-memory cache, and no data source call is made;
+- if it resolves to `true`, the entry's TTL is reset to the full `ttlInMsecs`, and no data source call is made;
 - if it resolves to `false` (or throws, or the entry disappeared in the meantime), the usual full background refresh from the data sources runs.
+
+The check works both with an async cache and with an in-memory-only loader. It only needs a preemptive refresh window (`ttlLeftBeforeRefreshInMsecs`) to fire inside: configure it on the `asyncCache`, or, for a loader that has no async tier, on the `inMemoryCache`. When both tiers have a refresh window, the async cache takes precedence and the check runs on its refresh path.
 
 ```ts
 const operation = new Loader<UserEntity>({
@@ -750,9 +752,26 @@ const operation = new GroupLoader<UserEntity>({
 })
 ```
 
+For a loader with no async cache, configure the refresh window on the in-memory cache instead - the check then runs against the in-memory value:
+
+```ts
+const operation = new Loader<UserEntity>({
+  inMemoryCache: {
+    ttlInMsecs: 1000 * 60,
+    ttlLeftBeforeRefreshInMsecs: 1000 * 20,
+  },
+  dataSources: [expensiveUserDataSource],
+  isEntryStillCurrentFn: async (cachedValue, loadParams) => {
+    // light query instead of refetching the whole entity
+    const updatedAt = await getUserUpdatedAt(loadParams)
+    return updatedAt.getTime() === new Date(cachedValue!.updatedAt).getTime()
+  },
+})
+```
+
 Things to keep in mind:
 
-- `isEntryStillCurrentFn` requires an `asyncCache` that has `ttlLeftBeforeRefreshInMsecs` configured (the check only runs inside that refresh window) and implements `resetTtl` (`resetTtlFromGroup` for group caches). `RedisCache` and `RedisGroupCache` implement the reset method; if you implement the `Cache` interface yourself, add the method to support conditional refresh. The loader throws at construction time if either requirement is missing.
+- `isEntryStillCurrentFn` requires a preemptive refresh window (`ttlLeftBeforeRefreshInMsecs`) to run inside, on either the `asyncCache` or the `inMemoryCache`. When it runs on the async path, the async cache must implement `resetTtl` (`resetTtlFromGroup` for group caches); `RedisCache` and `RedisGroupCache` implement it, and if you implement the `Cache` interface yourself, add the method to support conditional refresh. The in-memory caches implement the reset natively, so an in-memory-only loader needs no extra wiring. When both tiers have a refresh window, the async cache takes precedence. The loader throws at construction time if no refresh-capable tier is configured.
 - Errors thrown by the check are routed to `loadErrorHandler` and treated as "stale", so the worst case degrades to a regular full background refresh.
 - Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis.
 - No update notifications are published when a TTL is merely bumped, since the data has not changed; in-memory copies on other nodes expire on their own schedule and re-read the shared cache.
