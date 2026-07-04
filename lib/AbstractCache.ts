@@ -199,11 +199,13 @@ export abstract class AbstractCache<
 
   /**
    * Runs the staleness check for an entry entering its refresh window and, when the check reports
-   * the entry as still current, extends its async cache TTL instead of refetching. Returns true
-   * only when the entry was confirmed current AND its TTL was successfully bumped, so the caller
-   * can safely skip the full background refresh. A check that throws is routed to loadErrorHandler
-   * and treated as stale; a bump that rejects is routed to cacheUpdateErrorHandler and also treated
-   * as stale, so the worst case degrades to a normal full refresh.
+   * the entry as still current, extends the entry's TTL (via the caller-supplied runResetTtl, which
+   * targets whichever tier owns the refresh window - the async cache or the in-memory cache) instead
+   * of refetching. Returns true only when the entry was confirmed current AND its TTL was
+   * successfully bumped, so the caller can safely skip the full background refresh. A check that
+   * throws is routed to loadErrorHandler and treated as stale; a bump that rejects is routed to
+   * cacheUpdateErrorHandler and also treated as stale, so the worst case degrades to a normal full
+   * refresh.
    */
   protected async isCurrentEntryTtlBumped(
     key: string,
