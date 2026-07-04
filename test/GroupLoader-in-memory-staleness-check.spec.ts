@@ -239,4 +239,79 @@ describe('GroupLoader in-memory-only staleness check', () => {
     // The empty Set for the group should have been cleaned up
     expect(groupRefreshFlags.has(user1.companyId)).toBe(false)
   })
+
+  it('does not resurrect an entry invalidated while the fallback reload is in flight', async () => {
+    let releaseLoad: (value: User) => void
+    const secondLoad = new Promise<User>((resolve) => {
+      releaseLoad = resolve
+    })
+    let calls = 0
+    const dataSource = {
+      name: 'controlled',
+      getFromGroup: () => {
+        calls++
+        return calls === 1 ? Promise.resolve(user1) : secondLoad
+      },
+      getManyFromGroup: () => Promise.resolve([] as User[]),
+    }
+    const operation = new GroupLoader<User>({
+      inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+      dataSources: [dataSource],
+      isEntryStillCurrentFn: async () => false, // always stale, so the fallback reload runs
+    })
+    expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+    await setTimeout(100)
+    // kick off the check (stale) - the fallback reload is now in flight and hanging
+    expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+    for (let attempt = 0; attempt < 20 && calls < 2; attempt++) {
+      await setTimeout(10)
+    }
+    expect(calls).toBe(2)
+
+    // invalidate while the fallback reload is still in flight, then let it resolve
+    await operation.invalidateCacheFor(user1.userId, user1.companyId)
+    releaseLoad!(user3)
+    await setTimeout(10)
+
+    // the in-flight result must be fenced out - the entry stays evicted, not resurrected
+    expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toBeUndefined()
+  })
+
+  it('does not clobber a forceSetValueForGroup that lands while the fallback reload is in flight', async () => {
+    let releaseLoad: (value: User) => void
+    const secondLoad = new Promise<User>((resolve) => {
+      releaseLoad = resolve
+    })
+    let calls = 0
+    const dataSource = {
+      name: 'controlled',
+      getFromGroup: () => {
+        calls++
+        return calls === 1 ? Promise.resolve(user1) : secondLoad
+      },
+      getManyFromGroup: () => Promise.resolve([] as User[]),
+    }
+    const operation = new GroupLoader<User>({
+      inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+      dataSources: [dataSource],
+      isEntryStillCurrentFn: async () => false,
+    })
+    expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+    await setTimeout(100)
+    expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+    for (let attempt = 0; attempt < 20 && calls < 2; attempt++) {
+      await setTimeout(10)
+    }
+    expect(calls).toBe(2)
+
+    // an authoritative write lands while the stale reload is still in flight
+    await operation.forceSetValueForGroup(user1.userId, user3, user1.companyId)
+    releaseLoad!(user1)
+    await setTimeout(10)
+
+    // the forced value survives - the in-flight stale reload is discarded, not written over it
+    expect(operation.getInMemoryOnly(user1.userId, user1.companyId)).toEqual(user3)
+  })
 })

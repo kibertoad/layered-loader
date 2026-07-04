@@ -188,4 +188,79 @@ describe('Loader in-memory-only staleness check', () => {
     const isKeyRefreshing: Set<string> = operation.isKeyRefreshing
     expect(isKeyRefreshing.has('key')).toBe(false)
   })
+
+  it('does not resurrect an entry invalidated while the fallback reload is in flight', async () => {
+    let releaseLoad: (value: string) => void
+    const secondLoad = new Promise<string>((resolve) => {
+      releaseLoad = resolve
+    })
+    let calls = 0
+    const dataSource = {
+      name: 'controlled',
+      get: () => {
+        calls++
+        return calls === 1 ? Promise.resolve('value') : secondLoad
+      },
+      getMany: () => Promise.resolve([] as string[]),
+    }
+    const operation = new Loader<string>({
+      inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+      dataSources: [dataSource],
+      isEntryStillCurrentFn: async () => false, // always stale, so the fallback reload runs
+    })
+    expect(await operation.get('key')).toBe('value')
+
+    await setTimeout(100)
+    // kick off the check (stale) - the fallback reload is now in flight and hanging
+    expect(await operation.get('key')).toBe('value')
+    for (let attempt = 0; attempt < 20 && calls < 2; attempt++) {
+      await setTimeout(10)
+    }
+    expect(calls).toBe(2)
+
+    // invalidate while the fallback reload is still in flight, then let it resolve
+    await operation.invalidateCacheFor('key')
+    releaseLoad!('resurrected')
+    await setTimeout(10)
+
+    // the in-flight result must be fenced out - the entry stays evicted, not resurrected
+    expect(operation.getInMemoryOnly('key')).toBeUndefined()
+  })
+
+  it('does not clobber a forceSetValue that lands while the fallback reload is in flight', async () => {
+    let releaseLoad: (value: string) => void
+    const secondLoad = new Promise<string>((resolve) => {
+      releaseLoad = resolve
+    })
+    let calls = 0
+    const dataSource = {
+      name: 'controlled',
+      get: () => {
+        calls++
+        return calls === 1 ? Promise.resolve('value') : secondLoad
+      },
+      getMany: () => Promise.resolve([] as string[]),
+    }
+    const operation = new Loader<string>({
+      inMemoryCache: { ttlInMsecs: 150, ttlLeftBeforeRefreshInMsecs: 75 },
+      dataSources: [dataSource],
+      isEntryStillCurrentFn: async () => false,
+    })
+    expect(await operation.get('key')).toBe('value')
+
+    await setTimeout(100)
+    expect(await operation.get('key')).toBe('value')
+    for (let attempt = 0; attempt < 20 && calls < 2; attempt++) {
+      await setTimeout(10)
+    }
+    expect(calls).toBe(2)
+
+    // an authoritative write lands while the stale reload is still in flight
+    await operation.forceSetValue('key', 'forced')
+    releaseLoad!('stale')
+    await setTimeout(10)
+
+    // the forced value survives - the in-flight stale reload is discarded, not written over it
+    expect(operation.getInMemoryOnly('key')).toBe('forced')
+  })
 })

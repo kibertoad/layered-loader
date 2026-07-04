@@ -52,7 +52,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     return this.getAsyncOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams)
   }
 
-  private getAsyncOnlyResolved(key: string, loadParams: LoadParams): Promise<LoadedValue | undefined | null> {
+  protected getAsyncOnlyResolved(key: string, loadParams: LoadParams): Promise<LoadedValue | undefined | null> {
     const existingLoad = this.runningLoads.get(key)
     if (existingLoad) {
       return existingLoad

@@ -192,11 +192,12 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     }
 
     // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
-    // so run the full background refresh from the data sources.
-    const freshValue = await this.loadFromLoaders(key, loadParams)
-    if (freshValue !== undefined) {
-      this.inMemoryCache.set(key, freshValue)
-    }
+    // so run the full background refresh. Route it through getAsyncOnlyResolved rather than calling
+    // loadFromLoaders + inMemoryCache.set directly: that registers the reload in runningLoads, so it
+    // is deduplicated against a concurrent cache-miss load and, crucially, fenced by
+    // invalidateCacheFor / forceSetValue - an in-flight result whose entry was invalidated or
+    // force-set meanwhile is discarded instead of resurrecting or clobbering the entry.
+    await this.getAsyncOnlyResolved(key, loadParams)
   }
 
   private async refreshOrBumpTtl(key: string, loadParams: LoadParams, cachedValue: LoadedValue | null): Promise<void> {

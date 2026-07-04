@@ -223,7 +223,10 @@ export abstract class AbstractCache<
     }
 
     return runResetTtl().catch((err) => {
-      this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)
+      // The reset runs on whichever tier owns the refresh window: the async cache when it has one,
+      // otherwise the in-memory cache. Report against the tier that actually failed so the handler
+      // never dereferences an undefined asyncCache on the in-memory-only path.
+      this.cacheUpdateErrorHandler(err, key, this.asyncCache ?? this.inMemoryCache, this.logger)
       return false
     })
   }

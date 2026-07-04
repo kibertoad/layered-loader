@@ -80,7 +80,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     return this.getAsyncOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams, group)
   }
 
-  private getAsyncOnlyResolved(
+  protected getAsyncOnlyResolved(
     key: string,
     loadParams: LoadParams,
     group: string,
