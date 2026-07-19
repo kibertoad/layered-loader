@@ -1,4 +1,4 @@
-import { AbstractFlatCache } from './AbstractFlatCache'
+import { AbstractFlatCache } from './AbstractFlatCache.js'
 
 export class ManualCache<LoadedValue> extends AbstractFlatCache<LoadedValue> {
     public async set(key: string, newValue: LoadedValue): Promise<void> {

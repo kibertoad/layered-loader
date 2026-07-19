@@ -1,4 +1,4 @@
-import type { Cache, DataSource } from '../types/DataSources'
+import type { Cache, DataSource } from '../types/DataSources.js'
 
 export class RedisExpirationTimeDataSource implements DataSource<number, string> {
   public readonly name = 'RedisExpirationTimeLoader'

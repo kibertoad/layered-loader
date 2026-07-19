@@ -1,13 +1,13 @@
 import type { Redis } from 'ioredis'
-import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
-import type { SynchronousCache } from '../types/SyncDataSources'
-import { defaultLogger } from '../util/Logger'
+import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer.js'
+import type { SynchronousCache } from '../types/SyncDataSources.js'
+import { defaultLogger } from '../util/Logger.js'
 import type {
   DeleteManyNotificationCommand,
   DeleteNotificationCommand,
   NotificationCommand,
   SetNotificationCommand,
-} from './RedisNotificationPublisher'
+} from './RedisNotificationPublisher.js'
 
 export type RedisConsumerConfig = {
   channel: string

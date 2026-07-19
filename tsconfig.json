@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "dist",
-    "module": "CommonJS",
+    "module": "NodeNext",
     "target": "ES2022",
     "lib": ["ES2022"],
     "sourceMap": true,
@@ -10,7 +10,7 @@
     "types": ["node"],
     "strict": true,
     "skipLibCheck": true,
-    "moduleResolution": "node",
+    "moduleResolution": "NodeNext",
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
@@ -26,6 +26,6 @@
     "ignoreDeprecations": "6.0"
   },
   "exclude": ["node_modules", "dist", "test", "packages",
-    "vitest.config.mts"
+    "vitest.config.mts", "**/*.spec.ts"
   ]
 }

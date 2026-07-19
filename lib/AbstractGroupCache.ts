@@ -1,9 +1,9 @@
-import { AbstractCache } from './AbstractCache'
-import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { GroupCache } from './types/DataSources'
-import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources'
-import {unique} from "./util/unique";
+import { AbstractCache } from './AbstractCache.js'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
+import type { GroupCache } from './types/DataSources.js'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources.js'
+import {unique} from "./util/unique.js";
 
 export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractCache<
   LoadedValue,

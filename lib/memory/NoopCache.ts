@@ -1,4 +1,4 @@
-import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
+import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources.js'
 
 export class NoopCache<T> implements SynchronousCache<T>, SynchronousGroupCache<T> {
   name = 'Noop cache'

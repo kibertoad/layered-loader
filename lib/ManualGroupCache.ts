@@ -1,8 +1,8 @@
-import type { CommonCacheConfig } from './AbstractCache'
-import { AbstractGroupCache } from './AbstractGroupCache'
-import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { GroupCache } from './types/DataSources'
+import type { CommonCacheConfig } from './AbstractCache.js'
+import { AbstractGroupCache } from './AbstractGroupCache.js'
+import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
+import type { GroupCache } from './types/DataSources.js'
 
 export type ManualGroupCacheConfig<LoadedValue> = CommonCacheConfig<
   LoadedValue,

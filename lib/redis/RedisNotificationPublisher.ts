@@ -1,7 +1,7 @@
 import type { Redis } from 'ioredis'
-import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher'
-import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher'
-import type { Logger } from '../util/Logger'
+import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher.js'
+import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher.js'
+import type { Logger } from '../util/Logger.js'
 
 export type RedisPublisherConfig = {
   serverUuid: string

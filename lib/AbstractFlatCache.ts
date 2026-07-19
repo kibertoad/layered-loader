@@ -1,9 +1,9 @@
-import {AbstractCache} from './AbstractCache'
-import type { Cache } from './types/DataSources'
-import type { GetManyResult, SynchronousCache } from './types/SyncDataSources'
-import {InMemoryCacheConfiguration} from "./memory/InMemoryCache";
-import {NotificationPublisher} from "./notifications/NotificationPublisher";
-import {unique} from "./util/unique";
+import {AbstractCache} from './AbstractCache.js'
+import type { Cache } from './types/DataSources.js'
+import type { GetManyResult, SynchronousCache } from './types/SyncDataSources.js'
+import {InMemoryCacheConfiguration} from "./memory/InMemoryCache.js";
+import {NotificationPublisher} from "./notifications/NotificationPublisher.js";
+import {unique} from "./util/unique.js";
 
 export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadManyParams = LoadParams extends string ? undefined : LoadParams> extends AbstractCache<
   LoadedValue,

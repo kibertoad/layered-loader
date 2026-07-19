@@ -1,12 +1,12 @@
-import type { CommonCacheConfig } from './AbstractCache'
-import { AbstractFlatCache } from './AbstractFlatCache'
-import { GeneratedDataSource } from './GeneratedDataSource'
-import type { InMemoryCacheConfiguration } from './memory/InMemoryCache'
-import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache'
-import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher'
-import type { NotificationPublisher } from './notifications/NotificationPublisher'
-import type { Cache, CacheEntry, DataSource, GroupCache, IsEntryStillCurrentFn } from './types/DataSources'
-import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources'
+import type { CommonCacheConfig } from './AbstractCache.js'
+import { AbstractFlatCache } from './AbstractFlatCache.js'
+import { GeneratedDataSource } from './GeneratedDataSource.js'
+import type { InMemoryCacheConfiguration } from './memory/InMemoryCache.js'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
+import type { NotificationPublisher } from './notifications/NotificationPublisher.js'
+import type { Cache, CacheEntry, DataSource, GroupCache, IsEntryStillCurrentFn } from './types/DataSources.js'
+import type { GetManyResult, SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources.js'
 
 export type LoaderConfig<
   LoadedValue,

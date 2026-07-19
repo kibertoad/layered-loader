@@ -21,6 +21,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "lint:packaging": "pnpm run publint && pnpm run attw",
     "prepublishOnly": "npm run build"
   },
   "engines": {
@@ -28,7 +31,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/kibertoad/layered-loader.git",
+    "url": "git+https://github.com/kibertoad/layered-loader.git",
     "directory": "packages/sqs"
   },
   "files": [
@@ -58,6 +61,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@aws-sdk/client-sns": "^3.1048.0",
     "@aws-sdk/client-sqs": "^3.1048.0",
     "@aws-sdk/client-sts": "^3.1047.0",
@@ -69,6 +73,7 @@
     "@vitest/coverage-v8": "^4.1.6",
     "fauxqs": "^2.5.0",
     "layered-loader": "workspace:^",
+    "publint": "^0.3.21",
     "typescript": "^6.0.3",
     "vitest": "^4.1.6",
     "zod": "^4.4.3"

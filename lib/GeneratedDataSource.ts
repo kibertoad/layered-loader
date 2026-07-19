@@ -1,4 +1,4 @@
-import type { DataSource } from './types/DataSources'
+import type { DataSource } from './types/DataSources.js'
 
 export type GeneratedDataSourceParams<LoadedValue, LoaderParams = undefined, LoaderManyParams = LoaderParams> = {
   name?: string
