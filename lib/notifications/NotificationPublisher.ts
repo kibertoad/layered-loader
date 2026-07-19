@@ -1,5 +1,5 @@
-import type { WriteCache } from '../types/DataSources'
-import type { Logger } from '../util/Logger'
+import type { WriteCache } from '../types/DataSources.js'
+import type { Logger } from '../util/Logger.js'
 
 export type PublisherErrorHandler = (err: Error, channel: string, logger: Logger) => void
 

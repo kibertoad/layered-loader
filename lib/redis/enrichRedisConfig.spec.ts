@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ClusterOptions, RedisOptions } from 'ioredis'
-import { enrichRedisConfig, enrichRedisConfigOptimizedForCloud } from './enrichRedisConfig'
+import { enrichRedisConfig, enrichRedisConfigOptimizedForCloud } from './enrichRedisConfig.js'
 
 describe('enrichRedisConfig', () => {
   it('adds default reconnectOnError handler', () => {

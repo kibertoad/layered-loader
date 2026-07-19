@@ -9,8 +9,16 @@
       "email": "kibertoad@gmail.com"
     }
   ],
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "tsc",
     "build:release": "del-cli dist && del-cli coverage && pnpm run lint && pnpm run build",
@@ -21,6 +29,9 @@
     "test:coverage": "vitest --coverage",
     "lint": "biome check && tsc --noEmit",
     "lint:fix": "biome check --write",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only",
+    "lint:packaging": "pnpm run publint && pnpm run attw",
     "prepublishOnly": "pnpm run build:release",
     "update:dependencies": "npx npm-check-updates -u"
   },
@@ -30,7 +41,7 @@
   "packageManager": "pnpm@11.3.0",
   "repository": {
     "type": "git",
-    "url": "git://github.com/kibertoad/layered-loader.git"
+    "url": "git+https://github.com/kibertoad/layered-loader.git"
   },
   "keywords": [
     "data",
@@ -55,13 +66,15 @@
     "toad-cache": "^3.7.4"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.4.16",
     "@types/node": "^25.8.0",
     "@vitest/coverage-v8": "^4.1.6",
     "del-cli": "^7.0.0",
+    "publint": "^0.3.21",
     "rfdc": "^1.4.1",
-    "vitest": "^4.1.6",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
   },
   "files": [
     "README.md",

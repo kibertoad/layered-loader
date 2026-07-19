@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { unique } from './unique'
+import { unique } from './unique.js'
 
 describe('unique', () => {
   it('returns the same array reference for an empty array', () => {

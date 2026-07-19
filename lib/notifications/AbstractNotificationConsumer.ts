@@ -1,5 +1,5 @@
-import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources'
-import type { Logger } from '../util/Logger'
+import type { SynchronousCache, SynchronousGroupCache } from '../types/SyncDataSources.js'
+import type { Logger } from '../util/Logger.js'
 
 export type ConsumerErrorHandler = (err: Error, channel: string, logger: Logger) => void
 

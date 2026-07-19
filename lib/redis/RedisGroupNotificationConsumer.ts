@@ -1,13 +1,13 @@
 import type { Redis } from 'ioredis'
-import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache'
-import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer'
+import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache.js'
+import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer.js'
 import type {
   DeleteFromGroupNotificationCommand,
   DeleteGroupNotificationCommand,
   GroupNotificationCommand,
-} from './RedisGroupNotificationPublisher'
-import type { RedisConsumerConfig } from './RedisNotificationConsumer'
-import { defaultLogger } from '../util/Logger'
+} from './RedisGroupNotificationPublisher.js'
+import type { RedisConsumerConfig } from './RedisNotificationConsumer.js'
+import { defaultLogger } from '../util/Logger.js'
 
 export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
   LoadedValue,

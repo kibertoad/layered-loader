@@ -1,4 +1,4 @@
-import type { GroupCache, GroupDataSource } from '../types/DataSources'
+import type { GroupCache, GroupDataSource } from '../types/DataSources.js'
 
 export class RedisExpirationTimeGroupDataSource implements GroupDataSource<number, string> {
   public readonly name = 'RedisExpirationTimeGroupedLoader'

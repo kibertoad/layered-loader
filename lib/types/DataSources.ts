@@ -1,6 +1,6 @@
-import type { GroupLoader } from '../GroupLoader'
-import type { Loader } from '../Loader'
-import type { GetManyResult } from './SyncDataSources'
+import type { GroupLoader } from '../GroupLoader.js'
+import type { Loader } from '../Loader.js'
+import type { GetManyResult } from './SyncDataSources.js'
 
 export interface CommonCacheConfiguration {
   ttlLeftBeforeRefreshInMsecs?: number

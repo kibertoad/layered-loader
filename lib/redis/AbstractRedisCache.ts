@@ -1,5 +1,5 @@
 import type { Redis } from 'ioredis'
-import type { CommonCacheConfiguration } from '../types/DataSources'
+import type { CommonCacheConfiguration } from '../types/DataSources.js'
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
   prefix: string

@@ -1,2 +1,2 @@
-export { RedisCache } from './RedisCache'
-export type { RedisCacheConfiguration } from './AbstractRedisCache'
+export { RedisCache } from './RedisCache.js'
+export type { RedisCacheConfiguration } from './AbstractRedisCache.js'
