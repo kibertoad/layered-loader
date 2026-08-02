@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Two new subpath entrypoints, so Redis is genuinely optional:
+  - `layered-loader/core` — loaders, manual caches, in-memory caches,
+    `AbstractNotificationConsumer`, the publisher interfaces, key resolvers and every type. Nothing
+    reachable from it imports `ioredis`, or even a `node:` builtin; its only runtime dependency is
+    `toad-cache`. This is the entrypoint for consumers without Redis in their infrastructure, and
+    for runtimes that cannot load a Node-only client at all (Cloudflare Workers and friends).
+  - `layered-loader/redis` — the Redis caches, notification factories, publishers and consumers.
+
+  The package root remains an `export *` of both, so its surface is unchanged and existing imports
+  keep working.
+- `InMemoryCache`, `InMemoryGroupCache` and `InMemoryGroupCacheConfiguration` are now exported as
+  types. `InMemoryGroupCache` in particular is referenced by `AbstractNotificationConsumer`'s
+  generic parameter, and was previously unreachable from the package.
+- `sideEffects: false`, so bundlers can drop unused re-exports from the root entrypoint.
+
+### Changed
+
+- `ioredis` is now resolved lazily, on the branch of `createNotificationPair` /
+  `createGroupNotificationPair` where a client is constructed from `RedisOptions` rather than passed
+  in. No file in the package imports it statically any more, so even importing the package root no
+  longer loads Redis at runtime.
+- `@layered-loader/sqs` imports from `layered-loader/core`, so the SNS/SQS adapter no longer pulls
+  Redis types or code into its consumers' graphs.
+
 ## 15.0.0
 
 ### Breaking

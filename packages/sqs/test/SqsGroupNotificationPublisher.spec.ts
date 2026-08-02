@@ -1,4 +1,4 @@
-import { GroupLoader, type InMemoryCacheConfiguration } from 'layered-loader'
+import { GroupLoader, type InMemoryCacheConfiguration } from 'layered-loader/core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createGroupNotificationPair } from '../lib/SqsGroupNotificationFactory.js'
 import { type AwsClientBundle, buildAwsClients } from './fakes/awsClients.js'

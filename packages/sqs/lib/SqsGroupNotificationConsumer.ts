@@ -6,8 +6,8 @@ import {
   type SNSSQSCreationConfig,
   type SNSSQSQueueLocatorType,
 } from '@message-queue-toolkit/sns'
-import type { ConsumerErrorHandler, SynchronousGroupCache } from 'layered-loader'
-import { AbstractNotificationConsumer } from 'layered-loader'
+import type { ConsumerErrorHandler, SynchronousGroupCache } from 'layered-loader/core'
+import { AbstractNotificationConsumer } from 'layered-loader/core'
 import type { SqsSubscriptionOptions } from './SqsNotificationConsumer.js'
 import {
   CLEAR_GROUP_NOTIFICATION_SCHEMA,

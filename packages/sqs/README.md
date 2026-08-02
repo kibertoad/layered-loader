@@ -72,7 +72,7 @@ import { SQSClient } from '@aws-sdk/client-sqs'
 import { STSClient } from '@aws-sdk/client-sts'
 import { globalLogger, NoopObservabilityManager } from '@lokalise/node-core'
 import { SnsConsumerErrorResolver } from '@message-queue-toolkit/sns'
-import { Loader } from 'layered-loader'
+import { Loader } from 'layered-loader/core'
 import { createNotificationPair } from '@layered-loader/sqs'
 import type { User } from './types'
 
@@ -125,7 +125,7 @@ Each consumer needs its **own** SQS queue subscribed to the shared topic; SNS ha
 For `GroupLoader`, use `createGroupNotificationPair` with the same shape:
 
 ```ts
-import { GroupLoader } from 'layered-loader'
+import { GroupLoader } from 'layered-loader/core'
 import { createGroupNotificationPair } from '@layered-loader/sqs'
 
 const { publisher: notificationPublisher, consumer: notificationConsumer } =
@@ -221,7 +221,8 @@ This is shape **C** from [Picking your shape](#picking-your-shape) and the recom
 ```ts
 import { z } from 'zod'
 import Redis from 'ioredis'
-import { createNotificationPair, Loader } from 'layered-loader'
+import { Loader } from 'layered-loader/core'
+import { createNotificationPair } from 'layered-loader/redis'
 import { SnsTopicInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT_SCHEMA = z.object({
@@ -301,7 +302,7 @@ The trigger creates (or reuses) an SQS queue and subscribes it to each upstream 
 
 ```ts
 import { z } from 'zod'
-import { Loader } from 'layered-loader'
+import { Loader } from 'layered-loader/core'
 import { createNotificationPair, SnsTopicInvalidationTrigger } from '@layered-loader/sqs'
 
 const USER_EVENT_SCHEMA = z.object({

@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import {Redis, RedisOptions} from 'ioredis'
+import type { Redis, RedisOptions } from 'ioredis'
 import type { PublisherErrorHandler } from '../notifications/NotificationPublisher.js'
 import { RedisNotificationConsumer } from './RedisNotificationConsumer.js'
 import { RedisNotificationPublisher } from './RedisNotificationPublisher.js'
-import { enrichRedisConfig } from './enrichRedisConfig.js'
+import { resolveRedisClient } from './resolveRedisClient.js'
 
 export type RedisNotificationConfig = {
   channel: string
@@ -12,13 +12,9 @@ export type RedisNotificationConfig = {
   errorHandler?: PublisherErrorHandler
 }
 
-export function isClient(maybeClient: unknown): maybeClient is Redis {
-  return 'status' in (maybeClient as Redis)
-}
-
 export function createNotificationPair<T>(config: RedisNotificationConfig) {
-  const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(enrichRedisConfig(config.consumerRedis))
-  const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(enrichRedisConfig(config.publisherRedis))
+  const resolvedConsumer = resolveRedisClient(config.consumerRedis)
+  const resolvedPublisher = resolveRedisClient(config.publisherRedis)
 
   const serverUuid = randomUUID()
   if (resolvedConsumer === resolvedPublisher) {

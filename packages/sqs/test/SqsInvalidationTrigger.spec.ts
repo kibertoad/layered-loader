@@ -5,7 +5,7 @@ import {
   SendMessageCommand,
 } from '@aws-sdk/client-sqs'
 import { CreateTopicCommand, PublishCommand } from '@aws-sdk/client-sns'
-import { Loader, type InMemoryCacheConfiguration } from 'layered-loader'
+import { Loader, type InMemoryCacheConfiguration } from 'layered-loader/core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createNotificationPair } from '../lib/SqsNotificationFactory.js'

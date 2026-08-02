@@ -6,7 +6,7 @@ import {
   type SNSPublisherOptions,
   type SNSTopicLocatorType,
 } from '@message-queue-toolkit/sns'
-import type { NotificationPublisher, PublisherErrorHandler } from 'layered-loader'
+import type { NotificationPublisher, PublisherErrorHandler } from 'layered-loader/core'
 import { resolveChannelName } from './channelNameResolver.js'
 import {
   CLEAR_COMMAND,

@@ -21,6 +21,7 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 ## Contents
 
 - [Prerequisites](#prerequisites)
+- [Entrypoints](#entrypoints)
 - [Use-cases](#use-cases)
 - [Feature Comparison](#feature-comparison)
 - [Performance Comparison](#performance-comparison)
@@ -62,8 +63,49 @@ Node: 22+
 
 `layered-loader` is an ESM-only package. It is published as ECMAScript modules with an `exports` map
 and has no CommonJS build, so it is consumed with `import` from ESM code (or with a dynamic
-`await import('layered-loader')` from CommonJS). Only the package root and `package.json` are
-exported — reaching into `layered-loader/dist/...` is not supported.
+`await import('layered-loader')` from CommonJS). Only the entrypoints listed below and
+`package.json` are exported — reaching into `layered-loader/dist/...` is not supported.
+
+## Entrypoints
+
+Redis is optional. The package is split into two subpath entrypoints so that consumers who do not
+run Redis never pull `ioredis` into their module graph:
+
+| Entrypoint               | Contents                                                                                                                             | Reaches `ioredis`? |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| `layered-loader/core`    | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types | No                 |
+| `layered-loader/redis`   | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig` | Yes                |
+| `layered-loader`         | Everything from both of the above                                                                                                      | Yes (types only)   |
+
+The root entrypoint is a plain `export *` of both, so it remains a superset of the other two and
+existing imports keep working unchanged.
+
+If your infrastructure has no Redis — or you are targeting a runtime that cannot load a Node-only
+client at all, such as Cloudflare Workers — import from `layered-loader/core`:
+
+```ts
+import { Loader, type InMemoryCacheConfiguration } from 'layered-loader/core'
+
+const loader = new Loader<string>({
+  inMemoryCache: { ttlInMsecs: 60_000 } satisfies InMemoryCacheConfiguration,
+  dataSourceGetOneFn: (key) => fetchFromApi(key),
+})
+```
+
+Nothing reachable from `layered-loader/core` imports `ioredis`, or even a `node:` builtin — its
+only runtime dependency is `toad-cache`.
+
+Redis usage keeps its own entrypoint:
+
+```ts
+import { RedisCache } from 'layered-loader/redis'
+```
+
+`ioredis` itself is additionally resolved lazily, at the point where a client is actually
+constructed from `RedisOptions`. No file in the package imports it statically, so importing the
+root entrypoint does not load Redis either — but the subpath entrypoints are the supported API
+boundary, and edge/bundler targets should point at `layered-loader/core` rather than rely on
+tree-shaking.
 
 ## Use-cases
 

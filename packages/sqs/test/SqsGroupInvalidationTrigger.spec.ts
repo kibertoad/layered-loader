@@ -1,6 +1,6 @@
 import { CreateTopicCommand, PublishCommand } from '@aws-sdk/client-sns'
 import { CreateQueueCommand, GetQueueUrlCommand, SendMessageCommand } from '@aws-sdk/client-sqs'
-import { GroupLoader, type InMemoryCacheConfiguration } from 'layered-loader'
+import { GroupLoader, type InMemoryCacheConfiguration } from 'layered-loader/core'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createGroupNotificationPair } from '../lib/SqsGroupNotificationFactory.js'

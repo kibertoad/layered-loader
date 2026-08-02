@@ -7,8 +7,8 @@ import {
   type SNSSQSCreationConfig,
   type SNSSQSQueueLocatorType,
 } from '@message-queue-toolkit/sns'
-import type { ConsumerErrorHandler, SynchronousCache } from 'layered-loader'
-import { AbstractNotificationConsumer } from 'layered-loader'
+import type { ConsumerErrorHandler, SynchronousCache } from 'layered-loader/core'
+import { AbstractNotificationConsumer } from 'layered-loader/core'
 import {
   CLEAR_NOTIFICATION_SCHEMA,
   DELETE_MANY_NOTIFICATION_SCHEMA,
