@@ -58,7 +58,12 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 
 ## Prerequisites
 
-Node: 16+
+Node: 22+
+
+`layered-loader` is an ESM-only package. It is published as ECMAScript modules with an `exports` map
+and has no CommonJS build, so it is consumed with `import` from ESM code (or with a dynamic
+`await import('layered-loader')` from CommonJS). Only the package root and `package.json` are
+exported — reaching into `layered-loader/dist/...` is not supported.
 
 ## Use-cases
 
