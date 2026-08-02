@@ -37,11 +37,21 @@ organisational:
 Rules that follow from that:
 
 - A new export goes into `core.ts` or `redis.ts`, never into `index.ts` directly.
-- `ioredis` must only ever be imported as `import type`. The one place that needs the value is
-  `lib/redis/resolveRedisClient.ts`, which resolves it lazily via `createRequire` so that no static
-  import of it exists anywhere in the package.
-- `test/entrypoints.spec.ts` enforces all of the above by walking the static import graph. If it
-  fails, the fix is to move the import, not to relax the test.
+- **Nothing under `lib/` may import `ioredis` at all** — not even with `import type`, which would
+  land in the emitted `.d.ts` and break consumers who never installed the optional peer. Use the
+  vendored structural types in `lib/redis/RedisLike.ts` instead, and extend those if you start
+  calling a Redis command they do not cover.
+- `test/ioredisCompat.type-test.ts` type-checks the vendored declarations against the real `ioredis`
+  types; `pnpm run lint:redis-compat` runs it and is part of `pnpm run lint`. Widening a vendored
+  signature to silence it is wrong — match what `ioredis` actually declares.
+- Constrain generics over Redis options to `object`, not to an all-optional shape. All-optional
+  shapes are "weak types" and TypeScript then rejects object literals like
+  `enrichRedisConfig({ host, port })`; adding an index signature instead rejects interfaces such as
+  `RedisOptions`, which never get an implicit one.
+- The value of `ioredis` is only ever reached through `lib/redis/resolveRedisClient.ts`, which
+  resolves it lazily via `createRequire` and throws an actionable error when it is not installed.
+- `test/entrypoints.spec.ts` enforces the above by walking the static import graph and asserting the
+  manifest. If it fails, the fix is to move the import, not to relax the test.
 
 ## Working in this repo
 

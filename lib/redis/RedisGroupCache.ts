@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { GroupIndexKey, RedisLike, RedisWithGroupCommands } from './RedisLike.js'
 import { GroupLoader } from '../GroupLoader.js'
 import type { CacheEntry, GroupCache, GroupCacheConfiguration } from '../types/DataSources.js'
 import type { GetManyResult } from '../types/SyncDataSources.js'
@@ -19,7 +19,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   private readonly groupIndexPrefix: string
   name = 'Redis group cache'
 
-  constructor(redis: Redis, config: Partial<RedisGroupCacheConfiguration> = {}) {
+  constructor(redis: RedisLike, config: Partial<RedisGroupCacheConfiguration> = {}) {
     super(redis, config)
 
     this.groupIndexPrefix = `${this.keyPrefix}${GROUP_INDEX_KEY}${this.config.separator}`
@@ -159,12 +159,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
   async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
     const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
-      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+      ? (this.redis as RedisWithGroupCommands).getOrSetZeroWithTtl(
+          this.resolveGroupIndexPrefix(groupId),
+          this.config.groupTtlInMsecs,
+        )
+      : (this.redis as RedisWithGroupCommands).getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
 
     const currentGroupKey = await getGroupKeyPromise
 
@@ -177,12 +176,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
   async setManyForGroup(entries: readonly CacheEntry<T>[], groupId: string): Promise<unknown> {
     const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
-      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+      ? (this.redis as RedisWithGroupCommands).getOrSetZeroWithTtl(
+          this.resolveGroupIndexPrefix(groupId),
+          this.config.groupTtlInMsecs,
+        )
+      : (this.redis as RedisWithGroupCommands).getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
 
     const currentGroupKey = await getGroupKeyPromise
 
@@ -213,11 +211,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     return this.redis.mset(commandParam)
   }
 
-  resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {
+  resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: GroupIndexKey) {
     return this.resolveGroupEntryPrefix(groupId, groupIndexKey) + key
   }
 
-  private resolveGroupEntryPrefix(groupId: string, groupIndexKey: string) {
+  private resolveGroupEntryPrefix(groupId: string, groupIndexKey: GroupIndexKey) {
     return `${this.keyPrefix}${groupId}${this.config.separator}${groupIndexKey}${this.config.separator}`
   }
 

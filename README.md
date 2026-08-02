@@ -107,10 +107,25 @@ root entrypoint does not load Redis either — but the subpath entrypoints are t
 boundary, and edge/bundler targets should point at `layered-loader/core` rather than rely on
 tree-shaking.
 
-Note that `ioredis` remains a regular `dependency`, so it is still **installed** for every
-consumer, including those who only ever import `layered-loader/core`. What the split guarantees is
-that it is never loaded at runtime and never appears in the types `core` compiles against — not
-that it is absent from `node_modules`.
+`ioredis` is an **optional peer dependency**, so it is not installed unless you ask for it:
+
+```jsonc
+// your package.json — only needed if you use the Redis entrypoint
+"dependencies": {
+  "ioredis": "^6.0.0"
+}
+```
+
+If you use `RedisCache` or `RedisGroupCache` you already depend on `ioredis` directly, since you
+construct the client yourself and pass it in. The only case that needs attention is
+`createNotificationPair` / `createGroupNotificationPair` called with plain connection options rather
+than a client — that constructs a client internally, and will throw a message telling you to install
+`ioredis` if it is missing.
+
+Nothing shipped in `dist/` imports `ioredis`, as a value or as a type: the surface this package uses
+is vendored as structural interfaces, and a CI type-check asserts they still match the real `ioredis`
+declarations. So `layered-loader` compiles under `skipLibCheck: false` with `ioredis` absent
+entirely.
 
 ## Use-cases
 

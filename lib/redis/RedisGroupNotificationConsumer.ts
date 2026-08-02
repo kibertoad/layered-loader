@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { RedisLike } from './RedisLike.js'
 import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache.js'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer.js'
 import type {
@@ -13,11 +13,11 @@ export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotific
   LoadedValue,
   InMemoryGroupCache<LoadedValue>
 > {
-  private readonly redis: Redis
+  private readonly redis: RedisLike
   private readonly channel: string
   private messageHandler?: (channel: string, message: string) => void
 
-  constructor(redis: Redis, config: RedisConsumerConfig) {
+  constructor(redis: RedisLike, config: RedisConsumerConfig) {
     super(config.serverUuid)
     this.redis = redis
     this.channel = config.channel

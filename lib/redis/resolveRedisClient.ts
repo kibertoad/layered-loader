@@ -1,38 +1,38 @@
 import { createRequire } from 'node:module'
-import type { Redis, RedisOptions } from 'ioredis'
+import type { RedisConnectionOptions, RedisConstructorLike, RedisLike } from './RedisLike.js'
 import { enrichRedisConfig } from './enrichRedisConfig.js'
 
-/**
- * `typeof import(...)` is a type query, not an import — it is erased at compile time and emits
- * nothing. It gives the lazy `require` below the module's real declarations, so the constructor
- * stays type-checked against `ioredis` rather than against a hand-written shape.
- */
-type RedisConstructor = (typeof import('ioredis'))['Redis']
-
-let cachedRedisConstructor: RedisConstructor | undefined
+let cachedRedisConstructor: RedisConstructorLike | undefined
 
 /**
- * `ioredis` is resolved on first use rather than imported at module scope, so that no file in
- * this package statically pulls the Redis client into the module graph. Consumers that pass
- * pre-instantiated clients (or that never construct one) never load it at all.
+ * `ioredis` is an optional peer dependency, resolved on first use rather than imported at module
+ * scope. No file in this package pulls it into the module graph, so consumers who pass their own
+ * clients — or who never touch Redis at all — do not need it installed.
  */
-function loadRedisConstructor(): RedisConstructor {
+function loadRedisConstructor(): RedisConstructorLike {
   if (!cachedRedisConstructor) {
     const require = createRequire(import.meta.url)
-    cachedRedisConstructor = (require('ioredis') as typeof import('ioredis')).Redis
+    try {
+      cachedRedisConstructor = (require('ioredis') as { Redis: RedisConstructorLike }).Redis
+    } catch (err) {
+      throw new Error(
+        'Constructing a Redis client from connection options requires the optional peer dependency "ioredis" to be installed. Install it, or pass an already-constructed client instead.',
+        { cause: err },
+      )
+    }
   }
   return cachedRedisConstructor
 }
 
-export function isClient(maybeClient: unknown): maybeClient is Redis {
-  return 'status' in (maybeClient as Redis)
+export function isClient(maybeClient: unknown): maybeClient is RedisLike {
+  return 'status' in (maybeClient as RedisLike)
 }
 
 /**
  * Returns the given client as-is, or instantiates one from the given options. Only the latter
- * branch needs `ioredis` to be loadable.
+ * branch needs `ioredis` to be installed.
  */
-export function resolveRedisClient(clientOrConfig: Redis | RedisOptions): Redis {
+export function resolveRedisClient(clientOrConfig: RedisLike | RedisConnectionOptions): RedisLike {
   if (isClient(clientOrConfig)) {
     return clientOrConfig
   }

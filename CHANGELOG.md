@@ -4,8 +4,8 @@
 
 ### Added
 
-- Two new subpath entrypoints, so Redis is optional at runtime and at the type level (`ioredis`
-  remains a regular `dependency` and is still installed for every consumer):
+- Two new subpath entrypoints, so Redis is genuinely optional — not installed, not loaded, and not
+  referenced by the types a consumer compiles against:
   - `layered-loader/core` — loaders, manual caches, in-memory caches,
     `AbstractNotificationConsumer`, the publisher interfaces, key resolvers and every type. Nothing
     reachable from it imports `ioredis`, or even a `node:` builtin; its only runtime dependency is
@@ -22,10 +22,21 @@
 
 ### Changed
 
+- **`ioredis` moved from `dependencies` to an optional `peerDependency`** — see the 15.0.0 breaking
+  notes below, where this change is recorded alongside the other 15.0.0 breakage.
 - `ioredis` is now resolved lazily, on the branch of `createNotificationPair` /
-  `createGroupNotificationPair` where a client is constructed from `RedisOptions` rather than passed
-  in. No file in the package imports it statically any more, so even importing the package root no
-  longer loads Redis at runtime.
+  `createGroupNotificationPair` where a client is constructed from connection options rather than
+  passed in. No file in the package imports it statically any more, so even importing the package
+  root no longer loads Redis at runtime.
+- The types this package uses from `ioredis` are now vendored as structural interfaces in
+  `lib/redis/RedisLike.ts`, so no emitted `.d.ts` references `ioredis`. `test/ioredisCompat.type-test.ts`
+  type-checks those declarations against the real `ioredis` types in CI, so they cannot drift silently.
+- `enrichRedisConfig` and `enrichRedisConfigOptimizedForCloud` are now generic over the caller's own
+  options type instead of being typed against `RedisOptions` / `ClusterOptions`. Callers keep their
+  exact type through the round trip; the functions no longer need `ioredis` to compile.
+- `RedisGroupCache.resolveKeyWithGroup` accepts `string | number` for the group index key, matching
+  what the Lua scripts actually return (`0` on creation, the stored counter afterwards). This was
+  previously masked by `@ts-ignore`, which is now removed.
 - `@layered-loader/sqs` imports from `layered-loader/core`, so the SNS/SQS adapter no longer pulls
   Redis types or code into its consumers' graphs.
 
@@ -43,6 +54,18 @@
 - `ioredis` was upgraded from 5 to 6. Applications that also depend on `ioredis` directly should
   upgrade with it, and should review the [ioredis 6 migration
   notes](https://github.com/redis/ioredis/releases) for their own usage.
+- **`ioredis` is no longer a `dependency`. It is now an optional `peerDependency`**, so it is not
+  installed unless you ask for it. Anyone using Redis must declare `ioredis` in their own
+  `package.json`. In practice most already do — `RedisCache` and `RedisGroupCache` take a client you
+  construct yourself, so you have to import `ioredis` to use them at all. The one case that breaks
+  silently is calling `createNotificationPair` / `createGroupNotificationPair` with plain connection
+  options and never importing `ioredis` yourself: that now throws at the point the client is
+  constructed, with a message telling you to install it.
+
+  > **Note:** this change did not actually ship in 15.0.0. It landed in **15.0.1**, and is recorded
+  > here so that all of the 15.x breaking changes are described in one place. If you are upgrading
+  > from 14.x, treat it as part of the 15 migration. If you are already on 15.0.0, this is the one
+  > breaking change you still have ahead of you.
 - The published build no longer contains `*.spec.ts` sources or their compiled output.
 - The documented minimum Node version is now 22, matching the `engines` field the package has
   declared since 14.x.

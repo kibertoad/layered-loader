@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { RedisLike } from './RedisLike.js'
 import { Loader } from '../Loader.js'
 import type { Cache, CacheEntry } from '../types/DataSources.js'
 import type { GetManyResult } from '../types/SyncDataSources.js'
@@ -11,7 +11,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   public ttlLeftBeforeRefreshInMsecs?: number
   name = 'Redis cache'
 
-  constructor(redis: Redis, config: Partial<RedisCacheConfiguration> = DEFAULT_REDIS_CACHE_CONFIGURATION) {
+  constructor(redis: RedisLike, config: Partial<RedisCacheConfiguration> = DEFAULT_REDIS_CACHE_CONFIGURATION) {
     super(redis, config)
     this.ttlLeftBeforeRefreshInMsecs = config.ttlLeftBeforeRefreshInMsecs
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -72,6 +72,25 @@ function collectModuleGraph(entrypoint: string): Map<string, ImportRecord[]> {
   return graph
 }
 
+/** Every source file that ends up in `dist/` — the three entrypoints plus everything under `lib/`. */
+function shippedSourceFiles(): string[] {
+  const files = ['core.ts', 'redis.ts', 'index.ts'].map((entry) => resolve(PACKAGE_ROOT, entry))
+
+  const walk = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const entryPath = resolve(directory, entry.name)
+      if (entry.isDirectory()) {
+        walk(entryPath)
+      } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+        files.push(entryPath)
+      }
+    }
+  }
+  walk(resolve(PACKAGE_ROOT, 'lib'))
+
+  return files
+}
+
 function runtimeDependenciesOf(entrypoint: string): string[] {
   const dependencies = new Set<string>()
 
@@ -112,6 +131,31 @@ describe('entrypoints', () => {
       expect(new Set(Object.keys(rootEntrypoint))).toEqual(new Set(subpathExports))
       // No export is duplicated between the two subpath entrypoints.
       expect(subpathExports).toHaveLength(new Set(subpathExports).size)
+    })
+  })
+
+  describe('ioredis as an optional peer dependency', () => {
+    it('is not imported by any shipped source file, as a value or as a type', () => {
+      // `ioredis` is an optional peer, so it may be missing at install time. Nothing under `lib/`
+      // may reference it — not even with `import type`, since that would land in the emitted
+      // `.d.ts` and break consumers who never installed it. The vendored structural types in
+      // `lib/redis/RedisLike.ts` exist for exactly this reason, and
+      // `test/ioredisCompat.type-test.ts` keeps them honest against the real declarations.
+      const offenders = shippedSourceFiles()
+        .filter((file) =>
+          parseImports(readFileSync(file, 'utf8')).some((i) => i.specifier === 'ioredis'),
+        )
+        .map((file) => relative(PACKAGE_ROOT, file))
+
+      expect(offenders).toEqual([])
+    })
+
+    it('is declared as an optional peer dependency rather than a dependency', () => {
+      const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, 'package.json'), 'utf8'))
+
+      expect(manifest.dependencies).not.toHaveProperty('ioredis')
+      expect(manifest.peerDependencies).toHaveProperty('ioredis')
+      expect(manifest.peerDependenciesMeta.ioredis.optional).toBe(true)
     })
   })
 })
