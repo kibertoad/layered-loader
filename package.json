@@ -36,13 +36,14 @@
     "test": "vitest",
     "test:everything": "pnpm run lint && pnpm run test:coverage",
     "test:coverage": "vitest --coverage",
-    "lint": "biome check && tsc --noEmit",
+    "lint": "biome check && tsc --noEmit && pnpm run lint:redis-compat",
     "lint:fix": "biome check --write",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only",
     "lint:packaging": "pnpm run publint && pnpm run attw",
     "prepublishOnly": "pnpm run build:release",
-    "update:dependencies": "npx npm-check-updates -u"
+    "update:dependencies": "npx npm-check-updates -u",
+    "lint:redis-compat": "tsc -p tsconfig.redis-compat.json"
   },
   "engines": {
     "node": ">=22"
@@ -71,7 +72,6 @@
   ],
   "homepage": "https://github.com/kibertoad/layered-loader",
   "dependencies": {
-    "ioredis": "^6.0.0",
     "toad-cache": "^3.7.4"
   },
   "devDependencies": {
@@ -80,6 +80,7 @@
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.10",
     "del-cli": "^7.0.0",
+    "ioredis": "^6.0.0",
     "publint": "^0.3.22",
     "rfdc": "^1.4.1",
     "typescript": "^7.0.2",
@@ -89,5 +90,13 @@
     "README.md",
     "LICENSE",
     "dist/*"
-  ]
+  ],
+  "peerDependencies": {
+    "ioredis": "^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    }
+  }
 }

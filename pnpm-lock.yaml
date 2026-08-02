@@ -102,9 +102,6 @@ importers:
 
   .:
     dependencies:
-      ioredis:
-        specifier: ^6.0.0
-        version: 6.0.0(supports-color@7.2.0)
       toad-cache:
         specifier: ^3.7.4
         version: 3.7.4
@@ -124,6 +121,9 @@ importers:
       del-cli:
         specifier: ^7.0.0
         version: 7.0.0
+      ioredis:
+        specifier: ^6.0.0
+        version: 6.0.0(supports-color@7.2.0)
       publint:
         specifier: ^0.3.22
         version: 0.3.22

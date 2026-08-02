@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -10,9 +10,13 @@ const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
  * The entrypoints are checked against a real compilation, loaded in a real Node process, rather
  * than by scanning the TypeScript sources. Source scanning is what an earlier version of this file
  * did, and it could not tell `import type` from a value import reliably enough to be trusted — a
- * guard that can silently pass is worse than no guard. Loading the emitted JavaScript instead means
- * the compiler has already erased type-only imports for us, and the assertions then cover dynamic
- * `import()` and `require()` as well, neither of which source scanning can see.
+ * guard that can silently pass is worse than no guard.
+ *
+ * Checking the emitted output instead is both simpler and stricter. The compiler has already erased
+ * type-only imports, so whatever is left in a `.js` file is real; and `ioredis` leaking into the
+ * types consumers compile against is precisely "the string `ioredis` appears in a `.d.ts`", with no
+ * parsing required. Loading the result also covers dynamic `import()` and `require()`, neither of
+ * which source scanning can see.
  *
  * Built into `node_modules/` rather than `dist/` so that running the tests never clobbers a
  * developer's build output, and so that Node still resolves bare specifiers such as `toad-cache`
@@ -74,6 +78,22 @@ function subpathExports(): string[] {
   return [...reportFor('core.js').exports, ...reportFor('redis.js').exports]
 }
 
+/**
+ * Every way a module can reference `ioredis` in emitted code or declarations: a `from` clause, and
+ * the `import('ioredis')` form TypeScript emits for inline type references. Deliberately not a bare
+ * substring match — doc comments survive into `.d.ts`, and a comment mentioning `ioredis` creates no
+ * dependency on it. Equally deliberately not matching `require('ioredis')`, which is the sanctioned
+ * lazy path in `resolveRedisClient`.
+ */
+const IOREDIS_MODULE_REFERENCE = /\bfrom\s*['"]ioredis['"]|\bimport\s*\(\s*['"]ioredis['"]\s*\)/
+
+/** Emitted files with the given extension that reference the `ioredis` module, by relative path. */
+function emittedFilesReferencingIoredis(extension: string): string[] {
+  return readdirSync(BUILD_DIR, { recursive: true, encoding: 'utf8' })
+    .filter((entry) => entry.endsWith(extension))
+    .filter((entry) => IOREDIS_MODULE_REFERENCE.test(readFileSync(join(BUILD_DIR, entry), 'utf8')))
+}
+
 beforeAll(() => {
   rmSync(BUILD_DIR, { recursive: true, force: true })
   mkdirSync(BUILD_DIR, { recursive: true })
@@ -103,12 +123,6 @@ describe('entrypoints', () => {
     })
   })
 
-  describe('layered-loader/redis', () => {
-    it('is the entrypoint that loads ioredis', () => {
-      expect(reportFor('redis.js').loaded).toContain('ioredis')
-    })
-  })
-
   describe('layered-loader', () => {
     it('exposes exactly the union of the two subpath entrypoints', () => {
       expect(new Set(reportFor('index.js').exports)).toEqual(new Set(subpathExports()))
@@ -119,6 +133,40 @@ describe('entrypoints', () => {
       // entrypoints cannot slip through either, because `export *` over a duplicated name is a
       // compile error (TS2308), which `pnpm run lint` catches via `tsc --noEmit`.
       expect(subpathExports()).toHaveLength(new Set(subpathExports()).size)
+    })
+  })
+
+  describe('ioredis as an optional peer dependency', () => {
+    it('is not loaded by any entrypoint at import time', () => {
+      // The optional peer may be absent, so importing any entrypoint has to work without it.
+      // `ioredis` is reached only through the lazy `require` in `resolveRedisClient`, which does
+      // not run until a client is actually constructed from connection options.
+      for (const entrypoint of ['core.js', 'index.js', 'redis.js']) {
+        expect(reportFor(entrypoint).loaded).not.toContain('ioredis')
+      }
+    })
+
+    it('is not referenced by any emitted type declaration', () => {
+      // The load-bearing guarantee for consumers who never install the optional peer: a single
+      // `import type { Redis } from 'ioredis'` anywhere under `lib/` lands in the emitted `.d.ts`
+      // and breaks their type-check. The vendored structural types in `lib/redis/RedisLike.ts`
+      // exist for exactly this reason, and `test/ioredisCompat.type-test.ts` keeps them honest
+      // against the real declarations.
+      expect(emittedFilesReferencingIoredis('.d.ts')).toEqual([])
+    })
+
+    it('is not statically imported by any emitted module', () => {
+      // Type-only imports are already erased at this point, so any reference left in the emitted
+      // JavaScript is a real static import that would load `ioredis` eagerly.
+      expect(emittedFilesReferencingIoredis('.js')).toEqual([])
+    })
+
+    it('is declared as an optional peer dependency rather than a dependency', () => {
+      const manifest = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, 'package.json'), 'utf8'))
+
+      expect(manifest.dependencies).not.toHaveProperty('ioredis')
+      expect(manifest.peerDependencies).toHaveProperty('ioredis')
+      expect(manifest.peerDependenciesMeta.ioredis.optional).toBe(true)
     })
   })
 })

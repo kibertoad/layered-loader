@@ -71,11 +71,11 @@ and has no CommonJS build, so it is consumed with `import` from ESM code (or wit
 The package is split into two subpath entrypoints so that consumers who do not run Redis never pull
 `ioredis` into their module graph, or into the types they compile against:
 
-| Entrypoint             | Contents                                                                                                                                     | Loads `ioredis`? |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `layered-loader/core`  | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types      | No               |
-| `layered-loader/redis` | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig`   | Yes              |
-| `layered-loader`       | Everything from both of the above                                                                                                              | Yes              |
+| Entrypoint             | Contents                                                                                                                                     | Can reach `ioredis`? |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `layered-loader/core`  | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types      | Never                |
+| `layered-loader/redis` | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig`   | Only when you construct a client from connection options |
+| `layered-loader`       | Everything from both of the above                                                                                                              | Same as `/redis`     |
 
 The root entrypoint is a plain `export *` of both, so it remains a superset of the other two and
 existing imports keep working unchanged.
@@ -103,46 +103,59 @@ import { RedisCache } from 'layered-loader/redis'
 
 ### How optional `ioredis` really is
 
-`ioredis` is a regular `dependency`, so it is always **installed**. The entrypoint split controls
-the two things that actually cost you something — whether it is ever **loaded** at runtime, and
-whether it appears in the **types** you compile against:
+`ioredis` is an **optional peer dependency**: it is not installed unless you ask for it, and
+nothing in the package touches it — as a value or as a type — until you construct a client from
+connection options.
 
-| You import                             | `ioredis` installed | loaded at runtime | in your types | in your bundle       |
-| -------------------------------------- | ------------------- | ----------------- | ------------- | -------------------- |
-| `layered-loader/core`                  | Yes                 | No                | No            | No                   |
-| `layered-loader/redis`                 | Yes                 | Yes               | Yes           | Yes, unless external |
-| `layered-loader`                       | Yes                 | Yes               | Yes           | Depends on bundler   |
+Add it to your own `package.json` only if you use Redis:
 
-Three rules follow, and they are the whole story:
-
-1. **Import from `layered-loader/core` and the guarantee is absolute.** Not a tree-shaking
-   optimisation you have to verify per bundler — nothing reachable from that entrypoint imports
-   `ioredis`, or even a `node:` builtin. Its only runtime dependency is `toad-cache`.
-2. **Do not import the package root if you want that guarantee.** The root is an `export *` of both
-   subpaths, so importing `layered-loader` loads `ioredis` even if you only use `Loader`. The
-   package sets `sideEffects: false`, so a bundler *may* drop it, but whether it does depends on
-   your bundler and its configuration. `import { Loader } from 'layered-loader'` and
-   `import { Loader } from 'layered-loader/core'` behave identically and differ entirely in this.
-3. **If you bundle and you do use Redis, `ioredis` must end up somewhere.** It is imported
-   statically, so bundlers can see it and will inline it by default. If you mark it `external`
-   instead, ship it in `node_modules` next to the bundle.
-
-#### Removing `ioredis` entirely
-
-Core-only consumers can prune `ioredis` from `node_modules` after install — a Docker build stage
-that deletes it, or a vendoring step — and `layered-loader/core` keeps working. Verified behaviour
-with the package physically absent:
-
-```
-import 'layered-loader/core'   → works
-import 'layered-loader/redis'  → ERR_MODULE_NOT_FOUND
-import 'layered-loader'        → ERR_MODULE_NOT_FOUND
+```jsonc
+// your package.json — only needed if you use the Redis entrypoint
+"dependencies": {
+  "ioredis": "^6.0.0"
+}
 ```
 
-So pruning is safe only if nothing in your app — including transitive dependencies — imports the
-root entrypoint. It is not wired up as an `optionalDependency`, because that would make the *root*
-entrypoint fail to resolve for anyone who skipped the install, and the root is what most existing
-code imports.
+#### What that buys you, precisely
+
+Four different things get conflated under "optional". All four hold here, and they are worth
+separating:
+
+|                                            | `layered-loader/core` | `layered-loader/redis` and the root |
+| ------------------------------------------ | --------------------- | ----------------------------------- |
+| Installed unless you ask for it             | No                    | No                                  |
+| Loaded when you import the entrypoint       | No                    | No — resolved lazily                |
+| Present in the types you compile against    | No                    | No — vendored structurally          |
+| Needed at runtime                           | Never                 | Only to construct a client from connection options |
+
+So every entrypoint imports cleanly with `ioredis` absent from `node_modules` entirely, and
+`layered-loader` type-checks under `skipLibCheck: false` without it. The surface this package uses
+is vendored as structural interfaces in `lib/redis/RedisLike.ts`, and a CI type-check asserts they
+still match the real `ioredis` declarations, so they cannot drift silently.
+
+#### When you do need it installed
+
+You need `ioredis` in your own dependencies if either of these is true:
+
+- **You use `RedisCache` or `RedisGroupCache`.** These take a client you construct yourself, so you
+  are importing `ioredis` directly anyway.
+- **You call `createNotificationPair` / `createGroupNotificationPair` with plain connection options**
+  rather than with a client. That constructs a client internally, and throws an actionable error if
+  `ioredis` is missing:
+
+  > Constructing a Redis client from connection options requires the optional peer dependency
+  > "ioredis" to be installed. Install it, or pass an already-constructed client instead.
+
+  Passing an already-constructed client avoids that path entirely.
+
+#### Bundling
+
+Because `ioredis` is reached through a lazy `require`, bundlers cannot see it and will not inline
+it. That is the right behaviour for an optional peer — it is your dependency, not this package's —
+but it has a consequence worth knowing before you deploy: if you bundle an app that constructs
+clients from connection options, `ioredis` must still be resolvable at runtime. Keep it in
+`node_modules` next to the bundle, or add it to your bundler's input explicitly. Bundling
+`layered-loader/core` needs none of this.
 
 #### Verifying it yourself
 

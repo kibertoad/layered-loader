@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import type { Redis, RedisOptions } from 'ioredis'
+import type { RedisConnectionOptions, RedisLike } from './RedisLike.js'
 import { isClient } from './resolveRedisClient.js'
 
 describe('isClient', () => {
   it('recognizes an instantiated client by its status field', () => {
-    expect(isClient({ status: 'ready' } as unknown as Redis)).toBe(true)
+    expect(isClient({ status: 'ready' } as unknown as RedisLike)).toBe(true)
   })
 
   it('rejects connection options', () => {
-    const config: RedisOptions = { host: 'localhost', port: 6379 }
+    const config: RedisConnectionOptions = { host: 'localhost', port: 6379 }
     expect(isClient(config)).toBe(false)
   })
 

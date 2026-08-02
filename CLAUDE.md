@@ -37,41 +37,55 @@ organisational:
 Rules that follow from that:
 
 - A new export goes into `core.ts` or `redis.ts`, never into `index.ts` directly.
-- Outside `lib/redis/`, `ioredis` may only ever be imported as `import type`. Inside `lib/redis/`,
-  `lib/redis/resolveRedisClient.ts` is the single place that uses `Redis` as a value. Keep that
-  import static — a lazy `createRequire` hides the dependency from every bundler, which silently
-  drops `ioredis` from bundles that need it, and `sideEffects: false` already covers the case where
-  it is not needed.
-- `test/entrypoints.spec.ts` enforces all of the above by compiling the package and importing each
-  entrypoint in a child process with a resolve hook installed, so it sees exactly what Node loads —
-  static imports, dynamic `import()` and `require()` alike. If it fails, the fix is to move the
-  import, not to relax the test. Do not replace it with source scanning: distinguishing
-  `import type` from a value import by pattern-matching TypeScript is what it used to do, and it
-  could silently pass while the invariant was broken.
+- **Nothing under `lib/` may import `ioredis` at all** — not even with `import type`, which would
+  land in the emitted `.d.ts` and break consumers who never installed the optional peer. Use the
+  vendored structural types in `lib/redis/RedisLike.ts` instead, and extend those if you start
+  calling a Redis command they do not cover.
+- `test/ioredisCompat.type-test.ts` type-checks the vendored declarations against the real `ioredis`
+  types; `pnpm run lint:redis-compat` runs it and is part of `pnpm run lint`. Widening a vendored
+  signature to silence it is wrong — match what `ioredis` actually declares.
+- Constrain generics over Redis options to `object`, not to an all-optional shape. All-optional
+  shapes are "weak types" and TypeScript then rejects object literals like
+  `enrichRedisConfig({ host, port })`; adding an index signature instead rejects interfaces such as
+  `RedisOptions`, which never get an implicit one.
+- The value of `ioredis` is only ever reached through `lib/redis/resolveRedisClient.ts`, which
+  resolves it lazily via `createRequire` and throws an actionable error when it is not installed.
+  Keep it lazy: a static import would make `layered-loader/redis` fail to resolve for everyone who
+  did not install the optional peer, which is the whole point of the arrangement. The cost is that
+  bundlers cannot see through `createRequire` and will not inline `ioredis` — that is the correct
+  trade-off for a peer dependency, and README.md documents it under "Bundling" so consumers are not
+  surprised by it.
+- `test/entrypoints.spec.ts` enforces the above against a real compilation: it builds the package
+  into `node_modules/.cache`, imports each entrypoint in a child process with a resolve hook
+  installed, and scans the emitted output. That covers what Node actually loads (static imports,
+  dynamic `import()` and `require()` alike), plus `ioredis` leaking into an emitted `.d.ts`. If it
+  fails, the fix is to move the import, not to relax the test.
 
-## Why `ioredis` is a plain dependency
+  Do not rewrite it to scan the TypeScript sources. It used to, and telling `import type` from a
+  value import by pattern-matching TypeScript is not reliable — `export type Foo = ...` on the line
+  above an import made the guard swallow that import and mark it type-only, so it could pass while
+  the invariant was broken. Checking emitted output has no such ambiguity: the compiler has already
+  erased the type-only imports.
 
-This comes up repeatedly, so the reasoning is recorded here rather than re-litigated.
+## Why `ioredis` is an optional peer dependency
 
-`ioredis` is a regular `dependency` — always installed, for every consumer, including core-only
-ones. What the entrypoint split buys is that it is never *loaded* and never enters the types a
-`core` consumer compiles against. That is the part with a runtime and bundle cost; the bytes in
-`node_modules` are not.
+Recorded here so the trade-off is not re-litigated. `ioredis` is not a `dependency`; it is a
+`peerDependency` with `peerDependenciesMeta.ioredis.optional`. Consumers who use Redis declare it
+themselves — which most already do, since `RedisCache` takes a client they construct.
 
-The two obvious alternatives both break the root entrypoint, which is what most existing code
-imports:
+What makes it work is that three separate things all avoid `ioredis`:
 
-- `optionalDependencies` — anyone installing with `--omit=optional` gets `ERR_MODULE_NOT_FOUND` from
-  `layered-loader` *and* `layered-loader/redis`, because `index.ts` re-exports the Redis surface.
-  Only `layered-loader/core` survives.
-- `peerDependencies` + `peerDependenciesMeta.optional` — the idiomatic way to make a driver
-  optional, and the same failure mode, plus every existing Redis consumer must now declare `ioredis`
-  themselves. That is a **major** version change, not a `minor` one.
+- **Runtime** — reached only through the lazy `require` in `resolveRedisClient`, so every entrypoint
+  imports cleanly when it is absent.
+- **Types** — vendored structurally in `RedisLike.ts`, so no emitted `.d.ts` mentions it and
+  consumers type-check without it.
+- **Install** — an optional peer is not installed unless asked for.
 
-Either would be a defensible major-version direction. Neither is a drop-in. If you pick one up,
-`README.md` documents the exact observed behaviour with `ioredis` absent — start from there, and
-note that the root entrypoint would have to stop re-exporting `./redis.js` for the story to be
-coherent.
+Remove any one of the three and the arrangement collapses, which is why each has its own guard in
+`test/entrypoints.spec.ts`.
+
+Note the release consequence: moving `ioredis` out of `dependencies` breaks any consumer who relied
+on it being installed transitively, so it is a **major** version bump, never a patch or minor.
 
 Also worth knowing: `@layered-loader/sqs` gives consumers cross-instance invalidation with no Redis
 at all, and imports from `layered-loader/core`. Point people there before they reach for Redis.

@@ -1,0 +1,11 @@
+// Type-checks the vendored `RedisLike` declarations against the real `ioredis` types.
+// Separate from tsconfig.json because that one excludes `test/` and must never see `ioredis` —
+// `ioredis` is an optional peer dependency, and nothing shipped in `dist/` may reference it.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["test/ioredisCompat.type-test.ts", "lib/redis/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts"]
+}
