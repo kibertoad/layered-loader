@@ -1,5 +1,4 @@
-const { Loader } = require('../../dist/lib/Loader')
-const { RedisCache } = require('../../dist/lib/redis/')
+const { Loader, RedisCache } = require('layered-loader')
 const { createRedisConnection } = require('../common/setup')
 const { dbConfig } = require('../common/db/dbConfig')
 const { knex } = require('knex')

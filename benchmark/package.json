@@ -2,9 +2,9 @@
   "name": "benchmark",
   "version": "1.0.0",
   "type": "commonjs",
+  "private": true,
   "scripts": {
-    "build": "cd .. && npm run build",
-    "benchmark:full": "npm run build && npm run docker:start && npm run db:migrate && npm run db:seed && npm run benchmark:run && npm run docker:stop",
+    "benchmark:full": "pnpm --filter layered-loader run build && pnpm run docker:start && pnpm run db:migrate && pnpm run db:seed && pnpm run benchmark:run && pnpm run docker:stop",
     "benchmark:get:run": "node autocannon-layered-loader-get.js",
     "benchmark:get-many:run": "node autocannon-layered-loader-get-many.js",
     "docker:start": "docker-compose -f docker-compose.yml up --build -d",
@@ -14,22 +14,22 @@
     "format": "prettier --write **/*.js autocannon-layered-loader-get.js"
   },
   "dependencies": {
-    "async-cache-dedupe": "^1.12.0",
-    "autocannon": "^7.12.0",
-    "fastify": "^4.22.2",
-    "ioredis": "^5.3.2",
+    "async-cache-dedupe": "^3.4.0",
+    "autocannon": "^8.0.0",
+    "fastify": "^5.11.0",
+    "ioredis": "^6.0.0",
     "knex": "^2.4.2",
     "knex-repositories": "^4.0.0",
     "knex-utils": "^6.0.0",
-    "layered-loader": "12.0.0-beta1",
-    "pg": "^8.11.3",
-    "systeminformation": "^5.17.12"
+    "layered-loader": "workspace:^",
+    "pg": "^8.22.0",
+    "systeminformation": "^5.33.1"
   },
   "devDependencies": {
-    "@types/autocannon": "^7.9.1",
-    "prettier": "^3.0.3"
+    "@types/autocannon": "^7.12.7",
+    "prettier": "^3.9.6"
   },
   "engines": {
-    "node": ">= 16 < 20"
+    "node": ">=22"
   }
 }

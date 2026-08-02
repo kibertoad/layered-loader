@@ -26,7 +26,7 @@ const DEFAULT_PUBLISHER_ERROR_HANDLER: PublisherErrorHandler = (err, channel, lo
 
 class SnsInvalidationPublisher extends AbstractSnsPublisher<NotificationCommand> {
   get publicTopicArn(): string {
-    return this.topicArn
+    return this.topic.arn
   }
 }
 

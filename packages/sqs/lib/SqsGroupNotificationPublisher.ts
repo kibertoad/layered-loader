@@ -27,7 +27,7 @@ class SnsGroupInvalidationPublisher extends AbstractSnsPublisher<
   GroupNotificationCommand
 > {
   get publicTopicArn(): string {
-    return this.topicArn
+    return this.topic.arn
   }
 }
 

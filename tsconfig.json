@@ -19,11 +19,8 @@
     "noImplicitThis": true,
     "strictNullChecks": true,
     "importHelpers": false,
-    "baseUrl": ".",
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": false,
-    "forceConsistentCasingInFileNames": true,
-    "ignoreDeprecations": "6.0"
+    "forceConsistentCasingInFileNames": true
   },
   "exclude": ["node_modules", "dist", "test", "packages",
     "vitest.config.mts", "**/*.spec.ts"
