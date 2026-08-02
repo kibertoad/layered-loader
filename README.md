@@ -68,8 +68,8 @@ and has no CommonJS build, so it is consumed with `import` from ESM code (or wit
 
 ## Entrypoints
 
-Redis is optional. The package is split into two subpath entrypoints so that consumers who do not
-run Redis never pull `ioredis` into their module graph:
+The package is split into two subpath entrypoints so that consumers who do not run Redis never pull
+`ioredis` into their module graph, or into the types they compile against:
 
 | Entrypoint               | Contents                                                                                                                             | Reaches `ioredis`? |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
@@ -106,6 +106,11 @@ constructed from `RedisOptions`. No file in the package imports it statically, s
 root entrypoint does not load Redis either — but the subpath entrypoints are the supported API
 boundary, and edge/bundler targets should point at `layered-loader/core` rather than rely on
 tree-shaking.
+
+Note that `ioredis` remains a regular `dependency`, so it is still **installed** for every
+consumer, including those who only ever import `layered-loader/core`. What the split guarantees is
+that it is never loaded at runtime and never appears in the types `core` compiles against — not
+that it is absent from `node_modules`.
 
 ## Use-cases
 

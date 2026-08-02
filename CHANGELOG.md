@@ -4,7 +4,8 @@
 
 ### Added
 
-- Two new subpath entrypoints, so Redis is genuinely optional:
+- Two new subpath entrypoints, so Redis is optional at runtime and at the type level (`ioredis`
+  remains a regular `dependency` and is still installed for every consumer):
   - `layered-loader/core` — loaders, manual caches, in-memory caches,
     `AbstractNotificationConsumer`, the publisher interfaces, key resolvers and every type. Nothing
     reachable from it imports `ioredis`, or even a `node:` builtin; its only runtime dependency is
