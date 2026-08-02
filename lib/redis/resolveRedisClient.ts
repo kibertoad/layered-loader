@@ -2,7 +2,12 @@ import { createRequire } from 'node:module'
 import type { Redis, RedisOptions } from 'ioredis'
 import { enrichRedisConfig } from './enrichRedisConfig.js'
 
-type RedisConstructor = new (config: RedisOptions) => Redis
+/**
+ * `typeof import(...)` is a type query, not an import — it is erased at compile time and emits
+ * nothing. It gives the lazy `require` below the module's real declarations, so the constructor
+ * stays type-checked against `ioredis` rather than against a hand-written shape.
+ */
+type RedisConstructor = (typeof import('ioredis'))['Redis']
 
 let cachedRedisConstructor: RedisConstructor | undefined
 
@@ -14,7 +19,7 @@ let cachedRedisConstructor: RedisConstructor | undefined
 function loadRedisConstructor(): RedisConstructor {
   if (!cachedRedisConstructor) {
     const require = createRequire(import.meta.url)
-    cachedRedisConstructor = (require('ioredis') as { Redis: RedisConstructor }).Redis
+    cachedRedisConstructor = (require('ioredis') as typeof import('ioredis')).Redis
   }
   return cachedRedisConstructor
 }
