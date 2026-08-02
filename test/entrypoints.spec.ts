@@ -1,117 +1,124 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
-import * as coreEntrypoint from '../core.js'
-import * as rootEntrypoint from '../index.js'
-import * as redisEntrypoint from '../redis.js'
+import { beforeAll, describe, expect, it } from 'vitest'
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
-/** Matches `import ... from 'x'` / `export ... from 'x'`, capturing whether it is type-only. */
-const REEXPORT_REGEX =
-  /^[ \t]*(?<kind>import|export)[ \t]+(?<typeOnly>type[ \t]+)?[\s\S]*?\bfrom[ \t]*['"](?<specifier>[^'"]+)['"]/gm
-/** Matches side-effect-only imports, e.g. `import 'x'`. */
-const SIDE_EFFECT_IMPORT_REGEX = /^[ \t]*import[ \t]*['"](?<specifier>[^'"]+)['"]/gm
+/**
+ * The entrypoints are checked against a real compilation, loaded in a real Node process, rather
+ * than by scanning the TypeScript sources. Source scanning is what an earlier version of this file
+ * did, and it could not tell `import type` from a value import reliably enough to be trusted — a
+ * guard that can silently pass is worse than no guard. Loading the emitted JavaScript instead means
+ * the compiler has already erased type-only imports for us, and the assertions then cover dynamic
+ * `import()` and `require()` as well, neither of which source scanning can see.
+ *
+ * Built into `node_modules/` rather than `dist/` so that running the tests never clobbers a
+ * developer's build output, and so that Node still resolves bare specifiers such as `toad-cache`
+ * by walking up to this package's own `node_modules`.
+ */
+const BUILD_DIR = join(PACKAGE_ROOT, 'node_modules', '.cache', 'entrypoint-check')
+const PROBE_PATH = join(BUILD_DIR, 'probe.mjs')
+const RESULT_PATH = join(BUILD_DIR, 'result.json')
 
-type ImportRecord = {
-  specifier: string
-  typeOnly: boolean
-}
+/**
+ * Imports one entrypoint with a resolve hook installed, and records every bare specifier resolved
+ * while it loads. Relative and absolute specifiers are the package's own files; anything bare is a
+ * dependency the entrypoint pulls in, including `node:` builtins.
+ *
+ * The result goes to a file rather than to stdout, so that anything an imported module happens to
+ * print cannot corrupt it.
+ */
+const PROBE_SOURCE = `import { writeFileSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 
-function parseImports(source: string): ImportRecord[] {
-  const imports: ImportRecord[] = []
+const [, , entrypoint, resultPath] = process.argv
+const loaded = new Set()
 
-  for (const match of source.matchAll(REEXPORT_REGEX)) {
-    imports.push({
-      specifier: match.groups!.specifier,
-      typeOnly: Boolean(match.groups!.typeOnly),
-    })
-  }
-  for (const match of source.matchAll(SIDE_EFFECT_IMPORT_REGEX)) {
-    imports.push({ specifier: match.groups!.specifier, typeOnly: false })
-  }
-
-  return imports
-}
-
-/** Resolves a relative ESM specifier (`./x.js`) back to the TypeScript source it is emitted from. */
-function resolveSourceFile(fromFile: string, specifier: string): string {
-  const resolved = resolve(dirname(fromFile), specifier)
-  for (const candidate of [resolved.replace(/\.js$/, '.ts'), resolved, `${resolved}.ts`]) {
-    if (existsSync(candidate)) {
-      return candidate
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (!/^([./]|file:)/.test(specifier)) {
+      loaded.add(specifier)
     }
-  }
-  throw new Error(`Could not resolve "${specifier}" from ${relative(PACKAGE_ROOT, fromFile)}`)
+    return nextResolve(specifier, context)
+  },
+})
+
+const namespace = await import(entrypoint)
+
+writeFileSync(
+  resultPath,
+  JSON.stringify({ loaded: [...loaded].sort(), exports: Object.keys(namespace).sort() }),
+)
+`
+
+type EntrypointReport = {
+  /** Bare specifiers resolved while importing the entrypoint. */
+  loaded: string[]
+  /** Runtime (value) exports of the entrypoint. */
+  exports: string[]
 }
 
-/** Every source file statically reachable from the given entrypoint, entrypoint included. */
-function collectModuleGraph(entrypoint: string): Map<string, ImportRecord[]> {
-  const graph = new Map<string, ImportRecord[]>()
-  const queue = [resolve(PACKAGE_ROOT, entrypoint)]
+const reports = new Map<string, EntrypointReport>()
 
-  while (queue.length > 0) {
-    const file = queue.pop()!
-    if (graph.has(file)) {
-      continue
-    }
-
-    const imports = parseImports(readFileSync(file, 'utf8'))
-    graph.set(file, imports)
-
-    for (const importRecord of imports) {
-      // Type-only imports are erased at compile time, so they never reach the runtime graph.
-      if (importRecord.typeOnly || !importRecord.specifier.startsWith('.')) {
-        continue
-      }
-      queue.push(resolveSourceFile(file, importRecord.specifier))
-    }
+function reportFor(entrypoint: string): EntrypointReport {
+  const report = reports.get(entrypoint)
+  if (!report) {
+    throw new Error(`No report was collected for ${entrypoint}`)
   }
-
-  return graph
+  return report
 }
 
-function runtimeDependenciesOf(entrypoint: string): string[] {
-  const dependencies = new Set<string>()
-
-  for (const imports of collectModuleGraph(entrypoint).values()) {
-    for (const importRecord of imports) {
-      if (!importRecord.typeOnly && !importRecord.specifier.startsWith('.')) {
-        dependencies.add(importRecord.specifier)
-      }
-    }
-  }
-
-  return [...dependencies].sort()
+function subpathExports(): string[] {
+  return [...reportFor('core.js').exports, ...reportFor('redis.js').exports]
 }
+
+beforeAll(() => {
+  rmSync(BUILD_DIR, { recursive: true, force: true })
+  mkdirSync(BUILD_DIR, { recursive: true })
+
+  // A dedicated compilation, rather than a dependency on `pnpm run build` having been run first,
+  // so that `pnpm run test` stays self-contained on a fresh clone.
+  execFileSync(join(PACKAGE_ROOT, 'node_modules', '.bin', 'tsc'), ['--outDir', BUILD_DIR], {
+    cwd: PACKAGE_ROOT,
+    stdio: 'pipe',
+  })
+
+  writeFileSync(PROBE_PATH, PROBE_SOURCE)
+
+  for (const entrypoint of ['core.js', 'index.js', 'redis.js']) {
+    execFileSync('node', [PROBE_PATH, join(BUILD_DIR, entrypoint), RESULT_PATH], { stdio: 'pipe' })
+    reports.set(entrypoint, JSON.parse(readFileSync(RESULT_PATH, 'utf8')) as EntrypointReport)
+  }
+}, 120_000)
 
 describe('entrypoints', () => {
   describe('layered-loader/core', () => {
-    it('never reaches ioredis at runtime', () => {
-      expect(runtimeDependenciesOf('core.ts')).not.toContain('ioredis')
+    it('loads nothing but toad-cache — no ioredis, and no node: builtins', () => {
+      // Guards the Cloudflare Workers / workerd use-case. Asserted verbatim rather than as an
+      // absence of `ioredis`, because a `node:` import anywhere in the graph — including inside a
+      // transitive dependency — breaks that use-case just as thoroughly.
+      expect(reportFor('core.js').loaded).toEqual(['toad-cache'])
     })
+  })
 
-    it('has no Node-specific runtime dependencies, so it can run on edge runtimes', () => {
-      // Guards the Cloudflare Workers / workerd use-case: adding a `node:` import anywhere in
-      // the core graph silently breaks it, so the whole dependency list is asserted verbatim.
-      expect(runtimeDependenciesOf('core.ts')).toEqual(['toad-cache'])
+  describe('layered-loader/redis', () => {
+    it('is the entrypoint that loads ioredis', () => {
+      expect(reportFor('redis.js').loaded).toContain('ioredis')
     })
   })
 
   describe('layered-loader', () => {
-    it('loads ioredis lazily, so even the root entrypoint does not pull it in', () => {
-      // `ioredis` may only ever be reached through a runtime `require` inside
-      // `resolveRedisClient`, never through a static import.
-      expect(runtimeDependenciesOf('index.ts')).not.toContain('ioredis')
+    it('exposes exactly the union of the two subpath entrypoints', () => {
+      expect(new Set(reportFor('index.js').exports)).toEqual(new Set(subpathExports()))
     })
 
-    it('exposes exactly the union of the core and redis entrypoints', () => {
-      const subpathExports = [...Object.keys(coreEntrypoint), ...Object.keys(redisEntrypoint)]
-
-      expect(new Set(Object.keys(rootEntrypoint))).toEqual(new Set(subpathExports))
-      // No export is duplicated between the two subpath entrypoints.
-      expect(subpathExports).toHaveLength(new Set(subpathExports).size)
+    it('does not export the same name from both subpath entrypoints', () => {
+      // Only value exports are observable at runtime. A *type* exported from both subpath
+      // entrypoints cannot slip through either, because `export *` over a duplicated name is a
+      // compile error (TS2308), which `pnpm run lint` catches via `tsc --noEmit`.
+      expect(subpathExports()).toHaveLength(new Set(subpathExports()).size)
     })
   })
 })
