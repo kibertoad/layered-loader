@@ -185,3 +185,42 @@ jobs:
         if: steps.changes.outputs.sqs == 'true'
         working-directory: packages/sqs
         run: pnpm publish --provenance --access public --no-git-checks
+
+      # Runs last, so a release only ever shows up for a version that actually
+      # made it to the registry. Notes are generated from the commits since the
+      # previous tag of the same package.
+      - name: Create GitHub releases
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        env:
+          ROOT_CHANGED: ${{ steps.changes.outputs.root }}
+          SQS_CHANGED: ${{ steps.changes.outputs.sqs }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Most recent tag matching a pattern, excluding the one just created.
+          previous_tag() {
+            git tag --list "$1" --sort=-creatordate | grep -vxF "$2" | head -n 1 || true
+          }
+
+          create_release() {
+            tag="$1"
+            previous="$2"
+
+            args=(--title "$tag" --generate-notes)
+            if [ -n "$previous" ]; then
+              args+=(--notes-start-tag "$previous")
+            fi
+
+            gh release create "$tag" "${args[@]}"
+          }
+
+          if [ "$ROOT_CHANGED" = "true" ]; then
+            v=$(node -p "require('./package.json').version")
+            create_release "v$v" "$(previous_tag 'v*' "v$v")"
+          fi
+          if [ "$SQS_CHANGED" = "true" ]; then
+            v=$(node -p "require('./packages/sqs/package.json').version")
+            create_release "@layered-loader/sqs@$v" "$(previous_tag '@layered-loader/sqs@*' "@layered-loader/sqs@$v")"
+          fi
