@@ -78,6 +78,10 @@ jobs:
           while IFS= read -r file; do
             [ -z "$file" ] && continue
             case "$file" in
+              benchmark/*)
+                # The benchmark workspace project is private and never
+                # published, so changes to it must not trigger a release.
+                ;;
               packages/sqs/lib/*|packages/sqs/index.ts|packages/sqs/package.json|packages/sqs/README.md|packages/sqs/LICENSE|packages/sqs/tsconfig.json)
                 sqs=true
                 ;;
@@ -106,13 +110,17 @@ jobs:
         if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
-        run: pnpm -r --include-workspace-root run lint
-
+      # Build must run before lint: @layered-loader/sqs type-checks against the
+      # root package's published types (dist/index.d.ts), which only exist once
+      # the root package has been built. The `benchmark` workspace project is
+      # never published, so it is excluded from both steps.
       - name: Build
         if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
-        run: pnpm -r --include-workspace-root run build
+        run: pnpm -r --include-workspace-root --filter '!benchmark' run build
+
+      - name: Lint
+        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
+        run: pnpm -r --include-workspace-root --filter '!benchmark' run lint
 
       - name: Bump root version
         if: steps.changes.outputs.root == 'true'
