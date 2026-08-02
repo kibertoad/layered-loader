@@ -60,15 +60,15 @@ class SnsSqsInvalidationConsumer<LoadedValue> extends AbstractSnsSqsConsumer<
   }
 
   get publicTopicArn(): string {
-    return this.topicArn
+    return this.subscription.topicArn
   }
 
   get publicSubscriptionArn(): string {
-    return this.subscriptionArn
+    return this.subscription.subscriptionArn
   }
 
   get publicQueueUrl(): string {
-    return this.queueUrl
+    return this.queue.url
   }
 }
 
