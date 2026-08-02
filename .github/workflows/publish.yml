@@ -90,7 +90,7 @@ jobs:
                 # packages exist but this prevents future packages from
                 # accidentally triggering a root release.
                 ;;
-              lib/*|index.ts|package.json|README.md|LICENSE|tsconfig.json)
+              lib/*|index.ts|core.ts|redis.ts|package.json|README.md|LICENSE|tsconfig.json)
                 root=true
                 ;;
             esac

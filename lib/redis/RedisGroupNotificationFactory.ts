@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import {Redis} from "ioredis";
 import { RedisGroupNotificationConsumer } from './RedisGroupNotificationConsumer.js'
 import { RedisGroupNotificationPublisher } from './RedisGroupNotificationPublisher.js'
-import { enrichRedisConfig } from './enrichRedisConfig.js'
-import {isClient, RedisNotificationConfig} from './RedisNotificationFactory.js'
+import type { RedisNotificationConfig } from './RedisNotificationFactory.js'
+import { resolveRedisClient } from './resolveRedisClient.js'
 
 export function createGroupNotificationPair<T>(config: RedisNotificationConfig) {
-  const resolvedConsumer = isClient(config.consumerRedis) ? config.consumerRedis : new Redis(enrichRedisConfig(config.consumerRedis))
-  const resolvedPublisher = isClient(config.publisherRedis) ? config.publisherRedis : new Redis(enrichRedisConfig(config.publisherRedis))
+  const resolvedConsumer = resolveRedisClient(config.consumerRedis)
+  const resolvedPublisher = resolveRedisClient(config.publisherRedis)
 
   const serverUuid = randomUUID()
   if (resolvedPublisher === resolvedConsumer) {

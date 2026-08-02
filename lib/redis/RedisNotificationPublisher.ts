@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { RedisLike } from './RedisLike.js'
 import type { NotificationPublisher, PublisherErrorHandler } from '../notifications/NotificationPublisher.js'
 import { DEFAULT_NOTIFICATION_ERROR_HANDLER } from '../notifications/NotificationPublisher.js'
 import type { Logger } from '../util/Logger.js'
@@ -37,10 +37,10 @@ export class RedisNotificationPublisher<LoadedValue> implements NotificationPubl
   public readonly channel: string
   public readonly errorHandler: PublisherErrorHandler
 
-  private readonly redis: Redis
+  private readonly redis: RedisLike
   private readonly serverUuid: string
 
-  constructor(redis: Redis, config: RedisPublisherConfig) {
+  constructor(redis: RedisLike, config: RedisPublisherConfig) {
     this.redis = redis
     this.channel = config.channel
     this.serverUuid = config.serverUuid

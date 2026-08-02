@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import type { SNSDependencies, SNSSQSConsumerDependencies } from '@message-queue-toolkit/sns'
-import type { ConsumerErrorHandler, PublisherErrorHandler } from 'layered-loader'
+import type { ConsumerErrorHandler, PublisherErrorHandler } from 'layered-loader/core'
 import {
   SqsNotificationConsumer,
   type SqsNotificationConsumerConfig,

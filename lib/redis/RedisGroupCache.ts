@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { GroupIndexKey, RedisLike, RedisWithGroupCommands } from './RedisLike.js'
 import { GroupLoader } from '../GroupLoader.js'
 import type { CacheEntry, GroupCache, GroupCacheConfiguration } from '../types/DataSources.js'
 import type { GetManyResult } from '../types/SyncDataSources.js'
@@ -19,7 +19,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   private readonly groupIndexPrefix: string
   name = 'Redis group cache'
 
-  constructor(redis: Redis, config: Partial<RedisGroupCacheConfiguration> = {}) {
+  constructor(redis: RedisLike, config: Partial<RedisGroupCacheConfiguration> = {}) {
     super(redis, config)
 
     this.groupIndexPrefix = `${this.keyPrefix}${GROUP_INDEX_KEY}${this.config.separator}`
@@ -157,16 +157,21 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     return true
   }
 
-  async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
-    const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
-      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+  /**
+   * Reads the group's generation counter, creating it if this is the first write to the group.
+   * Keeps the cast to the `defineCommand`-registered Lua scripts in one place.
+   */
+  private getOrCreateGroupIndexKey(groupId: string): Promise<GroupIndexKey> {
+    const groupCommands = this.redis as RedisWithGroupCommands
+    const groupIndexPrefix = this.resolveGroupIndexPrefix(groupId)
 
-    const currentGroupKey = await getGroupKeyPromise
+    return this.config.groupTtlInMsecs
+      ? groupCommands.getOrSetZeroWithTtl(groupIndexPrefix, this.config.groupTtlInMsecs)
+      : groupCommands.getOrSetZeroWithoutTtl(groupIndexPrefix)
+  }
+
+  async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
+    const currentGroupKey = await this.getOrCreateGroupIndexKey(groupId)
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
@@ -176,15 +181,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   }
 
   async setManyForGroup(entries: readonly CacheEntry<T>[], groupId: string): Promise<unknown> {
-    const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithTtl(this.resolveGroupIndexPrefix(groupId), this.config.groupTtlInMsecs)
-      : // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        this.redis.getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
-
-    const currentGroupKey = await getGroupKeyPromise
+    const currentGroupKey = await this.getOrCreateGroupIndexKey(groupId)
 
     const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)
     if (this.config.ttlInMsecs) {
@@ -213,11 +210,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     return this.redis.mset(commandParam)
   }
 
-  resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: string) {
+  resolveKeyWithGroup(key: string, groupId: string, groupIndexKey: GroupIndexKey) {
     return this.resolveGroupEntryPrefix(groupId, groupIndexKey) + key
   }
 
-  private resolveGroupEntryPrefix(groupId: string, groupIndexKey: string) {
+  private resolveGroupEntryPrefix(groupId: string, groupIndexKey: GroupIndexKey) {
     return `${this.keyPrefix}${groupId}${this.config.separator}${groupIndexKey}${this.config.separator}`
   }
 

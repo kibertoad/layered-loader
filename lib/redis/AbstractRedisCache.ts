@@ -1,4 +1,4 @@
-import type { Redis } from 'ioredis'
+import type { RedisLike } from './RedisLike.js'
 import type { CommonCacheConfiguration } from '../types/DataSources.js'
 
 export interface RedisCacheConfiguration extends CommonCacheConfiguration {
@@ -16,11 +16,11 @@ export const DEFAULT_REDIS_CACHE_CONFIGURATION: RedisCacheConfiguration = {
 }
 
 export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfiguration, LoadedValue> {
-  protected readonly redis: Redis
+  protected readonly redis: RedisLike
   protected readonly config: ConfigType
   protected readonly keyPrefix: string
 
-  constructor(redis: Redis, config: Partial<ConfigType>) {
+  constructor(redis: RedisLike, config: Partial<ConfigType>) {
     this.redis = redis
     // @ts-ignore
     this.config = {

@@ -1,4 +1,4 @@
-import { Loader, type InMemoryCacheConfiguration } from 'layered-loader'
+import { Loader, type InMemoryCacheConfiguration } from 'layered-loader/core'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { createNotificationPair } from '../lib/SqsNotificationFactory.js'
 import { type AwsClientBundle, buildAwsClients } from './fakes/awsClients.js'

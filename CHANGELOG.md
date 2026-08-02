@@ -1,5 +1,65 @@
 # Changelog
 
+## 16.0.0
+
+### Breaking
+
+- **`ioredis` moved from `dependencies` to an optional `peerDependency`.** It is no longer installed
+  for you. Anyone using Redis must declare `ioredis` in their own `package.json`:
+
+  ```jsonc
+  "dependencies": {
+    "ioredis": "^6.0.0"
+  }
+  ```
+
+  Most consumers already do — `RedisCache` and `RedisGroupCache` take a client you construct
+  yourself, so you have to import `ioredis` to use them at all. The case that changes behaviour is
+  calling `createNotificationPair` / `createGroupNotificationPair` with plain connection options
+  while never importing `ioredis` yourself: that now throws where the client is constructed, with a
+  message telling you to install it.
+
+  See [How optional `ioredis` really is](./README.md#how-optional-ioredis-really-is) for what is
+  installed vs. loaded vs. compiled against, when you still need it, and what it means for bundling.
+
+### Added
+
+- Two new subpath entrypoints, so Redis is genuinely optional — not installed, not loaded, and not
+  referenced by the types a consumer compiles against:
+  - `layered-loader/core` — loaders, manual caches, in-memory caches,
+    `AbstractNotificationConsumer`, the publisher interfaces, key resolvers and every type. Nothing
+    reachable from it imports `ioredis`, or even a `node:` builtin; its only runtime dependency is
+    `toad-cache`. This is the entrypoint for consumers without Redis in their infrastructure, and
+    for runtimes that cannot load a Node-only client at all (Cloudflare Workers and friends).
+  - `layered-loader/redis` — the Redis caches, notification factories, publishers and consumers.
+
+  The package root remains an `export *` of both, so its surface is unchanged and existing imports
+  keep working.
+- `InMemoryCache`, `InMemoryGroupCache` and `InMemoryGroupCacheConfiguration` are now exported as
+  types. `InMemoryGroupCache` in particular is referenced by `AbstractNotificationConsumer`'s
+  generic parameter, and was previously unreachable from the package.
+- `sideEffects: false`, so bundlers can drop unused re-exports from the root entrypoint.
+
+### Changed
+
+- `ioredis` is now resolved lazily, on the branch of `createNotificationPair` /
+  `createGroupNotificationPair` where a client is constructed from connection options rather than
+  passed in. No file in the package imports it statically any more, so every entrypoint imports
+  cleanly with `ioredis` absent.
+- The types this package uses from `ioredis` are now vendored as structural interfaces in
+  `lib/redis/RedisLike.ts`, so no emitted `.d.ts` references `ioredis`. `test/ioredisCompat.type-test.ts`
+  type-checks those declarations against the real `ioredis` types in CI, so they cannot drift silently.
+- `enrichRedisConfig` and `enrichRedisConfigOptimizedForCloud` are now generic over the caller's own
+  options type instead of being typed against `RedisOptions` / `ClusterOptions`. Callers keep their
+  exact type through the round trip; the functions no longer need `ioredis` to compile.
+- `RedisGroupCache.resolveKeyWithGroup` accepts `string | number` for the group index key, matching
+  what the Lua scripts actually return (`0` on creation, the stored counter afterwards). This was
+  previously masked by `@ts-ignore`, which is now removed.
+- `@layered-loader/sqs` imports from `layered-loader/core`, so the SNS/SQS adapter no longer pulls
+  Redis types or code into its consumers' graphs.
+- `isClient` no longer throws a `TypeError` when handed `null`, `undefined` or a primitive; such
+  values are simply not clients.
+
 ## 15.0.0
 
 ### Breaking

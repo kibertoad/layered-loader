@@ -20,6 +20,9 @@ export default defineConfig({
         'lib/memory/NoopCache.ts',
         'lib/types',
         'lib/notifications/GroupNotificationPublisher.ts',
+        // Type-only, like the two entries above it: emits no runtime code, so `all: true` would
+        // otherwise report it as 0% covered.
+        'lib/redis/RedisLike.ts',
       ],
       reporter: ['lcov', 'text'],
       all: true,

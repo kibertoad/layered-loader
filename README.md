@@ -21,6 +21,7 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 ## Contents
 
 - [Prerequisites](#prerequisites)
+- [Entrypoints](#entrypoints)
 - [Use-cases](#use-cases)
 - [Feature Comparison](#feature-comparison)
 - [Performance Comparison](#performance-comparison)
@@ -62,8 +63,128 @@ Node: 22+
 
 `layered-loader` is an ESM-only package. It is published as ECMAScript modules with an `exports` map
 and has no CommonJS build, so it is consumed with `import` from ESM code (or with a dynamic
-`await import('layered-loader')` from CommonJS). Only the package root and `package.json` are
-exported — reaching into `layered-loader/dist/...` is not supported.
+`await import('layered-loader')` from CommonJS). Only the entrypoints listed below and
+`package.json` are exported — reaching into `layered-loader/dist/...` is not supported.
+
+## Entrypoints
+
+The package is split into two subpath entrypoints so that consumers who do not run Redis never pull
+`ioredis` into their module graph, or into the types they compile against:
+
+| Entrypoint             | Contents                                                                                                                                     | Can reach `ioredis`? |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `layered-loader/core`  | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types      | Never                |
+| `layered-loader/redis` | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig`   | Only when you construct a client from connection options |
+| `layered-loader`       | Everything from both of the above                                                                                                              | Same as `/redis`     |
+
+The root entrypoint is a plain `export *` of both, so it remains a superset of the other two and
+existing imports keep working unchanged.
+
+If your infrastructure has no Redis — or you are targeting a runtime that cannot load a Node-only
+client at all, such as Cloudflare Workers — import from `layered-loader/core`:
+
+```ts
+import { Loader, type InMemoryCacheConfiguration } from 'layered-loader/core'
+
+const loader = new Loader<string>({
+  inMemoryCache: { ttlInMsecs: 60_000 } satisfies InMemoryCacheConfiguration,
+  dataSourceGetOneFn: (key) => fetchFromApi(key),
+})
+```
+
+Nothing reachable from `layered-loader/core` imports `ioredis`, or even a `node:` builtin — its
+only runtime dependency is `toad-cache`.
+
+Redis usage keeps its own entrypoint:
+
+```ts
+import { RedisCache } from 'layered-loader/redis'
+```
+
+### How optional `ioredis` really is
+
+`ioredis` is an **optional peer dependency**: it is not installed unless you ask for it, and
+nothing in the package touches it — as a value or as a type — until you construct a client from
+connection options.
+
+Add it to your own `package.json` only if you use Redis:
+
+```jsonc
+// your package.json — only needed if you use the Redis entrypoint
+"dependencies": {
+  "ioredis": "^6.0.0"
+}
+```
+
+#### What that buys you, precisely
+
+Four different things get conflated under "optional". All four hold here, and they are worth
+separating:
+
+|                                            | `layered-loader/core` | `layered-loader/redis` and the root |
+| ------------------------------------------ | --------------------- | ----------------------------------- |
+| Installed unless you ask for it             | No                    | No                                  |
+| Loaded when you import the entrypoint       | No                    | No — resolved lazily                |
+| Present in the types you compile against    | No                    | No — vendored structurally          |
+| Needed at runtime                           | Never                 | Only to construct a client from connection options |
+
+So every entrypoint imports cleanly with `ioredis` absent from `node_modules` entirely, and
+`layered-loader` type-checks under `skipLibCheck: false` without it. The surface this package uses
+is vendored as structural interfaces in `lib/redis/RedisLike.ts`, and a CI type-check asserts they
+still match the real `ioredis` declarations, so they cannot drift silently.
+
+#### When you do need it installed
+
+You need `ioredis` in your own dependencies if either of these is true:
+
+- **You use `RedisCache` or `RedisGroupCache`.** These take a client you construct yourself, so you
+  are importing `ioredis` directly anyway.
+- **You call `createNotificationPair` / `createGroupNotificationPair` with plain connection options**
+  rather than with a client. That constructs a client internally, and throws an actionable error if
+  `ioredis` is missing:
+
+  > Constructing a Redis client from connection options requires the optional peer dependency
+  > "ioredis" to be installed. Install it, or pass an already-constructed client instead.
+
+  Passing an already-constructed client avoids that path entirely.
+
+#### Bundling
+
+Because `ioredis` is reached through a lazy `require`, bundlers cannot see it and will not inline
+it. That is the right behaviour for an optional peer — it is your dependency, not this package's —
+but it has a consequence worth knowing before you deploy: if you bundle an app that constructs
+clients from connection options, `ioredis` must still be resolvable at runtime. Keep it in
+`node_modules` next to the bundle, or add it to your bundler's input explicitly. Bundling
+`layered-loader/core` needs none of this.
+
+#### Verifying it yourself
+
+To confirm that no part of your own app drags `ioredis` in, run this against your entrypoint — it
+records every specifier Node actually resolves, so it sees static imports, dynamic `import()` and
+`require()` alike:
+
+```js
+import { registerHooks } from 'node:module'
+
+const loaded = new Set()
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    loaded.add(specifier)
+    return nextResolve(specifier, context)
+  },
+})
+
+await import('./your-app.js')
+
+const redis = [...loaded].filter((specifier) => specifier.includes('ioredis'))
+console.log(redis.length ? `loaded: ${redis.join(', ')}` : 'ioredis was never loaded')
+```
+
+#### Cache invalidation without Redis
+
+If you reached for Redis only to invalidate caches across instances, you do not need it at all:
+[`@layered-loader/sqs`](./packages/sqs) provides the same notification publisher/consumer pair over
+SNS/SQS, and imports from `layered-loader/core`.
 
 ## Use-cases
 
