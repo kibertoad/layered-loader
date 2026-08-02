@@ -75,7 +75,7 @@ The package is split into two subpath entrypoints so that consumers who do not r
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
 | `layered-loader/core`    | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types | No                 |
 | `layered-loader/redis`   | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig` | Yes                |
-| `layered-loader`         | Everything from both of the above                                                                                                      | Yes (types only)   |
+| `layered-loader`         | Everything from both of the above                                                                                                      | Only lazily, if a factory constructs a client |
 
 The root entrypoint is a plain `export *` of both, so it remains a superset of the other two and
 existing imports keep working unchanged.

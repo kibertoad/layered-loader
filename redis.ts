@@ -22,3 +22,10 @@ export type { RedisPublisherConfig } from './lib/redis/RedisNotificationPublishe
 export type { RedisConsumerConfig } from './lib/redis/RedisNotificationConsumer.js'
 export type { RedisCacheConfiguration } from './lib/redis/AbstractRedisCache.js'
 export type { RedisGroupCacheConfiguration } from './lib/redis/RedisGroupCache.js'
+// Named in the public signatures above (`RedisCache`'s constructor, `RedisNotificationConfig`), so
+// they have to be reachable — the exports map blocks deep imports.
+export type {
+  RedisConnectionOptions,
+  RedisLike,
+  RedisReconnectOnError,
+} from './lib/redis/RedisLike.js'

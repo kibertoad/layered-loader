@@ -18,8 +18,6 @@ function loadRedisConstructor(): RedisConstructorLike {
     try {
       cachedRedisConstructor = (require('ioredis') as { Redis: RedisConstructorLike }).Redis
     } catch (err) {
-      // Unreachable wherever the optional peer is installed, which includes CI.
-      /* v8 ignore next -- @preserve */
       throw new Error(MISSING_IOREDIS_MESSAGE, { cause: err })
     }
   }
@@ -27,7 +25,9 @@ function loadRedisConstructor(): RedisConstructorLike {
 }
 
 export function isClient(maybeClient: unknown): maybeClient is RedisLike {
-  return 'status' in (maybeClient as RedisLike)
+  // The object check is not redundant: `in` throws a TypeError on primitives and null, and this
+  // signature accepts `unknown`.
+  return typeof maybeClient === 'object' && maybeClient !== null && 'status' in maybeClient
 }
 
 /**

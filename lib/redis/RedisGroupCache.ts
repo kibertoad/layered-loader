@@ -157,15 +157,21 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     return true
   }
 
-  async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
-    const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? (this.redis as RedisWithGroupCommands).getOrSetZeroWithTtl(
-          this.resolveGroupIndexPrefix(groupId),
-          this.config.groupTtlInMsecs,
-        )
-      : (this.redis as RedisWithGroupCommands).getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
+  /**
+   * Reads the group's generation counter, creating it if this is the first write to the group.
+   * Keeps the cast to the `defineCommand`-registered Lua scripts in one place.
+   */
+  private getOrCreateGroupIndexKey(groupId: string): Promise<GroupIndexKey> {
+    const groupCommands = this.redis as RedisWithGroupCommands
+    const groupIndexPrefix = this.resolveGroupIndexPrefix(groupId)
 
-    const currentGroupKey = await getGroupKeyPromise
+    return this.config.groupTtlInMsecs
+      ? groupCommands.getOrSetZeroWithTtl(groupIndexPrefix, this.config.groupTtlInMsecs)
+      : groupCommands.getOrSetZeroWithoutTtl(groupIndexPrefix)
+  }
+
+  async setForGroup(key: string, value: T | null, groupId: string): Promise<void> {
+    const currentGroupKey = await this.getOrCreateGroupIndexKey(groupId)
 
     const entryKey = this.resolveKeyWithGroup(key, groupId, currentGroupKey)
     await this.internalSet(entryKey, value)
@@ -175,14 +181,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   }
 
   async setManyForGroup(entries: readonly CacheEntry<T>[], groupId: string): Promise<unknown> {
-    const getGroupKeyPromise = this.config.groupTtlInMsecs
-      ? (this.redis as RedisWithGroupCommands).getOrSetZeroWithTtl(
-          this.resolveGroupIndexPrefix(groupId),
-          this.config.groupTtlInMsecs,
-        )
-      : (this.redis as RedisWithGroupCommands).getOrSetZeroWithoutTtl(this.resolveGroupIndexPrefix(groupId))
-
-    const currentGroupKey = await getGroupKeyPromise
+    const currentGroupKey = await this.getOrCreateGroupIndexKey(groupId)
 
     const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)
     if (this.config.ttlInMsecs) {
