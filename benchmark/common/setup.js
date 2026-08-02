@@ -12,9 +12,10 @@ function createRedisConnection() {
 }
 
 function createFastifyApp() {
+  // `logger: false` already disables request logging; the separate
+  // `disableRequestLogging` option is deprecated as of fastify 5.
   const app = fastify({
     logger: false,
-    disableRequestLogging: true,
   })
 
   return app
