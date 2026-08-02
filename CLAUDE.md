@@ -37,11 +37,17 @@ organisational:
 Rules that follow from that:
 
 - A new export goes into `core.ts` or `redis.ts`, never into `index.ts` directly.
-- `ioredis` must only ever be imported as `import type`. The one place that needs the value is
-  `lib/redis/resolveRedisClient.ts`, which resolves it lazily via `createRequire` so that no static
-  import of it exists anywhere in the package.
-- `test/entrypoints.spec.ts` enforces all of the above by walking the static import graph. If it
-  fails, the fix is to move the import, not to relax the test.
+- Outside `lib/redis/`, `ioredis` may only ever be imported as `import type`. Inside `lib/redis/`,
+  `lib/redis/resolveRedisClient.ts` is the single place that uses `Redis` as a value. Keep that
+  import static — a lazy `createRequire` hides the dependency from every bundler, which silently
+  drops `ioredis` from bundles that need it, and `sideEffects: false` already covers the case where
+  it is not needed.
+- `test/entrypoints.spec.ts` enforces all of the above by compiling the package and importing each
+  entrypoint in a child process with a resolve hook installed, so it sees exactly what Node loads —
+  static imports, dynamic `import()` and `require()` alike. If it fails, the fix is to move the
+  import, not to relax the test. Do not replace it with source scanning: distinguishing
+  `import type` from a value import by pattern-matching TypeScript is what it used to do, and it
+  could silently pass while the invariant was broken.
 
 ## Working in this repo
 

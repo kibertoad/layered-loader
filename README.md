@@ -71,11 +71,11 @@ and has no CommonJS build, so it is consumed with `import` from ESM code (or wit
 The package is split into two subpath entrypoints so that consumers who do not run Redis never pull
 `ioredis` into their module graph, or into the types they compile against:
 
-| Entrypoint               | Contents                                                                                                                             | Reaches `ioredis`? |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| `layered-loader/core`    | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types | No                 |
-| `layered-loader/redis`   | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig` | Yes                |
-| `layered-loader`         | Everything from both of the above                                                                                                      | Yes (types only)   |
+| Entrypoint             | Contents                                                                                                                                     | Loads `ioredis`? |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `layered-loader/core`  | `Loader`, `GroupLoader`, `ManualCache`, `ManualGroupCache`, the in-memory caches, `AbstractNotificationConsumer`, key resolvers, all types      | No               |
+| `layered-loader/redis` | `RedisCache`, `RedisGroupCache`, `createNotificationPair`, `createGroupNotificationPair`, the Redis publishers/consumers, `enrichRedisConfig`   | Yes              |
+| `layered-loader`       | Everything from both of the above                                                                                                              | Yes              |
 
 The root entrypoint is a plain `export *` of both, so it remains a superset of the other two and
 existing imports keep working unchanged.
@@ -101,16 +101,16 @@ Redis usage keeps its own entrypoint:
 import { RedisCache } from 'layered-loader/redis'
 ```
 
-`ioredis` itself is additionally resolved lazily, at the point where a client is actually
-constructed from `RedisOptions`. No file in the package imports it statically, so importing the
-root entrypoint does not load Redis either — but the subpath entrypoints are the supported API
-boundary, and edge/bundler targets should point at `layered-loader/core` rather than rely on
-tree-shaking.
+The entrypoint you import from is the boundary that matters. The package root re-exports the Redis
+surface, so importing `layered-loader` loads `ioredis` even if you only use `Loader` — bundlers can
+often drop it, since the package declares `sideEffects: false`, but that depends on your bundler and
+its configuration. Pointing edge and bundler targets at `layered-loader/core` is a guarantee rather
+than an optimisation you have to verify.
 
-Note that `ioredis` remains a regular `dependency`, so it is still **installed** for every
-consumer, including those who only ever import `layered-loader/core`. What the split guarantees is
-that it is never loaded at runtime and never appears in the types `core` compiles against — not
-that it is absent from `node_modules`.
+Note that `ioredis` remains a regular `dependency`, so it is still **installed** for every consumer,
+including those who only ever import `layered-loader/core`. What the split guarantees is that it is
+never loaded at runtime and never appears in the types `core` compiles against — not that it is
+absent from `node_modules`.
 
 ## Use-cases
 
