@@ -4,6 +4,9 @@ import { enrichRedisConfig } from './enrichRedisConfig.js'
 
 let cachedRedisConstructor: RedisConstructorLike | undefined
 
+const MISSING_IOREDIS_MESSAGE =
+  'Constructing a Redis client from connection options requires the optional peer dependency "ioredis" to be installed. Install it, or pass an already-constructed client instead.'
+
 /**
  * `ioredis` is an optional peer dependency, resolved on first use rather than imported at module
  * scope. No file in this package pulls it into the module graph, so consumers who pass their own
@@ -15,10 +18,9 @@ function loadRedisConstructor(): RedisConstructorLike {
     try {
       cachedRedisConstructor = (require('ioredis') as { Redis: RedisConstructorLike }).Redis
     } catch (err) {
-      throw new Error(
-        'Constructing a Redis client from connection options requires the optional peer dependency "ioredis" to be installed. Install it, or pass an already-constructed client instead.',
-        { cause: err },
-      )
+      // Unreachable wherever the optional peer is installed, which includes CI.
+      /* v8 ignore next -- @preserve */
+      throw new Error(MISSING_IOREDIS_MESSAGE, { cause: err })
     }
   }
   return cachedRedisConstructor
