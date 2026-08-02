@@ -101,16 +101,77 @@ Redis usage keeps its own entrypoint:
 import { RedisCache } from 'layered-loader/redis'
 ```
 
-The entrypoint you import from is the boundary that matters. The package root re-exports the Redis
-surface, so importing `layered-loader` loads `ioredis` even if you only use `Loader` — bundlers can
-often drop it, since the package declares `sideEffects: false`, but that depends on your bundler and
-its configuration. Pointing edge and bundler targets at `layered-loader/core` is a guarantee rather
-than an optimisation you have to verify.
+### How optional `ioredis` really is
 
-Note that `ioredis` remains a regular `dependency`, so it is still **installed** for every consumer,
-including those who only ever import `layered-loader/core`. What the split guarantees is that it is
-never loaded at runtime and never appears in the types `core` compiles against — not that it is
-absent from `node_modules`.
+`ioredis` is a regular `dependency`, so it is always **installed**. The entrypoint split controls
+the two things that actually cost you something — whether it is ever **loaded** at runtime, and
+whether it appears in the **types** you compile against:
+
+| You import                             | `ioredis` installed | loaded at runtime | in your types | in your bundle       |
+| -------------------------------------- | ------------------- | ----------------- | ------------- | -------------------- |
+| `layered-loader/core`                  | Yes                 | No                | No            | No                   |
+| `layered-loader/redis`                 | Yes                 | Yes               | Yes           | Yes, unless external |
+| `layered-loader`                       | Yes                 | Yes               | Yes           | Depends on bundler   |
+
+Three rules follow, and they are the whole story:
+
+1. **Import from `layered-loader/core` and the guarantee is absolute.** Not a tree-shaking
+   optimisation you have to verify per bundler — nothing reachable from that entrypoint imports
+   `ioredis`, or even a `node:` builtin. Its only runtime dependency is `toad-cache`.
+2. **Do not import the package root if you want that guarantee.** The root is an `export *` of both
+   subpaths, so importing `layered-loader` loads `ioredis` even if you only use `Loader`. The
+   package sets `sideEffects: false`, so a bundler *may* drop it, but whether it does depends on
+   your bundler and its configuration. `import { Loader } from 'layered-loader'` and
+   `import { Loader } from 'layered-loader/core'` behave identically and differ entirely in this.
+3. **If you bundle and you do use Redis, `ioredis` must end up somewhere.** It is imported
+   statically, so bundlers can see it and will inline it by default. If you mark it `external`
+   instead, ship it in `node_modules` next to the bundle.
+
+#### Removing `ioredis` entirely
+
+Core-only consumers can prune `ioredis` from `node_modules` after install — a Docker build stage
+that deletes it, or a vendoring step — and `layered-loader/core` keeps working. Verified behaviour
+with the package physically absent:
+
+```
+import 'layered-loader/core'   → works
+import 'layered-loader/redis'  → ERR_MODULE_NOT_FOUND
+import 'layered-loader'        → ERR_MODULE_NOT_FOUND
+```
+
+So pruning is safe only if nothing in your app — including transitive dependencies — imports the
+root entrypoint. It is not wired up as an `optionalDependency`, because that would make the *root*
+entrypoint fail to resolve for anyone who skipped the install, and the root is what most existing
+code imports.
+
+#### Verifying it yourself
+
+To confirm that no part of your own app drags `ioredis` in, run this against your entrypoint — it
+records every specifier Node actually resolves, so it sees static imports, dynamic `import()` and
+`require()` alike:
+
+```js
+import { registerHooks } from 'node:module'
+
+const loaded = new Set()
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    loaded.add(specifier)
+    return nextResolve(specifier, context)
+  },
+})
+
+await import('./your-app.js')
+
+const redis = [...loaded].filter((specifier) => specifier.includes('ioredis'))
+console.log(redis.length ? `loaded: ${redis.join(', ')}` : 'ioredis was never loaded')
+```
+
+#### Cache invalidation without Redis
+
+If you reached for Redis only to invalidate caches across instances, you do not need it at all:
+[`@layered-loader/sqs`](./packages/sqs) provides the same notification publisher/consumer pair over
+SNS/SQS, and imports from `layered-loader/core`.
 
 ## Use-cases
 

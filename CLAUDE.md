@@ -49,6 +49,33 @@ Rules that follow from that:
   `import type` from a value import by pattern-matching TypeScript is what it used to do, and it
   could silently pass while the invariant was broken.
 
+## Why `ioredis` is a plain dependency
+
+This comes up repeatedly, so the reasoning is recorded here rather than re-litigated.
+
+`ioredis` is a regular `dependency` — always installed, for every consumer, including core-only
+ones. What the entrypoint split buys is that it is never *loaded* and never enters the types a
+`core` consumer compiles against. That is the part with a runtime and bundle cost; the bytes in
+`node_modules` are not.
+
+The two obvious alternatives both break the root entrypoint, which is what most existing code
+imports:
+
+- `optionalDependencies` — anyone installing with `--omit=optional` gets `ERR_MODULE_NOT_FOUND` from
+  `layered-loader` *and* `layered-loader/redis`, because `index.ts` re-exports the Redis surface.
+  Only `layered-loader/core` survives.
+- `peerDependencies` + `peerDependenciesMeta.optional` — the idiomatic way to make a driver
+  optional, and the same failure mode, plus every existing Redis consumer must now declare `ioredis`
+  themselves. That is a **major** version change, not a `minor` one.
+
+Either would be a defensible major-version direction. Neither is a drop-in. If you pick one up,
+`README.md` documents the exact observed behaviour with `ioredis` absent — start from there, and
+note that the root entrypoint would have to stop re-exporting `./redis.js` for the story to be
+coherent.
+
+Also worth knowing: `@layered-loader/sqs` gives consumers cross-instance invalidation with no Redis
+at all, and imports from `layered-loader/core`. Point people there before they reach for Redis.
+
 ## Working in this repo
 
 - Node 22+, ESM-only, pnpm. `pnpm run lint` runs both Biome and `tsc --noEmit`.

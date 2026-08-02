@@ -32,7 +32,9 @@
 - The entrypoint you import from is the boundary, not tree-shaking. Importing the package root
   still loads `ioredis`, because the root re-exports the Redis surface; `sideEffects: false` lets
   bundlers drop it, but only where the bundler is configured to. `layered-loader/core` is the
-  guarantee.
+  guarantee. See [How optional `ioredis` really
+  is](./README.md#how-optional-ioredis-really-is) for what is installed vs. loaded vs. compiled
+  against, how to prune `ioredis` entirely, and a snippet for verifying it in your own app.
 
 ## 15.0.0
 
