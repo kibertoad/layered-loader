@@ -27,12 +27,11 @@ both. README's "Entrypoints" section documents what each one contains and what i
 
 - Add a new export to `core.ts` or `redis.ts`, never to `index.ts`.
 - Nothing reachable from `core.ts` may import `ioredis` or a `node:` builtin.
-- Nothing under `lib/` may import `ioredis` at all — not even `import type`, which lands in the emitted
-  `.d.ts` and breaks consumers who never installed the optional peer. Use the vendored structural types
-  in `lib/redis/RedisLike.ts`, and extend them when you start calling a command they do not cover.
-- Reach the `ioredis` value only through the lazy `createRequire` in `lib/redis/resolveRedisClient.ts`.
-  A static import anywhere would make `layered-loader/redis` fail to resolve for everyone who did not
-  install the peer.
+- Nothing under `lib/` may import `ioredis` at all — not even `import type`, which is not erased from
+  the emitted `.d.ts`. Use the vendored structural types in `lib/redis/RedisLike.ts`, and extend them
+  when you start calling a command they do not cover.
+- Reach the `ioredis` value only through the lazy `createRequire` in `lib/redis/resolveRedisClient.ts`,
+  and keep it lazy.
 - Constrain generics over Redis options to `object`, not to an all-optional shape. All-optional shapes
   are "weak types", so TypeScript rejects object literals like `enrichRedisConfig({ host, port })`;
   adding an index signature instead rejects interfaces such as `RedisOptions`.
@@ -42,26 +41,19 @@ both. README's "Entrypoints" section documents what each one contains and what i
   import; do not relax the test. Do not rewrite it to scan the TypeScript sources: pattern-matching
   `import type` is unreliable and previously let a broken invariant pass.
 
-The optional-peer arrangement rests on three independent things — the lazy runtime `require`, the
-vendored types, and the optional peer declaration in `package.json`. Each has its own guard in
-`test/entrypoints.spec.ts`; break one and the arrangement is gone.
+## Rules no test covers
 
-## Rules for code that does not exist yet
+These constrain call sites that do not exist yet. The rest of the invalidation and background-work
+behaviour is pinned by `test/remoteInvalidation.spec.ts`, `test/backgroundWork.spec.ts` and `tsc`, so
+do not restate it here.
 
-`test/remoteInvalidation.spec.ts` and `test/backgroundWork.spec.ts` pin the invalidation and
-background-work behaviour, and `tsc` pins the consumer typing, so those need nothing here. These three
-constrain call sites that have not been written, which no test can cover:
-
-- **A background path that writes into the in-memory tier outside `getAsyncOnlyResolved` holds no
-  `runningLoads` entry, so invalidation does not fence it.** Open a fence token
-  (`openBackgroundWriteFence` / `isBackgroundWriteFenceIntact` / `closeBackgroundWriteFence`) as
-  `refreshOrBumpTtl` does, and keep the map holding only keys with work in flight.
-- **Every fire-and-forget promise goes through `AbstractCache.runInBackground(work, reason)`**,
-  reports its own errors to the configured handlers first, and `return`s any inner chain rather than
-  detaching it. Detached elsewhere, an isolate host cannot adopt it; rejecting, it fails the request
-  that adopted it; dropping its continuation, it gets adopted only in part.
-- **Anything new that applies state originating elsewhere joins the `applyRemote*` family and stays
-  synchronous** — a pull-transport host calls these at request start and should not have to await.
+- Background work that writes into the in-memory tier outside `getAsyncOnlyResolved` must open a fence
+  token (`openBackgroundWriteFence` / `isBackgroundWriteFenceIntact` / `closeBackgroundWriteFence`) as
+  `refreshOrBumpTtl` does, and leave the map holding only keys with work in flight.
+- Fire-and-forget promises go through `AbstractCache.runInBackground(work, reason)`, report their
+  errors to the configured handlers before it, and `return` inner chains instead of detaching them.
+- New methods that apply state originating elsewhere join the `applyRemote*` family and stay
+  synchronous.
 
 ## Working in this repo
 
