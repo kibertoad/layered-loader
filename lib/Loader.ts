@@ -77,7 +77,7 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
   public async forceSetValue(key: string, newValue: LoadedValue | null) {
     this.inMemoryCache.set(key, newValue)
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
 
     if (this.asyncCache) {
       await this.asyncCache.set(key, newValue).catch((err) => {
@@ -88,9 +88,12 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
     /* v8 ignore next -- @preserve */
     if (this.notificationPublisher) {
-      this.notificationPublisher.set(key, newValue).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.set(key, newValue).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 
@@ -99,15 +102,18 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
     return this.loadFromLoaders(key, loadParams).then((finalValue) => {
       if (finalValue !== undefined) {
         this.inMemoryCache.set(key, finalValue)
-        this.runningLoads.delete(key)
+        this.evictRunningLoad(key)
       }
 
       // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too
       /* v8 ignore next -- @preserve */
       if (this.notificationPublisher) {
-        this.notificationPublisher.delete(key).catch((err) => {
-          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-        })
+        this.runInBackground(
+          this.notificationPublisher.delete(key).catch((err) => {
+            this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+          }),
+          'notification',
+        )
       }
 
       return finalValue
@@ -120,28 +126,38 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
-            this.asyncCache.expirationTimeLoadingOperation
-              .get(key)
-              .then((expirationTime) => {
-                if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-                  // check second time, maybe someone obtained the lock while we were checking the expiration date
-                  if (!this.isKeyRefreshing.has(key)) {
-                    this.isKeyRefreshing.add(key)
-                    this.refreshOrBumpTtl(key, loadParams, cachedValue)
-                      .catch((err) => {
-                        this.logger.error(err.message)
-                      })
-                      .finally(() => {
-                        this.isKeyRefreshing.delete(key)
-                      })
+            this.runInBackground(
+              this.asyncCache.expirationTimeLoadingOperation
+                .get(key)
+                .then((expirationTime) => {
+                  if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                    // check second time, maybe someone obtained the lock while we were checking the expiration date
+                    if (!this.isKeyRefreshing.has(key)) {
+                      this.isKeyRefreshing.add(key)
+                      // Returned, not detached: the promise handed to scheduleBackgroundWork has to
+                      // cover the refresh itself, not just the expiration lookup that decided it was
+                      // due. Nothing awaits this chain otherwise, so returning it changes no timing.
+                      return this.refreshOrBumpTtl(key, loadParams, cachedValue)
+                        .catch((err) => {
+                          this.logger.error(err.message)
+                        })
+                        .finally(() => {
+                          this.isKeyRefreshing.delete(key)
+                        })
+                    }
                   }
-                }
-              })
-              .catch((err) => {
-                // expiration lookup is fire-and-forget; a rejection here must not become
-                // an unhandled promise rejection
-                this.logger.error(err.message)
-              })
+                  return undefined
+                })
+                .catch((err) => {
+                  // The expiration lookup is a read against the async cache, so report it the same
+                  // way resolveValue reports a failed read: through loadErrorHandler, so a
+                  // configured handler can observe it (the default one still logs). It is
+                  // fire-and-forget, so swallowing after reporting also keeps it from becoming an
+                  // unhandled promise rejection.
+                  this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
+                }),
+              'refresh',
+            )
           }
         }
 
@@ -166,13 +182,16 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       return
     }
     this.isKeyRefreshing.add(key)
-    this.refreshOrBumpInMemoryTtl(key, loadParams)
-      .catch((err) => {
-        this.logger.error(err.message)
-      })
-      .finally(() => {
-        this.isKeyRefreshing.delete(key)
-      })
+    this.runInBackground(
+      this.refreshOrBumpInMemoryTtl(key, loadParams)
+        .catch((err) => {
+          this.logger.error(err.message)
+        })
+        .finally(() => {
+          this.isKeyRefreshing.delete(key)
+        }),
+      'refresh',
+    )
   }
 
   private async refreshOrBumpInMemoryTtl(key: string, loadParams: LoadParams): Promise<void> {
@@ -201,29 +220,39 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
   }
 
   private async refreshOrBumpTtl(key: string, loadParams: LoadParams, cachedValue: LoadedValue | null): Promise<void> {
-    if (
-      this.isEntryStillCurrentFn &&
-      (await this.isCurrentEntryTtlBumped(
-        key,
-        () => this.isEntryStillCurrentFn!(cachedValue, loadParams),
-        () => this.asyncCache!.resetTtl!(key),
-      ))
-    ) {
-      // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
-      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
-      return
-    }
+    // This refresh writes into the in-memory tier without holding a runningLoads entry (it reloads
+    // straight from the data sources rather than through getAsyncOnlyResolved), so it needs its own
+    // fence. Without it, an invalidation arriving mid-refresh - locally originated or applied from
+    // another node - deletes the entry and is then silently undone when this refresh completes and
+    // writes its pre-invalidation snapshot back.
+    const fenceToken = this.openBackgroundWriteFence(key)
+    try {
+      if (
+        this.isEntryStillCurrentFn &&
+        (await this.isCurrentEntryTtlBumped(
+          key,
+          () => this.isEntryStillCurrentFn!(cachedValue, loadParams),
+          () => this.asyncCache!.resetTtl!(key),
+        ))
+      ) {
+        // getAsyncOnly already re-set the in-memory entry to this same value when resolveValue
+        // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+        return
+      }
 
-    // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
-    // so run the full background refresh from the data sources.
-    const freshValue = await this.loadFromLoaders(key, loadParams)
-    // Propagate the freshly loaded value to the in-memory cache as well.
-    // Without this, the in-memory layer keeps serving the stale value that
-    // was read from the async cache before this background refresh started,
-    // and its TTL is reset on the next read, so subsequent reads stay stale
-    // for another full ttlInMsecs window even though the async cache is fresh.
-    if (freshValue !== undefined) {
-      this.inMemoryCache.set(key, freshValue)
+      // The entry is stale, the check failed, or the bump failed (entry expired/deleted meanwhile),
+      // so run the full background refresh from the data sources.
+      const freshValue = await this.loadFromLoaders(key, loadParams)
+      // Propagate the freshly loaded value to the in-memory cache as well.
+      // Without this, the in-memory layer keeps serving the stale value that
+      // was read from the async cache before this background refresh started,
+      // and its TTL is reset on the next read, so subsequent reads stay stale
+      // for another full ttlInMsecs window even though the async cache is fresh.
+      if (freshValue !== undefined && this.isBackgroundWriteFenceIntact(key, fenceToken)) {
+        this.inMemoryCache.set(key, freshValue)
+      }
+    } finally {
+      this.closeBackgroundWriteFence(key, fenceToken)
     }
   }
 

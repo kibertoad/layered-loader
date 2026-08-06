@@ -1,9 +1,9 @@
 import { AbstractGroupCache } from './AbstractGroupCache.js'
 import type { LoaderConfig } from './Loader.js'
-import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
 import type { CacheEntry, GroupCache, GroupDataSource, IsGroupEntryStillCurrentFn } from './types/DataSources.js'
-import type { GetManyResult } from './types/SyncDataSources.js'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources.js'
 
 export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> = LoaderConfig<
   LoadedValue,
@@ -12,7 +12,7 @@ export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams =
   GroupCache<LoadedValue>,
   GroupDataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryGroupCacheConfiguration,
-  InMemoryGroupCache<LoadedValue>,
+  SynchronousGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>,
   IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
 >
@@ -51,38 +51,48 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
           let isAlreadyRefreshing = groupSet?.has(key)
 
           if (!isAlreadyRefreshing) {
-            this.asyncCache.expirationTimeLoadingGroupedOperation
-              .get(key, group)
-              .then((expirationTime) => {
-                if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-                  // Check if someone else didn't start refreshing while we were checking expiration time
-                  groupSet = this.groupRefreshFlags.get(group)
-                  isAlreadyRefreshing = groupSet?.has(key)
-                  if (!isAlreadyRefreshing) {
-                    if (!groupSet) {
-                      groupSet = new Set<string>()
-                      this.groupRefreshFlags.set(group, groupSet)
-                    }
-                    groupSet.add(key)
+            this.runInBackground(
+              this.asyncCache.expirationTimeLoadingGroupedOperation
+                .get(key, group)
+                .then((expirationTime) => {
+                  if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                    // Check if someone else didn't start refreshing while we were checking expiration time
+                    groupSet = this.groupRefreshFlags.get(group)
+                    isAlreadyRefreshing = groupSet?.has(key)
+                    if (!isAlreadyRefreshing) {
+                      if (!groupSet) {
+                        groupSet = new Set<string>()
+                        this.groupRefreshFlags.set(group, groupSet)
+                      }
+                      groupSet.add(key)
 
-                    this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
-                      .catch((err) => {
-                        this.logger.error(err.message)
-                      })
-                      .finally(() => {
-                        groupSet!.delete(key)
-                        if (groupSet!.size === 0) {
-                          this.groupRefreshFlags.delete(group)
-                        }
-                      })
+                      // Returned, not detached: the promise handed to scheduleBackgroundWork has to
+                      // cover the refresh itself, not just the expiration lookup that decided it was
+                      // due. Nothing awaits this chain otherwise, so returning it changes no timing.
+                      return this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
+                        .catch((err) => {
+                          this.logger.error(err.message)
+                        })
+                        .finally(() => {
+                          groupSet!.delete(key)
+                          if (groupSet!.size === 0) {
+                            this.groupRefreshFlags.delete(group)
+                          }
+                        })
+                    }
                   }
-                }
-              })
-              .catch((err) => {
-                // expiration lookup is fire-and-forget; a rejection here must not become
-                // an unhandled promise rejection
-                this.logger.error(err.message)
-              })
+                  return undefined
+                })
+                .catch((err) => {
+                  // The expiration lookup is a read against the async cache, so report it the same
+                  // way resolveGroupValue reports a failed read: through loadErrorHandler, so a
+                  // configured handler can observe it (the default one still logs). It is
+                  // fire-and-forget, so swallowing after reporting also keeps it from becoming an
+                  // unhandled promise rejection.
+                  this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
+                }),
+              'refresh',
+            )
           }
         }
         return cachedValue
@@ -111,16 +121,19 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     }
     groupSet.add(key)
 
-    this.refreshOrBumpInMemoryTtl(key, group, loadParams)
-      .catch((err) => {
-        this.logger.error(err.message)
-      })
-      .finally(() => {
-        groupSet!.delete(key)
-        if (groupSet!.size === 0) {
-          this.groupRefreshFlags.delete(group)
-        }
-      })
+    this.runInBackground(
+      this.refreshOrBumpInMemoryTtl(key, group, loadParams)
+        .catch((err) => {
+          this.logger.error(err.message)
+        })
+        .finally(() => {
+          groupSet!.delete(key)
+          if (groupSet!.size === 0) {
+            this.groupRefreshFlags.delete(group)
+          }
+        }),
+      'refresh',
+    )
   }
 
   private async refreshOrBumpInMemoryTtl(key: string, group: string, loadParams: LoadParams): Promise<void> {
@@ -155,35 +168,45 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     loadParams: LoadParams,
     cachedValue: LoadedValue | null,
   ): Promise<void> {
-    if (
-      this.isEntryStillCurrentFn &&
-      (await this.isCurrentEntryTtlBumped(
-        key,
-        () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
-        () => this.asyncCache!.resetTtlFromGroup!(key, group),
-      ))
-    ) {
-      // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
-      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
-      return
-    }
+    // This refresh writes into the in-memory tier without holding a runningLoads entry (it reloads
+    // straight from the data sources rather than through getAsyncOnlyResolved), so it needs its own
+    // fence. Without it, an invalidation arriving mid-refresh - locally originated or applied from
+    // another node, per entry or per group - deletes the entry and is then silently undone when this
+    // refresh completes and writes its pre-invalidation snapshot back.
+    const fenceToken = this.openGroupBackgroundWriteFence(key, group)
+    try {
+      if (
+        this.isEntryStillCurrentFn &&
+        (await this.isCurrentEntryTtlBumped(
+          key,
+          () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
+          () => this.asyncCache!.resetTtlFromGroup!(key, group),
+        ))
+      ) {
+        // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
+        // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+        return
+      }
 
-    // The entry is stale, the check failed, or the bump failed (entry expired or the group was
-    // invalidated meanwhile), so run the full background refresh from the data sources.
-    const freshValue = await this.loadFromLoaders(key, group, loadParams)
-    // Propagate the freshly loaded value to the in-memory group cache as well.
-    // Without this, the in-memory layer keeps serving the stale value that
-    // was read from the async cache before this background refresh started,
-    // and its TTL is reset on the next read, so subsequent reads stay stale
-    // for another full ttlInMsecs window even though the async cache is fresh.
-    if (freshValue !== undefined) {
-      this.inMemoryCache.setForGroup(key, freshValue, group)
+      // The entry is stale, the check failed, or the bump failed (entry expired or the group was
+      // invalidated meanwhile), so run the full background refresh from the data sources.
+      const freshValue = await this.loadFromLoaders(key, group, loadParams)
+      // Propagate the freshly loaded value to the in-memory group cache as well.
+      // Without this, the in-memory layer keeps serving the stale value that
+      // was read from the async cache before this background refresh started,
+      // and its TTL is reset on the next read, so subsequent reads stay stale
+      // for another full ttlInMsecs window even though the async cache is fresh.
+      if (freshValue !== undefined && this.isGroupBackgroundWriteFenceIntact(key, group, fenceToken)) {
+        this.inMemoryCache.setForGroup(key, freshValue, group)
+      }
+    } finally {
+      this.closeGroupBackgroundWriteFence(key, group, fenceToken)
     }
   }
 
   public async forceSetValueForGroup(key: string, newValue: LoadedValue | null, group: string) {
     this.inMemoryCache.setForGroup(key, newValue, group)
-    this.deleteGroupRunningLoad(this.resolveGroupLoads(group), group, key)
+    this.evictGroupRunningLoad(group, key)
 
     if (this.asyncCache) {
       await this.asyncCache.setForGroup(key, newValue, group).catch((err) => {

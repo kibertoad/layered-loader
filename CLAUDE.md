@@ -1,94 +1,59 @@
 # CLAUDE.md
 
-Guidance for Claude Code when working in this repository.
+Guidance for Claude Code when working in this repository. Behaviour that consumers need to know is
+documented in `README.md` — keep it there, and keep this file to instructions that only matter to
+someone changing the code.
 
 ## Pull requests
 
-**Every PR must carry exactly one semver label: `patch`, `minor`, or `major`.**
+**Every PR must carry exactly one semver label: `patch`, `minor`, or `major`.** The release pipeline
+(`.github/workflows/publish.yml`) derives the version bump from that label, so a PR merged without one
+publishes nothing.
 
-The release pipeline (`.github/workflows/publish.yml`) only runs when a merged PR carries one of
-those three labels, and it derives the version bump directly from the label. A PR merged without a
-semver label publishes nothing, so the change silently never reaches npm.
-
-Pick the label from the effect on the published API:
+Pick it from the effect on the published API:
 
 - `patch` — bug fixes, docs, internal refactors, dependency bumps with no API impact.
-- `minor` — new exports, new entrypoints, new optional config options; anything additive that
-  existing consumers keep working through unchanged.
-- `major` — removed or renamed exports, changed defaults, raised `engines` floor, or any change
-  that requires consumers to touch their code.
+- `minor` — new exports, new entrypoints, new optional config; anything additive.
+- `major` — removed or renamed exports, changed defaults, a raised `engines` floor, moving a runtime
+  dependency to a peer, or anything else that requires consumers to touch their code.
 
-Changes confined to non-publishable paths (`benchmark/`, `.github/`, `test/`) still want a `patch`
-label; the workflow detects that no publishable source changed and skips the release on its own.
+Changes confined to `benchmark/`, `.github/` or `test/` still want a `patch` label; the workflow
+detects that nothing publishable changed and skips the release on its own.
 
 ## Package entrypoints
 
-The package exposes three entrypoints, and the split between them is load-bearing — not just
-organisational:
+`core.ts` → `layered-loader/core`, `redis.ts` → `layered-loader/redis`, `index.ts` → `export *` of
+both. README's "Entrypoints" section documents what each one contains and what it guarantees.
 
-- `layered-loader/core` (`core.ts`) — loaders, manual caches, in-memory caches, the notification
-  base class and publisher interfaces, key resolvers, and all types. **Nothing reachable from this
-  file may import `ioredis`, or any `node:` builtin.** This is the entrypoint that consumers on
-  Cloudflare Workers and other edge runtimes import.
-- `layered-loader/redis` (`redis.ts`) — the Redis caches, notification factories, publishers and
-  consumers. The only entrypoint whose exports may reach `ioredis`.
-- `layered-loader` (`index.ts`) — `export *` of both, so the root stays a superset of the two.
+- Add a new export to `core.ts` or `redis.ts`, never to `index.ts`.
+- Nothing reachable from `core.ts` may import `ioredis` or a `node:` builtin.
+- Nothing under `lib/` may import `ioredis` at all — not even `import type`, which is not erased from
+  the emitted `.d.ts`. Use the vendored structural types in `lib/redis/RedisLike.ts`, and extend them
+  when you start calling a command they do not cover.
+- Reach the `ioredis` value only through the lazy `createRequire` in `lib/redis/resolveRedisClient.ts`,
+  and keep it lazy.
+- Constrain generics over Redis options to `object`, not to an all-optional shape. All-optional shapes
+  are "weak types", so TypeScript rejects object literals like `enrichRedisConfig({ host, port })`;
+  adding an index signature instead rejects interfaces such as `RedisOptions`.
+- `pnpm run lint:redis-compat` type-checks the vendored declarations against the real `ioredis` types.
+  Match what `ioredis` declares — never widen a vendored signature to silence it.
+- `test/entrypoints.spec.ts` builds the package and checks the emitted output. When it fails, move the
+  import; do not relax the test. Do not rewrite it to scan the TypeScript sources: pattern-matching
+  `import type` is unreliable and previously let a broken invariant pass.
 
-Rules that follow from that:
+## Rules no test covers
 
-- A new export goes into `core.ts` or `redis.ts`, never into `index.ts` directly.
-- **Nothing under `lib/` may import `ioredis` at all** — not even with `import type`, which would
-  land in the emitted `.d.ts` and break consumers who never installed the optional peer. Use the
-  vendored structural types in `lib/redis/RedisLike.ts` instead, and extend those if you start
-  calling a Redis command they do not cover.
-- `test/ioredisCompat.type-test.ts` type-checks the vendored declarations against the real `ioredis`
-  types; `pnpm run lint:redis-compat` runs it and is part of `pnpm run lint`. Widening a vendored
-  signature to silence it is wrong — match what `ioredis` actually declares.
-- Constrain generics over Redis options to `object`, not to an all-optional shape. All-optional
-  shapes are "weak types" and TypeScript then rejects object literals like
-  `enrichRedisConfig({ host, port })`; adding an index signature instead rejects interfaces such as
-  `RedisOptions`, which never get an implicit one.
-- The value of `ioredis` is only ever reached through `lib/redis/resolveRedisClient.ts`, which
-  resolves it lazily via `createRequire` and throws an actionable error when it is not installed.
-  Keep it lazy: a static import would make `layered-loader/redis` fail to resolve for everyone who
-  did not install the optional peer, which is the whole point of the arrangement. The cost is that
-  bundlers cannot see through `createRequire` and will not inline `ioredis` — that is the correct
-  trade-off for a peer dependency, and README.md documents it under "Bundling" so consumers are not
-  surprised by it.
-- `test/entrypoints.spec.ts` enforces the above against a real compilation: it builds the package
-  into `node_modules/.cache`, imports each entrypoint in a child process with a resolve hook
-  installed, and scans the emitted output. That covers what Node actually loads (static imports,
-  dynamic `import()` and `require()` alike), plus `ioredis` leaking into an emitted `.d.ts`. If it
-  fails, the fix is to move the import, not to relax the test.
+These constrain call sites that do not exist yet. The rest of the invalidation and background-work
+behaviour is pinned by `test/remoteInvalidation.spec.ts`, `test/backgroundWork.spec.ts` and `tsc`, so
+do not restate it here.
 
-  Do not rewrite it to scan the TypeScript sources. It used to, and telling `import type` from a
-  value import by pattern-matching TypeScript is not reliable — `export type Foo = ...` on the line
-  above an import made the guard swallow that import and mark it type-only, so it could pass while
-  the invariant was broken. Checking emitted output has no such ambiguity: the compiler has already
-  erased the type-only imports.
-
-## Why `ioredis` is an optional peer dependency
-
-Recorded here so the trade-off is not re-litigated. `ioredis` is not a `dependency`; it is a
-`peerDependency` with `peerDependenciesMeta.ioredis.optional`. Consumers who use Redis declare it
-themselves — which most already do, since `RedisCache` takes a client they construct.
-
-What makes it work is that three separate things all avoid `ioredis`:
-
-- **Runtime** — reached only through the lazy `require` in `resolveRedisClient`, so every entrypoint
-  imports cleanly when it is absent.
-- **Types** — vendored structurally in `RedisLike.ts`, so no emitted `.d.ts` mentions it and
-  consumers type-check without it.
-- **Install** — an optional peer is not installed unless asked for.
-
-Remove any one of the three and the arrangement collapses, which is why each has its own guard in
-`test/entrypoints.spec.ts`.
-
-Note the release consequence: moving `ioredis` out of `dependencies` breaks any consumer who relied
-on it being installed transitively, so it is a **major** version bump, never a patch or minor.
-
-Also worth knowing: `@layered-loader/sqs` gives consumers cross-instance invalidation with no Redis
-at all, and imports from `layered-loader/core`. Point people there before they reach for Redis.
+- Background work that writes into the in-memory tier outside `getAsyncOnlyResolved` must open a fence
+  token (`openBackgroundWriteFence` / `isBackgroundWriteFenceIntact` / `closeBackgroundWriteFence`) as
+  `refreshOrBumpTtl` does, and leave the map holding only keys with work in flight.
+- Fire-and-forget promises go through `AbstractCache.runInBackground(work, reason)`, report their
+  errors to the configured handlers before it, and `return` inner chains instead of detaching them.
+- New methods that apply state originating elsewhere join the `applyRemote*` family and stay
+  synchronous.
 
 ## Working in this repo
 
@@ -96,5 +61,5 @@ at all, and imports from `layered-loader/core`. Point people there before they r
 - `pnpm run test` needs a local Redis for `test/redis/**`: `pnpm run docker:start` first.
 - Coverage thresholds are enforced (100% lines/statements); new `lib/` code needs tests.
 - `pnpm run lint:packaging` runs `publint` and `attw` — run it after touching the `exports` map.
-- New root-level source files must be added to the changed-path `case` in `publish.yml`, otherwise
-  the release pipeline will not consider them a publishable change.
+- New root-level source files must be added to the changed-path `case` in `publish.yml`, otherwise the
+  release pipeline will not consider them a publishable change.

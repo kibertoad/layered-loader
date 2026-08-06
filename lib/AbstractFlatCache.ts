@@ -19,6 +19,77 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     return false
   }
 
+  /**
+   * Fences everything in flight for a key: the running load, and any background work that is going
+   * to write into the in-memory tier without holding a running load (the async-tier preemptive
+   * refresh). Every invalidation path - originating and applying alike - goes through here.
+   *
+   * Deliberately not used by the load-completion bookkeeping in {@link getAsyncOnlyResolved}: a load
+   * finishing normally must not cancel a concurrent refresh that is about to write a fresher value.
+   */
+  protected evictRunningLoad(key: string): void {
+    this.runningLoads.delete(key)
+    this.breakBackgroundWriteFence(key)
+  }
+
+  /**
+   * Applies an invalidation that originated elsewhere - another node on a notification bus, or a
+   * pull-based transport that read "what changed since cursor N" at the start of a request.
+   *
+   * This is deliberately not the same operation as {@link invalidateCacheFor}:
+   *
+   * - it publishes nothing, because the origin already broadcast the invalidation; re-publishing it
+   *   would echo it back onto the bus;
+   * - it does not touch the async cache, because that tier is shared and the origin already deleted
+   *   the entry there;
+   * - it does evict the running load for the key, and breaks the fence of an async-tier preemptive
+   *   refresh in flight for it, so neither can write its pre-invalidation snapshot back into the
+   *   in-memory cache when it resolves. Callers already awaiting that load still receive its value,
+   *   exactly as they do for a locally originated invalidation.
+   *
+   * Notification consumers get this behaviour without doing anything: the target cache they are
+   * handed routes deletions through here.
+   */
+  public applyRemoteInvalidationFor(key: string): void {
+    this.evictRunningLoad(key)
+    this.inMemoryCache.delete(key)
+  }
+
+  /**
+   * Batch form of {@link applyRemoteInvalidationFor}.
+   */
+  public applyRemoteInvalidationForMany(keys: string[]): void {
+    for (let i = 0; i < keys.length; i++) {
+      this.evictRunningLoad(keys[i])
+    }
+    this.inMemoryCache.deleteMany(keys)
+  }
+
+  /**
+   * Applies a value that was set elsewhere and broadcast to this node. Fences the running load for
+   * the same reason {@link applyRemoteInvalidationFor} does: an older in-flight load must not
+   * overwrite the newer value that just arrived.
+   */
+  public applyRemoteValue(key: string, value: LoadedValue | null): void {
+    this.evictRunningLoad(key)
+    this.inMemoryCache.set(key, value)
+  }
+
+  protected override createRemoteInvalidationTarget(): SynchronousCache<LoadedValue> {
+    const inMemoryCache = this.inMemoryCache
+    return {
+      ttlLeftBeforeRefreshInMsecs: inMemoryCache.ttlLeftBeforeRefreshInMsecs,
+      get: (key) => inMemoryCache.get(key),
+      getMany: (keys) => inMemoryCache.getMany(keys),
+      getExpirationTime: (key) => inMemoryCache.getExpirationTime(key),
+      resetTtl: (key) => inMemoryCache.resetTtl(key),
+      set: (key, value) => this.applyRemoteValue(key, value),
+      delete: (key) => this.applyRemoteInvalidationFor(key),
+      deleteMany: (keys) => this.applyRemoteInvalidationForMany(keys),
+      clear: () => this.applyRemoteInvalidation(),
+    }
+  }
+
   public getInMemoryOnly(loadParams: LoadParams): LoadedValue | undefined | null {
     return this.getInMemoryOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams)
   }
@@ -40,7 +111,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
    * against the in-memory value and merely bump its TTL when it is still current.
    */
   protected scheduleInMemoryRefresh(key: string, loadParams: LoadParams): void {
-    void this.getAsyncOnlyResolved(key, loadParams)
+    this.runInBackground(this.getAsyncOnlyResolved(key, loadParams), 'refresh')
   }
 
   public getManyInMemoryOnly(keys: string[]): GetManyResult<LoadedValue> {
@@ -161,7 +232,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
   public async invalidateCacheFor(key: string) {
     // Evict the running load first so an in-flight result is fenced out of the caches.
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     if (this.asyncCache) {
       await this.asyncCache.delete(key).catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
@@ -172,19 +243,22 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     // read the not-yet-deleted async value; fencing it out here stops it from
     // repopulating the caches after this invalidation resolves. The in-memory delete
     // comes last for the same reason.
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     this.inMemoryCache.delete(key)
     if (this.notificationPublisher) {
-      this.notificationPublisher.delete(key).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.delete(key).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 
   public async invalidateCacheForMany(keys: string[]) {
     // Evict the running loads first so in-flight results are fenced out of the caches.
     for (let i = 0; i < keys.length; i++) {
-      this.runningLoads.delete(keys[i])
+      this.evictRunningLoad(keys[i])
     }
     if (this.asyncCache) {
       await this.asyncCache.deleteMany(keys).catch((err) => {
@@ -195,14 +269,17 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
     for (let i = 0; i < keys.length; i++) {
       this.inMemoryCache.delete(keys[i])
-      this.runningLoads.delete(keys[i])
+      this.evictRunningLoad(keys[i])
     }
 
     if (this.notificationPublisher) {
-      this.notificationPublisher.deleteMany(keys).catch((err) => {
-        /* v8 ignore next -- @preserve */
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.deleteMany(keys).catch((err) => {
+          /* v8 ignore next -- @preserve */
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 }

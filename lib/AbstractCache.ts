@@ -6,6 +6,7 @@ import { NoopCache } from './memory/NoopCache.js'
 import type { AbstractNotificationConsumer } from './notifications/AbstractNotificationConsumer.js'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
 import type { NotificationPublisher } from './notifications/NotificationPublisher.js'
+import type { BackgroundWorkReason, BackgroundWorkScheduler } from './types/BackgroundWork.js'
 import type { Cache, GroupCache } from './types/DataSources.js'
 import type { SynchronousCache, SynchronousGroupCache } from './types/SyncDataSources.js'
 import type { Logger } from './util/Logger.js'
@@ -63,7 +64,17 @@ export type CommonCacheConfig<
   notificationPublisher?: NotificationPublisherType
   cacheKeyFromLoadParamsResolver?: CacheKeyResolver<LoadParams>
   cacheKeyFromValueResolver?: CacheKeyResolver<LoadedValue>
+
+  /**
+   * Optional hook for work the loader starts and does not await (background refreshes, staleness
+   * probes, notification publishes). Defaults to leaving the work detached, which is today's
+   * behaviour. See {@link BackgroundWorkScheduler} - in particular the note on resolving the request
+   * context at call time rather than closing over one.
+   */
+  scheduleBackgroundWork?: BackgroundWorkScheduler
 }
+
+const NOOP = () => {}
 
 export abstract class AbstractCache<
   LoadedValue,
@@ -93,7 +104,32 @@ export abstract class AbstractCache<
   private readonly notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
   protected readonly notificationPublisher?: NotificationPublisherType
 
+  /**
+   * Fence tokens for background work that writes into the in-memory tier without holding a
+   * `runningLoads` entry - specifically the async-tier preemptive refresh, which reloads straight
+   * from the data sources instead of going through the fenced `getAsyncOnlyResolved` path.
+   *
+   * An invalidation - originated locally or applied from elsewhere - breaks the fence for the
+   * affected key, so a refresh that started before it arrived can tell that its result is a
+   * pre-invalidation snapshot and skip the write instead of resurrecting the entry.
+   *
+   * Only keys with a refresh in flight are ever present, so the map is bounded by refresh
+   * concurrency rather than by key cardinality.
+   */
+  private readonly backgroundWriteFences: Map<string, number>
+  private backgroundWriteFenceCounter: number
+
+  private readonly backgroundWorkScheduler?: BackgroundWorkScheduler
+  private readonly cacheId?: string
+
   abstract isGroupCache(): boolean
+
+  /**
+   * Builds the cache-shaped facade that received (as opposed to originated) invalidations are
+   * applied through. Reads delegate straight to the in-memory cache; writes and deletions go through
+   * the `applyRemote*` methods, so they fence running loads and publish nothing.
+   */
+  protected abstract createRemoteInvalidationTarget(): InMemoryCacheType
 
   private initPromises: Promise<unknown>[]
 
@@ -129,13 +165,24 @@ export abstract class AbstractCache<
     this.logger = config.logger ?? defaultLogger
     this.cacheUpdateErrorHandler = config.cacheUpdateErrorHandler ?? DEFAULT_CACHE_ERROR_HANDLER
     this.loadErrorHandler = config.loadErrorHandler ?? DEFAULT_LOAD_ERROR_HANDLER
+    this.backgroundWorkScheduler = config.scheduleBackgroundWork
+    this.cacheId = config.inMemoryCache ? config.inMemoryCache.cacheId : undefined
+
+    // Must exist before the notification consumer is wired up: the target cache handed to the
+    // consumer fences running loads and background writes, so both need to already be there.
+    this.runningLoads = new Map()
+    this.backgroundWriteFences = new Map()
+    this.backgroundWriteFenceCounter = 0
 
     if (config.notificationConsumer) {
       if (!config.inMemoryCache) {
         throw new Error('Cannot set notificationConsumer when InMemoryCache is disabled')
       }
       this.notificationConsumer = config.notificationConsumer
-      this.notificationConsumer.setTargetCache(this.inMemoryCache)
+      // Deliberately not `this.inMemoryCache`: a consumer applies invalidations that originated
+      // elsewhere, and doing that correctly means fencing running loads as well as deleting the
+      // entry. Routing every existing consumer through the facade gives them that for free.
+      this.notificationConsumer.setTargetCache(this.createRemoteInvalidationTarget())
       this.initPromises.push(
         this.notificationConsumer.subscribe().catch((err) => {
           /* v8 ignore next -- @preserve */
@@ -153,13 +200,83 @@ export abstract class AbstractCache<
         }),
       )
     }
-
-    this.runningLoads = new Map()
   }
 
   public async init() {
     await Promise.all(this.initPromises)
     this.initPromises = []
+  }
+
+  /**
+   * Hands a piece of fire-and-forget work to the configured `scheduleBackgroundWork` hook, or leaves
+   * it detached when there is none (the default, and what the library has always done).
+   *
+   * The promise is wrapped before it is handed over so that it always settles fulfilled. Every call
+   * site has already routed its own errors to the configured handlers, so nothing is lost by
+   * swallowing here - and a rejecting promise would be actively harmful, since `ctx.waitUntil()`
+   * on one fails the request that adopted it.
+   */
+  protected runInBackground(work: Promise<unknown>, reason: BackgroundWorkReason): void {
+    const guarded = work.then(NOOP, NOOP)
+    if (this.backgroundWorkScheduler) {
+      this.backgroundWorkScheduler(guarded, { cacheId: this.cacheId, reason })
+      return
+    }
+    void guarded
+  }
+
+  /**
+   * Opens a fence for a background operation that will write into the in-memory tier once it
+   * completes. See {@link backgroundWriteFences}. The returned token is what
+   * {@link isBackgroundWriteFenceIntact} and {@link closeBackgroundWriteFence} are called back with.
+   */
+  protected openBackgroundWriteFence(fenceKey: string): number {
+    const token = ++this.backgroundWriteFenceCounter
+    this.backgroundWriteFences.set(fenceKey, token)
+    return token
+  }
+
+  /**
+   * Whether the fence opened under this token is still standing - i.e. no invalidation touched the
+   * key while the background operation was running, so its result is safe to write.
+   */
+  protected isBackgroundWriteFenceIntact(fenceKey: string, token: number): boolean {
+    return this.backgroundWriteFences.get(fenceKey) === token
+  }
+
+  /**
+   * Releases the fence, unless it was already broken (or re-opened by a newer operation).
+   */
+  protected closeBackgroundWriteFence(fenceKey: string, token: number): void {
+    if (this.backgroundWriteFences.get(fenceKey) === token) {
+      this.backgroundWriteFences.delete(fenceKey)
+    }
+  }
+
+  protected breakBackgroundWriteFence(fenceKey: string): void {
+    this.backgroundWriteFences.delete(fenceKey)
+  }
+
+  /**
+   * Breaks every fence whose key starts with the given prefix, for invalidations that span a whole
+   * scope (a group) rather than a single entry. Iterating is cheap: the map only ever holds the keys
+   * currently being refreshed.
+   */
+  protected breakBackgroundWriteFencesWithPrefix(prefix: string): void {
+    for (const fenceKey of this.backgroundWriteFences.keys()) {
+      if (fenceKey.startsWith(prefix)) {
+        this.backgroundWriteFences.delete(fenceKey)
+      }
+    }
+  }
+
+  /**
+   * Evicts every running load and breaks every background write fence, so nothing in flight can
+   * repopulate the cache after a cache-wide invalidation.
+   */
+  protected evictAllRunningLoads(): void {
+    this.runningLoads.clear()
+    this.backgroundWriteFences.clear()
   }
 
   /**
@@ -235,7 +352,7 @@ export abstract class AbstractCache<
 
   public async invalidateCache() {
     // Evict the running loads first so in-flight results are fenced out of the caches.
-    this.runningLoads.clear()
+    this.evictAllRunningLoads()
     if (this.asyncCache) {
       await this.asyncCache.clear().catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
@@ -246,14 +363,28 @@ export abstract class AbstractCache<
     // read a not-yet-deleted async value; fencing it out here stops it from
     // repopulating the caches after this invalidation resolves. The in-memory clear
     // comes last for the same reason.
-    this.runningLoads.clear()
+    this.evictAllRunningLoads()
     this.inMemoryCache.clear()
 
     if (this.notificationPublisher) {
-      this.notificationPublisher.clear().catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.clear().catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
+  }
+
+  /**
+   * Applies a cache-wide clear that originated elsewhere (another node, another isolate).
+   *
+   * See {@link AbstractFlatCache.applyRemoteInvalidationFor} for why applying a received
+   * invalidation is a different operation from originating one.
+   */
+  public applyRemoteInvalidation(): void {
+    this.evictAllRunningLoads()
+    this.inMemoryCache.clear()
   }
 
   public async close() {
