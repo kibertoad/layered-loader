@@ -697,6 +697,7 @@ originating one, and the library has separate methods for the two:
 | --- | --- | --- |
 | in-memory cache | deletes | deletes |
 | running loads | fences | fences |
+| background refreshes | fences | fences |
 | async cache (Redis) | deletes | leaves alone — the origin already deleted it from the shared tier |
 | notification publisher | publishes | publishes nothing — the origin already broadcast it |
 | return type | `Promise<void>` (awaits the async tier) | `void` (purely local, synchronous) |
@@ -732,14 +733,21 @@ Group caches (`GroupLoader`, `ManualGroupCache`):
 - `applyRemoteValue(key, value, group)`
 - `applyRemoteInvalidation()`
 
-All of them fence the running load for the affected key, so a load that started *before* the
-invalidation arrived cannot write its pre-invalidation snapshot back into the cache when it resolves.
-A caller that was already awaiting that load still receives its value — exactly as for a locally
-originated invalidation.
+All of them fence the affected key, so nothing that was already in flight when the invalidation
+arrived can write its pre-invalidation snapshot back into the in-memory cache when it resolves. That
+covers both a running load and a preemptive background refresh. A caller that was already awaiting
+that load still receives its value — exactly as for a locally originated invalidation.
 
 If you implement `AbstractNotificationConsumer` yourself you get this behaviour for free: the target
 cache handed to `setTargetCache` is a facade over the owning loader that routes deletions and sets
 through these methods, so `this.targetCache.delete(key)` fences running loads too.
+
+One thing the fence does not — and cannot — cover: the **shared async tier**. A background refresh
+that has already read from your data sources still writes the value it read into Redis, even if an
+invalidation arrives in between. That is the ordinary read-through race that any cache in front of a
+mutable store has (a plain cache miss has it too), and closing it needs versioning at the store, not
+a local fence. The fence is about this instance's in-memory tier: an invalidated entry stays
+invalidated locally instead of being resurrected, and the async tier converges on its own TTL.
 
 ## Background work
 

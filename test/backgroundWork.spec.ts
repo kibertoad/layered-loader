@@ -4,6 +4,7 @@ import { Loader } from '../lib/Loader.js'
 import type { GroupNotificationPublisher } from '../lib/notifications/GroupNotificationPublisher.js'
 import type { NotificationPublisher } from '../lib/notifications/NotificationPublisher.js'
 import type { BackgroundWorkMeta } from '../lib/types/BackgroundWork.js'
+import type { Cache, GroupCache } from '../lib/types/DataSources.js'
 
 type Scheduled = { work: Promise<void>; meta: BackgroundWorkMeta }
 
@@ -55,6 +56,47 @@ const failingGroupPublisher: GroupNotificationPublisher<string> = {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const EXPIRATION_LOOKUP_ERROR = new Error('expiration lookup failed')
+
+const notImplemented = () => {
+  throw new Error('Not implemented')
+}
+
+/** An async cache tier that always fails the expiration lookup the preemptive refresh starts with. */
+const failingExpirationLookupCache: Cache<string> = {
+  name: 'failing-expiration-lookup-cache',
+  ttlLeftBeforeRefreshInMsecs: 60_000,
+  expirationTimeLoadingOperation: {
+    get: () => Promise.reject(EXPIRATION_LOOKUP_ERROR),
+  } as unknown as Cache<string>['expirationTimeLoadingOperation'],
+  get: async () => 'cached-value',
+  set: async () => {},
+  delete: async () => {},
+  deleteMany: async () => {},
+  clear: async () => {},
+  close: async () => {},
+  getExpirationTime: async () => Date.now() + 1,
+  getMany: notImplemented,
+  setMany: notImplemented,
+}
+
+const failingExpirationLookupGroupCache: GroupCache<string> = {
+  name: 'failing-expiration-lookup-group-cache',
+  ttlLeftBeforeRefreshInMsecs: 60_000,
+  expirationTimeLoadingGroupedOperation: {
+    get: () => Promise.reject(EXPIRATION_LOOKUP_ERROR),
+  } as unknown as GroupCache<string>['expirationTimeLoadingGroupedOperation'],
+  getFromGroup: async () => 'cached-value',
+  setForGroup: async () => {},
+  deleteFromGroup: async () => {},
+  deleteGroup: async () => {},
+  clear: async () => {},
+  close: async () => {},
+  getExpirationTimeFromGroup: async () => Date.now() + 1,
+  getManyFromGroup: notImplemented,
+  setManyForGroup: notImplemented,
+}
 
 describe('scheduleBackgroundWork', () => {
   it('is optional, and omitting it leaves background work detached as before', async () => {
@@ -194,6 +236,62 @@ describe('scheduleBackgroundWork', () => {
     // `ctx.waitUntil()` on a rejected promise fails the request that adopted it, so every promise
     // handed to the host has to settle fulfilled
     await expect(scheduler.drain()).resolves.toBeDefined()
+  })
+
+  it('reports a failed expiration lookup through loadErrorHandler', async () => {
+    const scheduler = createRecordingScheduler()
+    const reported: { err: Error; key: string | undefined; sourceName: string }[] = []
+    const loader = new Loader<string>({
+      inMemoryCache: false,
+      asyncCache: failingExpirationLookupCache,
+      scheduleBackgroundWork: scheduler.scheduleBackgroundWork,
+      loadErrorHandler: (err, key, source) => {
+        reported.push({ err, key, sourceName: source.name })
+      },
+      dataSourceGetOneFn: async () => 'value',
+    })
+
+    expect(await loader.get('key')).toBe('cached-value')
+    await expect(scheduler.drain()).resolves.toBeDefined()
+
+    expect(reported).toEqual([
+      {
+        err: EXPIRATION_LOOKUP_ERROR,
+        key: 'key',
+        sourceName: 'failing-expiration-lookup-cache',
+      },
+    ])
+  })
+
+  it('reports a failed grouped expiration lookup through loadErrorHandler', async () => {
+    const scheduler = createRecordingScheduler()
+    const reported: { err: Error; key: string | undefined; sourceName: string }[] = []
+    const loader = new GroupLoader<string>({
+      inMemoryCache: false,
+      asyncCache: failingExpirationLookupGroupCache,
+      scheduleBackgroundWork: scheduler.scheduleBackgroundWork,
+      loadErrorHandler: (err, key, source) => {
+        reported.push({ err, key, sourceName: source.name })
+      },
+      dataSources: [
+        {
+          name: 'test',
+          getFromGroup: async () => 'value',
+          getManyFromGroup: async () => [],
+        },
+      ],
+    })
+
+    expect(await loader.get('key', 'group')).toBe('cached-value')
+    await expect(scheduler.drain()).resolves.toBeDefined()
+
+    expect(reported).toEqual([
+      {
+        err: EXPIRATION_LOOKUP_ERROR,
+        key: 'key',
+        sourceName: 'failing-expiration-lookup-group-cache',
+      },
+    ])
   })
 
   it('works the same way for GroupLoader', async () => {

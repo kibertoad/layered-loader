@@ -327,7 +327,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(loader.counter).toBe(3)
     })
 
-    it('does not crash when async expiration lookup rejects', async () => {
+    it('reports a rejecting async expiration lookup through loadErrorHandler', async () => {
       const asyncCache = new DummyGroupedCache(userValues)
       // Force the fire-and-forget expiration lookup to reject
       ;(asyncCache as any).ttlLeftBeforeRefreshInMsecs = 999999
@@ -335,7 +335,36 @@ describe('GroupLoader Async Refresh', () => {
         get: () => Promise.reject(new Error('expiration lookup failed')),
       }
 
-      const errors: unknown[] = []
+      const reported: { message: string; key: string | undefined; sourceName: string }[] = []
+      const operation = new GroupLoader<User>({
+        asyncCache,
+        loadErrorHandler: (err, key, source) => {
+          reported.push({ message: err.message, key, sourceName: source.name })
+        },
+      })
+
+      expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
+
+      await waitAndRetry(() => reported.length > 0, 5, 20)
+      expect(reported).toEqual([
+        {
+          message: 'expiration lookup failed',
+          key: user1.userId,
+          sourceName: asyncCache.name,
+        },
+      ])
+
+      await asyncCache.close()
+    })
+
+    it('still logs a rejecting async expiration lookup when no handler is configured', async () => {
+      const asyncCache = new DummyGroupedCache(userValues)
+      ;(asyncCache as any).ttlLeftBeforeRefreshInMsecs = 999999
+      ;(asyncCache as any).expirationTimeLoadingGroupedOperation = {
+        get: () => Promise.reject(new Error('expiration lookup failed')),
+      }
+
+      const errors: string[] = []
       const operation = new GroupLoader<User>({
         asyncCache,
         logger: { error: (msg) => errors.push(msg) },
@@ -344,7 +373,7 @@ describe('GroupLoader Async Refresh', () => {
       expect(await operation.get(user1.userId, user1.companyId)).toEqual(user1)
 
       await waitAndRetry(() => errors.length > 0, 5, 20)
-      expect(errors).toContain('expiration lookup failed')
+      expect(errors[0]).toContain('expiration lookup failed')
 
       await asyncCache.close()
     })

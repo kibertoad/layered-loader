@@ -19,14 +19,65 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
   }
 
   /**
+   * Background write fences are keyed by a single string, so a grouped entry needs its group and key
+   * flattened into one. Group names and keys are arbitrary strings, so the group is length-prefixed:
+   * that makes toGroupFencePrefix an exact group match, rather than one that could also catch a
+   * different group whose name happens to start the same way.
+   */
+  private static toFenceKey(key: string, group: string): string {
+    return `${AbstractGroupCache.toGroupFencePrefix(group)}${key}`
+  }
+
+  private static toGroupFencePrefix(group: string): string {
+    return `${group.length}:${group}:`
+  }
+
+  /**
+   * Fences everything in flight for a grouped entry: the running load, and any background work that
+   * is going to write into the in-memory tier without holding one (the async-tier preemptive
+   * refresh). Every invalidation path - originating and applying alike - goes through here.
+   */
+  protected evictGroupRunningLoad(group: string, key: string): void {
+    const groupLoads = this.runningLoads.get(group)
+    if (groupLoads) {
+      this.deleteGroupRunningLoad(groupLoads, group, key)
+    }
+    this.breakBackgroundWriteFence(AbstractGroupCache.toFenceKey(key, group))
+  }
+
+  /**
+   * Group-wide form of evictGroupRunningLoad.
+   */
+  protected evictGroupRunningLoads(group: string): void {
+    this.runningLoads.delete(group)
+    this.breakBackgroundWriteFencesWithPrefix(AbstractGroupCache.toGroupFencePrefix(group))
+  }
+
+  /**
+   * Grouped forms of the background write fence primitives on AbstractCache.
+   */
+  protected openGroupBackgroundWriteFence(key: string, group: string): number {
+    return this.openBackgroundWriteFence(AbstractGroupCache.toFenceKey(key, group))
+  }
+
+  protected isGroupBackgroundWriteFenceIntact(key: string, group: string, token: number): boolean {
+    return this.isBackgroundWriteFenceIntact(AbstractGroupCache.toFenceKey(key, group), token)
+  }
+
+  protected closeGroupBackgroundWriteFence(key: string, group: string, token: number): void {
+    this.closeBackgroundWriteFence(AbstractGroupCache.toFenceKey(key, group), token)
+  }
+
+  /**
    * Applies an entry invalidation that originated elsewhere - another node on a notification bus, or
    * a pull-based transport that read "what changed since cursor N" at the start of a request.
    *
    * This is deliberately not the same operation as {@link invalidateCacheFor}: it publishes nothing
    * (the origin already broadcast it, and re-publishing would echo it back onto the bus) and does
    * not touch the shared async cache (the origin already deleted the entry there), but it does evict
-   * the running load, so a load that started before the invalidation arrived cannot write its
-   * pre-invalidation snapshot back into the in-memory cache when it resolves.
+   * the running load and break the fence of an async-tier preemptive refresh in flight for the
+   * entry, so neither can write its pre-invalidation snapshot back into the in-memory cache when it
+   * resolves.
    *
    * Notification consumers get this behaviour without doing anything: the target cache they are
    * handed routes deletions through here.
@@ -40,7 +91,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
    * Group-wide form of {@link applyRemoteInvalidationFor}.
    */
   public applyRemoteInvalidationForGroup(group: string): void {
-    this.runningLoads.delete(group)
+    this.evictGroupRunningLoads(group)
     this.inMemoryCache.deleteGroup(group)
   }
 
@@ -71,7 +122,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
 
   public async invalidateCacheForGroup(group: string) {
     // Evict the running loads first so in-flight results are fenced out of the caches.
-    this.runningLoads.delete(group)
+    this.evictGroupRunningLoads(group)
     if (this.asyncCache) {
       await this.asyncCache.deleteGroup(group).catch((err) => {
         this.cacheUpdateErrorHandler(err, `group: ${group}`, this.asyncCache!, this.logger)
@@ -82,7 +133,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     // read the not-yet-deleted async value; fencing it out here stops it from
     // repopulating the caches after this invalidation resolves. The in-memory delete
     // comes last for the same reason.
-    this.runningLoads.delete(group)
+    this.evictGroupRunningLoads(group)
     this.inMemoryCache.deleteGroup(group)
 
     if (this.notificationPublisher) {
@@ -279,13 +330,6 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     return {
       unresolvedKeys: keys,
       resolvedValues: [],
-    }
-  }
-
-  private evictGroupRunningLoad(group: string, key: string) {
-    const groupLoads = this.runningLoads.get(group)
-    if (groupLoads) {
-      this.deleteGroupRunningLoad(groupLoads, group, key)
     }
   }
 

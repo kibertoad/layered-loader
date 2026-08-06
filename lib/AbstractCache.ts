@@ -104,6 +104,21 @@ export abstract class AbstractCache<
   private readonly notificationConsumer?: AbstractNotificationConsumer<LoadedValue, InMemoryCacheType>
   protected readonly notificationPublisher?: NotificationPublisherType
 
+  /**
+   * Fence tokens for background work that writes into the in-memory tier without holding a
+   * `runningLoads` entry - specifically the async-tier preemptive refresh, which reloads straight
+   * from the data sources instead of going through the fenced `getAsyncOnlyResolved` path.
+   *
+   * An invalidation - originated locally or applied from elsewhere - breaks the fence for the
+   * affected key, so a refresh that started before it arrived can tell that its result is a
+   * pre-invalidation snapshot and skip the write instead of resurrecting the entry.
+   *
+   * Only keys with a refresh in flight are ever present, so the map is bounded by refresh
+   * concurrency rather than by key cardinality.
+   */
+  private readonly backgroundWriteFences: Map<string, number>
+  private backgroundWriteFenceCounter: number
+
   private readonly backgroundWorkScheduler?: BackgroundWorkScheduler
   private readonly cacheId?: string
 
@@ -154,8 +169,10 @@ export abstract class AbstractCache<
     this.cacheId = config.inMemoryCache ? config.inMemoryCache.cacheId : undefined
 
     // Must exist before the notification consumer is wired up: the target cache handed to the
-    // consumer fences running loads, so it needs the map to already be there.
+    // consumer fences running loads and background writes, so both need to already be there.
     this.runningLoads = new Map()
+    this.backgroundWriteFences = new Map()
+    this.backgroundWriteFenceCounter = 0
 
     if (config.notificationConsumer) {
       if (!config.inMemoryCache) {
@@ -206,6 +223,60 @@ export abstract class AbstractCache<
       return
     }
     void guarded
+  }
+
+  /**
+   * Opens a fence for a background operation that will write into the in-memory tier once it
+   * completes. See {@link backgroundWriteFences}. The returned token is what
+   * {@link isBackgroundWriteFenceIntact} and {@link closeBackgroundWriteFence} are called back with.
+   */
+  protected openBackgroundWriteFence(fenceKey: string): number {
+    const token = ++this.backgroundWriteFenceCounter
+    this.backgroundWriteFences.set(fenceKey, token)
+    return token
+  }
+
+  /**
+   * Whether the fence opened under this token is still standing - i.e. no invalidation touched the
+   * key while the background operation was running, so its result is safe to write.
+   */
+  protected isBackgroundWriteFenceIntact(fenceKey: string, token: number): boolean {
+    return this.backgroundWriteFences.get(fenceKey) === token
+  }
+
+  /**
+   * Releases the fence, unless it was already broken (or re-opened by a newer operation).
+   */
+  protected closeBackgroundWriteFence(fenceKey: string, token: number): void {
+    if (this.backgroundWriteFences.get(fenceKey) === token) {
+      this.backgroundWriteFences.delete(fenceKey)
+    }
+  }
+
+  protected breakBackgroundWriteFence(fenceKey: string): void {
+    this.backgroundWriteFences.delete(fenceKey)
+  }
+
+  /**
+   * Breaks every fence whose key starts with the given prefix, for invalidations that span a whole
+   * scope (a group) rather than a single entry. Iterating is cheap: the map only ever holds the keys
+   * currently being refreshed.
+   */
+  protected breakBackgroundWriteFencesWithPrefix(prefix: string): void {
+    for (const fenceKey of this.backgroundWriteFences.keys()) {
+      if (fenceKey.startsWith(prefix)) {
+        this.backgroundWriteFences.delete(fenceKey)
+      }
+    }
+  }
+
+  /**
+   * Evicts every running load and breaks every background write fence, so nothing in flight can
+   * repopulate the cache after a cache-wide invalidation.
+   */
+  protected evictAllRunningLoads(): void {
+    this.runningLoads.clear()
+    this.backgroundWriteFences.clear()
   }
 
   /**
@@ -281,7 +352,7 @@ export abstract class AbstractCache<
 
   public async invalidateCache() {
     // Evict the running loads first so in-flight results are fenced out of the caches.
-    this.runningLoads.clear()
+    this.evictAllRunningLoads()
     if (this.asyncCache) {
       await this.asyncCache.clear().catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
@@ -292,7 +363,7 @@ export abstract class AbstractCache<
     // read a not-yet-deleted async value; fencing it out here stops it from
     // repopulating the caches after this invalidation resolves. The in-memory clear
     // comes last for the same reason.
-    this.runningLoads.clear()
+    this.evictAllRunningLoads()
     this.inMemoryCache.clear()
 
     if (this.notificationPublisher) {
@@ -312,7 +383,7 @@ export abstract class AbstractCache<
    * invalidation is a different operation from originating one.
    */
   public applyRemoteInvalidation(): void {
-    this.runningLoads.clear()
+    this.evictAllRunningLoads()
     this.inMemoryCache.clear()
   }
 

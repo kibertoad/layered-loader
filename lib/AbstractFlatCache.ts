@@ -20,6 +20,19 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   }
 
   /**
+   * Fences everything in flight for a key: the running load, and any background work that is going
+   * to write into the in-memory tier without holding a running load (the async-tier preemptive
+   * refresh). Every invalidation path - originating and applying alike - goes through here.
+   *
+   * Deliberately not used by the load-completion bookkeeping in {@link getAsyncOnlyResolved}: a load
+   * finishing normally must not cancel a concurrent refresh that is about to write a fresher value.
+   */
+  protected evictRunningLoad(key: string): void {
+    this.runningLoads.delete(key)
+    this.breakBackgroundWriteFence(key)
+  }
+
+  /**
    * Applies an invalidation that originated elsewhere - another node on a notification bus, or a
    * pull-based transport that read "what changed since cursor N" at the start of a request.
    *
@@ -29,16 +42,16 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
    *   would echo it back onto the bus;
    * - it does not touch the async cache, because that tier is shared and the origin already deleted
    *   the entry there;
-   * - it does evict the running load for the key, so a load that started before the invalidation
-   *   arrived cannot write its pre-invalidation snapshot back into the in-memory cache when it
-   *   resolves. Callers already awaiting that load still receive its value, exactly as they do for a
-   *   locally originated invalidation.
+   * - it does evict the running load for the key, and breaks the fence of an async-tier preemptive
+   *   refresh in flight for it, so neither can write its pre-invalidation snapshot back into the
+   *   in-memory cache when it resolves. Callers already awaiting that load still receive its value,
+   *   exactly as they do for a locally originated invalidation.
    *
    * Notification consumers get this behaviour without doing anything: the target cache they are
    * handed routes deletions through here.
    */
   public applyRemoteInvalidationFor(key: string): void {
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     this.inMemoryCache.delete(key)
   }
 
@@ -47,7 +60,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
    */
   public applyRemoteInvalidationForMany(keys: string[]): void {
     for (let i = 0; i < keys.length; i++) {
-      this.runningLoads.delete(keys[i])
+      this.evictRunningLoad(keys[i])
     }
     this.inMemoryCache.deleteMany(keys)
   }
@@ -58,7 +71,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
    * overwrite the newer value that just arrived.
    */
   public applyRemoteValue(key: string, value: LoadedValue | null): void {
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     this.inMemoryCache.set(key, value)
   }
 
@@ -219,7 +232,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
   public async invalidateCacheFor(key: string) {
     // Evict the running load first so an in-flight result is fenced out of the caches.
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     if (this.asyncCache) {
       await this.asyncCache.delete(key).catch((err) => {
         this.cacheUpdateErrorHandler(err, undefined, this.asyncCache!, this.logger)
@@ -230,7 +243,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     // read the not-yet-deleted async value; fencing it out here stops it from
     // repopulating the caches after this invalidation resolves. The in-memory delete
     // comes last for the same reason.
-    this.runningLoads.delete(key)
+    this.evictRunningLoad(key)
     this.inMemoryCache.delete(key)
     if (this.notificationPublisher) {
       this.runInBackground(
@@ -245,7 +258,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
   public async invalidateCacheForMany(keys: string[]) {
     // Evict the running loads first so in-flight results are fenced out of the caches.
     for (let i = 0; i < keys.length; i++) {
-      this.runningLoads.delete(keys[i])
+      this.evictRunningLoad(keys[i])
     }
     if (this.asyncCache) {
       await this.asyncCache.deleteMany(keys).catch((err) => {
@@ -256,7 +269,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
 
     for (let i = 0; i < keys.length; i++) {
       this.inMemoryCache.delete(keys[i])
-      this.runningLoads.delete(keys[i])
+      this.evictRunningLoad(keys[i])
     }
 
     if (this.notificationPublisher) {

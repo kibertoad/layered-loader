@@ -188,14 +188,38 @@ describe('Loader Async', () => {
       expect(loader.counter).toBe(3)
     })
 
-    it('does not crash when async expiration lookup rejects', async () => {
+    it('reports a rejecting async expiration lookup through loadErrorHandler', async () => {
       const asyncCache = new DummyCache('value')
       // Force the fire-and-forget expiration lookup to reject
       ;(asyncCache as any).expirationTimeLoadingOperation = {
         get: () => Promise.reject(new Error('expiration lookup failed')),
       }
 
-      const errors: unknown[] = []
+      const reported: { message: string; key: string | undefined; sourceName: string }[] = []
+      const operation = new Loader<string>({
+        asyncCache,
+        loadErrorHandler: (err, key, source) => {
+          reported.push({ message: err.message, key, sourceName: source.name })
+        },
+      })
+
+      expect(await operation.get('key')).toBe('value')
+
+      await waitAndRetry(() => reported.length > 0, 5, 20)
+      expect(reported).toEqual([
+        { message: 'expiration lookup failed', key: 'key', sourceName: asyncCache.name },
+      ])
+
+      await asyncCache.close()
+    })
+
+    it('still logs a rejecting async expiration lookup when no handler is configured', async () => {
+      const asyncCache = new DummyCache('value')
+      ;(asyncCache as any).expirationTimeLoadingOperation = {
+        get: () => Promise.reject(new Error('expiration lookup failed')),
+      }
+
+      const errors: string[] = []
       const operation = new Loader<string>({
         asyncCache,
         logger: { error: (msg) => errors.push(msg) },
@@ -204,7 +228,7 @@ describe('Loader Async', () => {
       expect(await operation.get('key')).toBe('value')
 
       await waitAndRetry(() => errors.length > 0, 5, 20)
-      expect(errors).toContain('expiration lookup failed')
+      expect(errors[0]).toContain('expiration lookup failed')
 
       await asyncCache.close()
     })

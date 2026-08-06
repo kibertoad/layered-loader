@@ -85,6 +85,27 @@ That fencing is the whole point: before it existed, a `DELETE` that arrived whil
 key was in flight was silently undone when the load resolved and wrote its pre-invalidation snapshot
 back. `test/remoteInvalidation.spec.ts` pins both halves.
 
+"Fence" means two things, and both matter:
+
+- **Running loads.** Every invalidation path goes through `AbstractFlatCache.evictRunningLoad` /
+  `AbstractGroupCache.evictGroupRunningLoad` / `AbstractCache.evictAllRunningLoads` rather than
+  touching `runningLoads` directly. Do not reintroduce a bare `this.runningLoads.delete(key)` in an
+  invalidation path — the load-completion bookkeeping in `getAsyncOnlyResolved` is the one place that
+  legitimately deletes directly, because a load finishing normally must *not* cancel a concurrent
+  refresh.
+- **Background write fences.** The async-tier preemptive refresh (`Loader.refreshOrBumpTtl`,
+  `GroupLoader.refreshOrBumpTtl`) reloads straight from the data sources and writes into the
+  in-memory tier without holding a `runningLoads` entry, so `runningLoads` alone does not fence it.
+  It opens a per-key fence token instead, and skips its in-memory write if an invalidation broke the
+  fence meanwhile. Any new background path that writes in-memory outside `getAsyncOnlyResolved` needs
+  the same treatment. The fence map only holds keys with a refresh in flight, so it is bounded by
+  refresh concurrency, not by key cardinality — keep it that way.
+
+What the fence deliberately does not cover is the shared async tier: a refresh that already read from
+the data sources still writes that value to Redis. That is the ordinary read-through race (a plain
+cache miss has it too) and needs versioning at the store, not a local fence. README.md says so
+explicitly under "Applying invalidations from your own transport"; do not upgrade that claim.
+
 Consequences to preserve:
 
 - Consumers are typed over `SynchronousCache` / `SynchronousGroupCache`, never over the concrete
@@ -105,7 +126,10 @@ Two invariants:
 
 - **The promise handed over must settle fulfilled.** `runInBackground` wraps it, but the call site
   still owns reporting its own errors to the configured handlers first — `ctx.waitUntil()` on a
-  rejecting promise fails the request that adopted it.
+  rejecting promise fails the request that adopted it. "Reporting" means the configured handler, not
+  `logger.error`: swallowing a failure into the logger makes it invisible to a host that configured
+  `loadErrorHandler` / `cacheUpdateErrorHandler`. The expiration lookup that opens the async-tier
+  refresh goes through `loadErrorHandler` for exactly this reason (the default handler still logs).
 - **The promise must cover the whole operation.** Where a background chain kicks off further work
   (the expiration lookup that decides whether a refresh is due, then the refresh), the inner chain is
   `return`ed rather than detached, so the host adopts the refresh and not just the lookup. Nothing

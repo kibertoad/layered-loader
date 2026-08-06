@@ -84,9 +84,12 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
                   return undefined
                 })
                 .catch((err) => {
-                  // expiration lookup is fire-and-forget; a rejection here must not become
-                  // an unhandled promise rejection
-                  this.logger.error(err.message)
+                  // The expiration lookup is a read against the async cache, so report it the same
+                  // way resolveGroupValue reports a failed read: through loadErrorHandler, so a
+                  // configured handler can observe it (the default one still logs). It is
+                  // fire-and-forget, so swallowing after reporting also keeps it from becoming an
+                  // unhandled promise rejection.
+                  this.loadErrorHandler(err, key, this.asyncCache!, this.logger)
                 }),
               'refresh',
             )
@@ -165,35 +168,45 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     loadParams: LoadParams,
     cachedValue: LoadedValue | null,
   ): Promise<void> {
-    if (
-      this.isEntryStillCurrentFn &&
-      (await this.isCurrentEntryTtlBumped(
-        key,
-        () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
-        () => this.asyncCache!.resetTtlFromGroup!(key, group),
-      ))
-    ) {
-      // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
-      // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
-      return
-    }
+    // This refresh writes into the in-memory tier without holding a runningLoads entry (it reloads
+    // straight from the data sources rather than through getAsyncOnlyResolved), so it needs its own
+    // fence. Without it, an invalidation arriving mid-refresh - locally originated or applied from
+    // another node, per entry or per group - deletes the entry and is then silently undone when this
+    // refresh completes and writes its pre-invalidation snapshot back.
+    const fenceToken = this.openGroupBackgroundWriteFence(key, group)
+    try {
+      if (
+        this.isEntryStillCurrentFn &&
+        (await this.isCurrentEntryTtlBumped(
+          key,
+          () => this.isEntryStillCurrentFn!(cachedValue, loadParams, group),
+          () => this.asyncCache!.resetTtlFromGroup!(key, group),
+        ))
+      ) {
+        // getAsyncOnly already re-set the in-memory entry to this same value when resolveGroupValue
+        // resolved, which reset its TTL; the value is unchanged on a bump, so nothing else to do.
+        return
+      }
 
-    // The entry is stale, the check failed, or the bump failed (entry expired or the group was
-    // invalidated meanwhile), so run the full background refresh from the data sources.
-    const freshValue = await this.loadFromLoaders(key, group, loadParams)
-    // Propagate the freshly loaded value to the in-memory group cache as well.
-    // Without this, the in-memory layer keeps serving the stale value that
-    // was read from the async cache before this background refresh started,
-    // and its TTL is reset on the next read, so subsequent reads stay stale
-    // for another full ttlInMsecs window even though the async cache is fresh.
-    if (freshValue !== undefined) {
-      this.inMemoryCache.setForGroup(key, freshValue, group)
+      // The entry is stale, the check failed, or the bump failed (entry expired or the group was
+      // invalidated meanwhile), so run the full background refresh from the data sources.
+      const freshValue = await this.loadFromLoaders(key, group, loadParams)
+      // Propagate the freshly loaded value to the in-memory group cache as well.
+      // Without this, the in-memory layer keeps serving the stale value that
+      // was read from the async cache before this background refresh started,
+      // and its TTL is reset on the next read, so subsequent reads stay stale
+      // for another full ttlInMsecs window even though the async cache is fresh.
+      if (freshValue !== undefined && this.isGroupBackgroundWriteFenceIntact(key, group, fenceToken)) {
+        this.inMemoryCache.setForGroup(key, freshValue, group)
+      }
+    } finally {
+      this.closeGroupBackgroundWriteFence(key, group, fenceToken)
     }
   }
 
   public async forceSetValueForGroup(key: string, newValue: LoadedValue | null, group: string) {
     this.inMemoryCache.setForGroup(key, newValue, group)
-    this.deleteGroupRunningLoad(this.resolveGroupLoads(group), group, key)
+    this.evictGroupRunningLoad(group, key)
 
     if (this.asyncCache) {
       await this.asyncCache.setForGroup(key, newValue, group).catch((err) => {

@@ -20,8 +20,7 @@ export class ManualGroupCache<LoadedValue> extends AbstractGroupCache<LoadedValu
 
   public async set(key: string, resolvedValue: LoadedValue, group: string): Promise<void> {
     this.inMemoryCache.setForGroup(key, resolvedValue, group)
-    const groupLoads = this.resolveGroupLoads(group)
-    this.deleteGroupRunningLoad(groupLoads, group, key)
+    this.evictGroupRunningLoad(group, key)
     if (this.asyncCache) {
       return this.asyncCache.setForGroup(key, resolvedValue, group).catch((err) => {
         this.cacheUpdateErrorHandler(err, key, this.asyncCache!, this.logger)

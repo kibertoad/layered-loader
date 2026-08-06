@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { GroupLoader } from '../lib/GroupLoader.js'
 import { Loader } from '../lib/Loader.js'
 import { AbstractNotificationConsumer } from '../lib/notifications/AbstractNotificationConsumer.js'
-import type { SynchronousCache, SynchronousGroupCache } from '../lib/types/SyncDataSources.js'
+import type { Cache, CacheEntry, GroupCache } from '../lib/types/DataSources.js'
+import type {
+  GetManyResult,
+  SynchronousCache,
+  SynchronousGroupCache,
+} from '../lib/types/SyncDataSources.js'
 
 /**
  * Stands in for a real notification consumer (Redis pub/sub, SQS): it applies commands that arrived
@@ -31,6 +36,152 @@ class FakeGroupConsumer extends AbstractNotificationConsumer<
 }
 
 const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve))
+
+/**
+ * An async cache tier whose entries are permanently inside their preemptive refresh window, so any
+ * read of an existing entry schedules the async-tier background refresh. That refresh reloads
+ * straight from the data sources instead of going through the fenced getAsyncOnlyResolved path,
+ * which is why it needs a background write fence of its own.
+ */
+class AlwaysRefreshingCache implements Cache<string> {
+  name = 'always-refreshing-cache'
+  readonly ttlLeftBeforeRefreshInMsecs = 60_000
+  public readonly storage = new Map<string, string | null>()
+
+  readonly expirationTimeLoadingOperation = {
+    get: () => Promise.resolve(Date.now() + 1),
+  } as unknown as Cache<string>['expirationTimeLoadingOperation']
+
+  get(key: string): Promise<string | undefined | null> {
+    return Promise.resolve(this.storage.get(key))
+  }
+
+  set(key: string, value: string | null): Promise<void> {
+    this.storage.set(key, value)
+    return Promise.resolve()
+  }
+
+  delete(key: string): Promise<void> {
+    this.storage.delete(key)
+    return Promise.resolve()
+  }
+
+  deleteMany(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      this.storage.delete(key)
+    }
+    return Promise.resolve()
+  }
+
+  clear(): Promise<void> {
+    this.storage.clear()
+    return Promise.resolve()
+  }
+
+  close(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  getExpirationTime(): Promise<number> {
+    return Promise.resolve(Date.now() + 1)
+  }
+
+  getMany(): Promise<GetManyResult<string>> {
+    throw new Error('Not implemented')
+  }
+
+  setMany(_entries: readonly CacheEntry<string>[]): Promise<void> {
+    throw new Error('Not implemented')
+  }
+}
+
+/** Grouped counterpart of {@link AlwaysRefreshingCache}. */
+class AlwaysRefreshingGroupCache implements GroupCache<string> {
+  name = 'always-refreshing-group-cache'
+  readonly ttlLeftBeforeRefreshInMsecs = 60_000
+  public readonly storage = new Map<string, Map<string, string | null>>()
+
+  readonly expirationTimeLoadingGroupedOperation = {
+    get: () => Promise.resolve(Date.now() + 1),
+  } as unknown as GroupCache<string>['expirationTimeLoadingGroupedOperation']
+
+  private resolveGroup(group: string) {
+    let groupStorage = this.storage.get(group)
+    if (!groupStorage) {
+      groupStorage = new Map()
+      this.storage.set(group, groupStorage)
+    }
+    return groupStorage
+  }
+
+  getFromGroup(key: string, group: string): Promise<string | undefined | null> {
+    return Promise.resolve(this.storage.get(group)?.get(key))
+  }
+
+  setForGroup(key: string, value: string | null, group: string): Promise<void> {
+    this.resolveGroup(group).set(key, value)
+    return Promise.resolve()
+  }
+
+  deleteFromGroup(key: string, group: string): Promise<void> {
+    this.storage.get(group)?.delete(key)
+    return Promise.resolve()
+  }
+
+  deleteGroup(group: string): Promise<void> {
+    this.storage.delete(group)
+    return Promise.resolve()
+  }
+
+  clear(): Promise<void> {
+    this.storage.clear()
+    return Promise.resolve()
+  }
+
+  close(): Promise<void> {
+    return Promise.resolve()
+  }
+
+  getExpirationTimeFromGroup(): Promise<number> {
+    return Promise.resolve(Date.now() + 1)
+  }
+
+  getManyFromGroup(): Promise<GetManyResult<string>> {
+    throw new Error('Not implemented')
+  }
+
+  setManyForGroup(_entries: readonly CacheEntry<string>[], _group: string): Promise<void> {
+    throw new Error('Not implemented')
+  }
+}
+
+/**
+ * A data source whose loads can be released one at a time, so a background refresh can be held open
+ * while an invalidation arrives.
+ */
+const createHeldDataSource = () => {
+  const releases: ((value: string) => void)[] = []
+  let signalStarted!: () => void
+  const started = new Promise<void>((resolve) => {
+    signalStarted = resolve
+  })
+  return {
+    load: () => {
+      const loadingPromise = new Promise<string>((resolve) => {
+        releases.push(resolve)
+      })
+      signalStarted()
+      return loadingPromise
+    },
+    /** Resolves once the first load has started. */
+    started,
+    release: (value: string) => {
+      for (const resolve of releases.splice(0)) {
+        resolve(value)
+      }
+    },
+  }
+}
 
 describe('applying invalidations that originated elsewhere', () => {
   describe('Loader', () => {
@@ -173,6 +324,83 @@ describe('applying invalidations that originated elsewhere', () => {
       target.clear()
       expect(target.get('key')).toBeUndefined()
     })
+
+    describe('async-tier background refresh', () => {
+      let asyncCache: AlwaysRefreshingCache
+      let dataSource: ReturnType<typeof createHeldDataSource>
+      let refreshingLoader: Loader<string>
+
+      beforeEach(() => {
+        asyncCache = new AlwaysRefreshingCache()
+        asyncCache.storage.set('key', 'stale-value')
+        dataSource = createHeldDataSource()
+        refreshingLoader = new Loader<string>({
+          inMemoryCache: { ttlInMsecs: 60_000 },
+          asyncCache,
+          dataSourceGetOneFn: dataSource.load,
+        })
+      })
+
+      it('writes the reloaded value into the in-memory tier when nothing invalidated it', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        dataSource.release('fresh-value')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBe('fresh-value')
+      })
+
+      it('is fenced by a remote invalidation, so the pre-invalidation reload is not written back', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        // the invalidation arrives from another node while the background refresh is still loading
+        refreshingLoader.applyRemoteInvalidationFor('key')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBeUndefined()
+      })
+
+      it('is fenced by a batch remote invalidation', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteInvalidationForMany(['key', 'other-key'])
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBeUndefined()
+      })
+
+      it('is fenced by a remote value application, so the newer value is not clobbered', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteValue('key', 'value-from-another-node')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBe('value-from-another-node')
+      })
+
+      it('is fenced by a remote cache-wide clear', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteInvalidation()
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBeUndefined()
+      })
+
+      it('is fenced by a locally originated invalidation too', async () => {
+        expect(await refreshingLoader.get('key')).toBe('stale-value')
+        await dataSource.started
+        await refreshingLoader.invalidateCacheFor('key')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key')).toBeUndefined()
+      })
+    })
   })
 
   describe('GroupLoader', () => {
@@ -288,6 +516,104 @@ describe('applying invalidations that originated elsewhere', () => {
       target.setForGroup('key', 'again', 'group')
       target.clear()
       expect(target.getFromGroup('key', 'group')).toBeUndefined()
+    })
+
+    describe('async-tier background refresh', () => {
+      let asyncCache: AlwaysRefreshingGroupCache
+      let dataSource: ReturnType<typeof createHeldDataSource>
+      let refreshingLoader: GroupLoader<string>
+
+      beforeEach(() => {
+        asyncCache = new AlwaysRefreshingGroupCache()
+        dataSource = createHeldDataSource()
+        refreshingLoader = new GroupLoader<string>({
+          inMemoryCache: { ttlInMsecs: 60_000 },
+          asyncCache,
+          dataSources: [
+            {
+              name: 'test',
+              getFromGroup: dataSource.load,
+              getManyFromGroup: async () => [],
+            },
+          ],
+        })
+      })
+
+      const seed = async (group: string) => {
+        await asyncCache.setForGroup('key', 'stale-value', group)
+      }
+
+      it('writes the reloaded value into the in-memory tier when nothing invalidated it', async () => {
+        await seed('group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        await dataSource.started
+        dataSource.release('fresh-value')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBe('fresh-value')
+      })
+
+      it('is fenced by a remote entry invalidation', async () => {
+        await seed('group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteInvalidationFor('key', 'group')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBeUndefined()
+      })
+
+      it('is fenced by a remote group invalidation, and only for that group', async () => {
+        await seed('group')
+        await seed('other-group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        expect(await refreshingLoader.get('key', 'other-group')).toBe('stale-value')
+        await dataSource.started
+
+        refreshingLoader.applyRemoteInvalidationForGroup('group')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBeUndefined()
+        // the untouched group's refresh was never fenced, so it wrote its result as usual
+        expect(refreshingLoader.getInMemoryOnly('key', 'other-group')).toBe(
+          'value-loaded-before-the-invalidation',
+        )
+      })
+
+      it('is fenced by a remote value application, so the newer value is not clobbered', async () => {
+        await seed('group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteValue('key', 'value-from-another-node', 'group')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBe('value-from-another-node')
+      })
+
+      it('is fenced by a remote cache-wide clear', async () => {
+        await seed('group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        await dataSource.started
+        refreshingLoader.applyRemoteInvalidation()
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBeUndefined()
+      })
+
+      it('is fenced by a locally originated group invalidation too', async () => {
+        await seed('group')
+        expect(await refreshingLoader.get('key', 'group')).toBe('stale-value')
+        await dataSource.started
+        await refreshingLoader.invalidateCacheForGroup('group')
+        dataSource.release('value-loaded-before-the-invalidation')
+        await flushMicrotasks()
+
+        expect(refreshingLoader.getInMemoryOnly('key', 'group')).toBeUndefined()
+      })
     })
   })
 })
