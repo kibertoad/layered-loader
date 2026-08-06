@@ -1,14 +1,15 @@
 import type { CommonCacheConfig } from './AbstractCache.js'
 import { AbstractGroupCache } from './AbstractGroupCache.js'
-import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
 import type { GroupCache } from './types/DataSources.js'
+import type { SynchronousGroupCache } from './types/SyncDataSources.js'
 
 export type ManualGroupCacheConfig<LoadedValue> = CommonCacheConfig<
   LoadedValue,
   GroupCache<LoadedValue>,
   InMemoryGroupCacheConfiguration,
-  InMemoryGroupCache<LoadedValue>,
+  SynchronousGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>
 >
 

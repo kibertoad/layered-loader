@@ -1,9 +1,9 @@
 import { AbstractGroupCache } from './AbstractGroupCache.js'
 import type { LoaderConfig } from './Loader.js'
-import type { InMemoryGroupCache, InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
+import type { InMemoryGroupCacheConfiguration } from './memory/InMemoryGroupCache.js'
 import type { GroupNotificationPublisher } from './notifications/GroupNotificationPublisher.js'
 import type { CacheEntry, GroupCache, GroupDataSource, IsGroupEntryStillCurrentFn } from './types/DataSources.js'
-import type { GetManyResult } from './types/SyncDataSources.js'
+import type { GetManyResult, SynchronousGroupCache } from './types/SyncDataSources.js'
 
 export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams = LoadParams> = LoaderConfig<
   LoadedValue,
@@ -12,7 +12,7 @@ export type GroupLoaderConfig<LoadedValue, LoadParams = string, LoadManyParams =
   GroupCache<LoadedValue>,
   GroupDataSource<LoadedValue, LoadParams, LoadManyParams>,
   InMemoryGroupCacheConfiguration,
-  InMemoryGroupCache<LoadedValue>,
+  SynchronousGroupCache<LoadedValue>,
   GroupNotificationPublisher<LoadedValue>,
   IsGroupEntryStillCurrentFn<LoadedValue, LoadParams>
 >
