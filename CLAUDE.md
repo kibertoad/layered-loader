@@ -46,45 +46,22 @@ The optional-peer arrangement rests on three independent things — the lazy run
 vendored types, and the optional peer declaration in `package.json`. Each has its own guard in
 `test/entrypoints.spec.ts`; break one and the arrangement is gone.
 
-## Originating an invalidation vs applying one
+## Rules for code that does not exist yet
 
-`invalidateCache*` originates (async tier, fences, publishes); `applyRemote*` applies one that arrived
-from elsewhere (fences and deletes in-memory only). README's "Applying invalidations from your own
-transport" has the full matrix. `test/remoteInvalidation.spec.ts` pins the behaviour.
+`test/remoteInvalidation.spec.ts` and `test/backgroundWork.spec.ts` pin the invalidation and
+background-work behaviour, and `tsc` pins the consumer typing, so those need nothing here. These three
+constrain call sites that have not been written, which no test can cover:
 
-- Notification consumers must go through `applyRemote*`. `AbstractCache` hands them a facade over the
-  owning cache — do not "simplify" `createRemoteInvalidationTarget` back into returning
-  `this.inMemoryCache`.
-- Type consumers over `SynchronousCache` / `SynchronousGroupCache`, never over the concrete
-  `InMemoryCache` / `InMemoryGroupCache`: the facade is not one of those, and private fields defeat
-  structural assignment.
-- Anything new that applies remote state belongs in the `applyRemote*` family and must stay synchronous
-  — a pull-transport host calls these at request start and should not have to await.
-- Invalidation paths fence through `evictRunningLoad` / `evictGroupRunningLoad` / `evictAllRunningLoads`.
-  Do not reintroduce a bare `this.runningLoads.delete(key)` in one; the direct delete in
-  `getAsyncOnlyResolved` is load-completion bookkeeping and must not cancel a concurrent refresh.
-- A background path that writes in-memory outside `getAsyncOnlyResolved` holds no `runningLoads` entry
-  and is therefore not fenced by it. It needs a fence token
-  (`openBackgroundWriteFence` / `isBackgroundWriteFenceIntact` / `closeBackgroundWriteFence`), as
-  `refreshOrBumpTtl` uses. Keep the fence map holding only keys with work in flight, so it stays
-  bounded by refresh concurrency rather than by key cardinality.
-- The fence deliberately does not cover the shared async tier, and README says so explicitly. Do not
-  upgrade that claim.
-
-## Background work
-
-- Route every fire-and-forget promise through `AbstractCache.runInBackground(work, reason)`. A promise
-  detached anywhere else cannot be adopted by an isolate-runtime host.
-- The promise handed to the hook must settle fulfilled — `runInBackground` wraps it, but the call site
-  still owns reporting its own errors first, and to the configured handlers (`loadErrorHandler`,
-  `cacheUpdateErrorHandler`), not to `logger.error`, which hides the failure from a host that
-  configured one.
-- `return` inner chains rather than detaching them, so the host adopts the whole operation and not just
-  its first step. Nothing awaits these chains, so returning them changes no timing.
-- `BackgroundWorkReason` is a closed union that hosts branch on: adding a member is a `minor` bump,
-  renaming one is `major`.
-
-`test/backgroundWork.spec.ts` pins all of the above, including that omitting the hook changes nothing.
+- **A background path that writes into the in-memory tier outside `getAsyncOnlyResolved` holds no
+  `runningLoads` entry, so invalidation does not fence it.** Open a fence token
+  (`openBackgroundWriteFence` / `isBackgroundWriteFenceIntact` / `closeBackgroundWriteFence`) as
+  `refreshOrBumpTtl` does, and keep the map holding only keys with work in flight.
+- **Every fire-and-forget promise goes through `AbstractCache.runInBackground(work, reason)`**,
+  reports its own errors to the configured handlers first, and `return`s any inner chain rather than
+  detaching it. Detached elsewhere, an isolate host cannot adopt it; rejecting, it fails the request
+  that adopted it; dropping its continuation, it gets adopted only in part.
+- **Anything new that applies state originating elsewhere joins the `applyRemote*` family and stays
+  synchronous** — a pull-transport host calls these at request start and should not have to await.
 
 ## Working in this repo
 
