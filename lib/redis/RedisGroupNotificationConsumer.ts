@@ -1,6 +1,6 @@
 import type { RedisLike } from './RedisLike.js'
-import type { InMemoryGroupCache } from '../memory/InMemoryGroupCache.js'
 import { AbstractNotificationConsumer } from '../notifications/AbstractNotificationConsumer.js'
+import type { SynchronousGroupCache } from '../types/SyncDataSources.js'
 import type {
   DeleteFromGroupNotificationCommand,
   DeleteGroupNotificationCommand,
@@ -9,9 +9,11 @@ import type {
 import type { RedisConsumerConfig } from './RedisNotificationConsumer.js'
 import { defaultLogger } from '../util/Logger.js'
 
+// Typed against the interface rather than the concrete InMemoryGroupCache: the target cache handed
+// to a consumer is the owning loader's remote-invalidation facade, not the in-memory cache itself.
 export class RedisGroupNotificationConsumer<LoadedValue> extends AbstractNotificationConsumer<
   LoadedValue,
-  InMemoryGroupCache<LoadedValue>
+  SynchronousGroupCache<LoadedValue>
 > {
   private readonly redis: RedisLike
   private readonly channel: string

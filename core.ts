@@ -45,6 +45,11 @@ export type {
   IsEntryStillCurrentFn,
   IsGroupEntryStillCurrentFn,
 } from './lib/types/DataSources.js'
+export type {
+  BackgroundWorkMeta,
+  BackgroundWorkReason,
+  BackgroundWorkScheduler,
+} from './lib/types/BackgroundWork.js'
 export type { Logger, LogFn } from './lib/util/Logger.js'
 
 export { HitStatisticsRecord } from 'toad-cache'

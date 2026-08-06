@@ -67,6 +67,53 @@ Rules that follow from that:
   the invariant was broken. Checking emitted output has no such ambiguity: the compiler has already
   erased the type-only imports.
 
+## Originating an invalidation vs applying one
+
+These are two different operations and the distinction is load-bearing, not cosmetic:
+
+- `invalidateCacheFor` / `invalidateCacheForGroup` / `invalidateCache` **originate** one: they delete
+  from the async tier, fence running loads, delete in-memory, and **publish**.
+- `applyRemoteInvalidationFor` / `applyRemoteInvalidationForGroup` / `applyRemoteValue` /
+  `applyRemoteInvalidation` **apply** one that came from somewhere else: they fence running loads and
+  delete in-memory, and deliberately do **not** touch the async tier (the origin already did, it is
+  shared) and do **not** publish (the origin already broadcast it — re-publishing echoes it back onto
+  the bus).
+
+Notification consumers must go through the second set. `AbstractCache` hands the consumer a facade
+over the owning cache — not `this.inMemoryCache` — so `targetCache.delete(key)` fences running loads.
+That fencing is the whole point: before it existed, a `DELETE` that arrived while a load for the same
+key was in flight was silently undone when the load resolved and wrote its pre-invalidation snapshot
+back. `test/remoteInvalidation.spec.ts` pins both halves.
+
+Consequences to preserve:
+
+- Consumers are typed over `SynchronousCache` / `SynchronousGroupCache`, never over the concrete
+  `InMemoryCache` / `InMemoryGroupCache` — the facade is not one of those, and a concrete class type
+  would not accept it (private fields defeat structural assignment).
+- Do not "simplify" `createRemoteInvalidationTarget` back into passing `this.inMemoryCache`.
+- Anything new that applies remote state belongs in the `applyRemote*` family, and must stay
+  synchronous: a pull-transport host calls these at request start and should not have to await.
+
+## Background work
+
+Every fire-and-forget promise goes through `AbstractCache.runInBackground(work, reason)`, which hands
+it to the optional `scheduleBackgroundWork` config hook or leaves it detached when there is none.
+New fire-and-forget call sites must route through it too, or an isolate-runtime host loses the
+ability to adopt them with `ctx.waitUntil()`.
+
+Two invariants:
+
+- **The promise handed over must settle fulfilled.** `runInBackground` wraps it, but the call site
+  still owns reporting its own errors to the configured handlers first — `ctx.waitUntil()` on a
+  rejecting promise fails the request that adopted it.
+- **The promise must cover the whole operation.** Where a background chain kicks off further work
+  (the expiration lookup that decides whether a refresh is due, then the refresh), the inner chain is
+  `return`ed rather than detached, so the host adopts the refresh and not just the lookup. Nothing
+  awaits these chains otherwise, so returning them changes no timing.
+
+`BackgroundWorkReason` is a closed union. Hosts branch on it, so adding a member is a minor bump and
+renaming one is a major.
+
 ## Why `ioredis` is an optional peer dependency
 
 Recorded here so the trade-off is not re-litigated. `ioredis` is not a `dependency`; it is a

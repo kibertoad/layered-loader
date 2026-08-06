@@ -51,38 +51,45 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
           let isAlreadyRefreshing = groupSet?.has(key)
 
           if (!isAlreadyRefreshing) {
-            this.asyncCache.expirationTimeLoadingGroupedOperation
-              .get(key, group)
-              .then((expirationTime) => {
-                if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-                  // Check if someone else didn't start refreshing while we were checking expiration time
-                  groupSet = this.groupRefreshFlags.get(group)
-                  isAlreadyRefreshing = groupSet?.has(key)
-                  if (!isAlreadyRefreshing) {
-                    if (!groupSet) {
-                      groupSet = new Set<string>()
-                      this.groupRefreshFlags.set(group, groupSet)
-                    }
-                    groupSet.add(key)
+            this.runInBackground(
+              this.asyncCache.expirationTimeLoadingGroupedOperation
+                .get(key, group)
+                .then((expirationTime) => {
+                  if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                    // Check if someone else didn't start refreshing while we were checking expiration time
+                    groupSet = this.groupRefreshFlags.get(group)
+                    isAlreadyRefreshing = groupSet?.has(key)
+                    if (!isAlreadyRefreshing) {
+                      if (!groupSet) {
+                        groupSet = new Set<string>()
+                        this.groupRefreshFlags.set(group, groupSet)
+                      }
+                      groupSet.add(key)
 
-                    this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
-                      .catch((err) => {
-                        this.logger.error(err.message)
-                      })
-                      .finally(() => {
-                        groupSet!.delete(key)
-                        if (groupSet!.size === 0) {
-                          this.groupRefreshFlags.delete(group)
-                        }
-                      })
+                      // Returned, not detached: the promise handed to scheduleBackgroundWork has to
+                      // cover the refresh itself, not just the expiration lookup that decided it was
+                      // due. Nothing awaits this chain otherwise, so returning it changes no timing.
+                      return this.refreshOrBumpTtl(key, group, loadParams, cachedValue)
+                        .catch((err) => {
+                          this.logger.error(err.message)
+                        })
+                        .finally(() => {
+                          groupSet!.delete(key)
+                          if (groupSet!.size === 0) {
+                            this.groupRefreshFlags.delete(group)
+                          }
+                        })
+                    }
                   }
-                }
-              })
-              .catch((err) => {
-                // expiration lookup is fire-and-forget; a rejection here must not become
-                // an unhandled promise rejection
-                this.logger.error(err.message)
-              })
+                  return undefined
+                })
+                .catch((err) => {
+                  // expiration lookup is fire-and-forget; a rejection here must not become
+                  // an unhandled promise rejection
+                  this.logger.error(err.message)
+                }),
+              'refresh',
+            )
           }
         }
         return cachedValue
@@ -111,16 +118,19 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     }
     groupSet.add(key)
 
-    this.refreshOrBumpInMemoryTtl(key, group, loadParams)
-      .catch((err) => {
-        this.logger.error(err.message)
-      })
-      .finally(() => {
-        groupSet!.delete(key)
-        if (groupSet!.size === 0) {
-          this.groupRefreshFlags.delete(group)
-        }
-      })
+    this.runInBackground(
+      this.refreshOrBumpInMemoryTtl(key, group, loadParams)
+        .catch((err) => {
+          this.logger.error(err.message)
+        })
+        .finally(() => {
+          groupSet!.delete(key)
+          if (groupSet!.size === 0) {
+            this.groupRefreshFlags.delete(group)
+          }
+        }),
+      'refresh',
+    )
   }
 
   private async refreshOrBumpInMemoryTtl(key: string, group: string, loadParams: LoadParams): Promise<void> {

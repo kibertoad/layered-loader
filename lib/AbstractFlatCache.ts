@@ -19,6 +19,64 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     return false
   }
 
+  /**
+   * Applies an invalidation that originated elsewhere - another node on a notification bus, or a
+   * pull-based transport that read "what changed since cursor N" at the start of a request.
+   *
+   * This is deliberately not the same operation as {@link invalidateCacheFor}:
+   *
+   * - it publishes nothing, because the origin already broadcast the invalidation; re-publishing it
+   *   would echo it back onto the bus;
+   * - it does not touch the async cache, because that tier is shared and the origin already deleted
+   *   the entry there;
+   * - it does evict the running load for the key, so a load that started before the invalidation
+   *   arrived cannot write its pre-invalidation snapshot back into the in-memory cache when it
+   *   resolves. Callers already awaiting that load still receive its value, exactly as they do for a
+   *   locally originated invalidation.
+   *
+   * Notification consumers get this behaviour without doing anything: the target cache they are
+   * handed routes deletions through here.
+   */
+  public applyRemoteInvalidationFor(key: string): void {
+    this.runningLoads.delete(key)
+    this.inMemoryCache.delete(key)
+  }
+
+  /**
+   * Batch form of {@link applyRemoteInvalidationFor}.
+   */
+  public applyRemoteInvalidationForMany(keys: string[]): void {
+    for (let i = 0; i < keys.length; i++) {
+      this.runningLoads.delete(keys[i])
+    }
+    this.inMemoryCache.deleteMany(keys)
+  }
+
+  /**
+   * Applies a value that was set elsewhere and broadcast to this node. Fences the running load for
+   * the same reason {@link applyRemoteInvalidationFor} does: an older in-flight load must not
+   * overwrite the newer value that just arrived.
+   */
+  public applyRemoteValue(key: string, value: LoadedValue | null): void {
+    this.runningLoads.delete(key)
+    this.inMemoryCache.set(key, value)
+  }
+
+  protected override createRemoteInvalidationTarget(): SynchronousCache<LoadedValue> {
+    const inMemoryCache = this.inMemoryCache
+    return {
+      ttlLeftBeforeRefreshInMsecs: inMemoryCache.ttlLeftBeforeRefreshInMsecs,
+      get: (key) => inMemoryCache.get(key),
+      getMany: (keys) => inMemoryCache.getMany(keys),
+      getExpirationTime: (key) => inMemoryCache.getExpirationTime(key),
+      resetTtl: (key) => inMemoryCache.resetTtl(key),
+      set: (key, value) => this.applyRemoteValue(key, value),
+      delete: (key) => this.applyRemoteInvalidationFor(key),
+      deleteMany: (keys) => this.applyRemoteInvalidationForMany(keys),
+      clear: () => this.applyRemoteInvalidation(),
+    }
+  }
+
   public getInMemoryOnly(loadParams: LoadParams): LoadedValue | undefined | null {
     return this.getInMemoryOnlyResolved(this.cacheKeyFromLoadParamsResolver(loadParams), loadParams)
   }
@@ -40,7 +98,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
    * against the in-memory value and merely bump its TTL when it is still current.
    */
   protected scheduleInMemoryRefresh(key: string, loadParams: LoadParams): void {
-    void this.getAsyncOnlyResolved(key, loadParams)
+    this.runInBackground(this.getAsyncOnlyResolved(key, loadParams), 'refresh')
   }
 
   public getManyInMemoryOnly(keys: string[]): GetManyResult<LoadedValue> {
@@ -175,9 +233,12 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     this.runningLoads.delete(key)
     this.inMemoryCache.delete(key)
     if (this.notificationPublisher) {
-      this.notificationPublisher.delete(key).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.delete(key).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 
@@ -199,10 +260,13 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     }
 
     if (this.notificationPublisher) {
-      this.notificationPublisher.deleteMany(keys).catch((err) => {
-        /* v8 ignore next -- @preserve */
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.deleteMany(keys).catch((err) => {
+          /* v8 ignore next -- @preserve */
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 }

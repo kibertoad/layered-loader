@@ -18,6 +18,57 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     return true
   }
 
+  /**
+   * Applies an entry invalidation that originated elsewhere - another node on a notification bus, or
+   * a pull-based transport that read "what changed since cursor N" at the start of a request.
+   *
+   * This is deliberately not the same operation as {@link invalidateCacheFor}: it publishes nothing
+   * (the origin already broadcast it, and re-publishing would echo it back onto the bus) and does
+   * not touch the shared async cache (the origin already deleted the entry there), but it does evict
+   * the running load, so a load that started before the invalidation arrived cannot write its
+   * pre-invalidation snapshot back into the in-memory cache when it resolves.
+   *
+   * Notification consumers get this behaviour without doing anything: the target cache they are
+   * handed routes deletions through here.
+   */
+  public applyRemoteInvalidationFor(key: string, group: string): void {
+    this.evictGroupRunningLoad(group, key)
+    this.inMemoryCache.deleteFromGroup(key, group)
+  }
+
+  /**
+   * Group-wide form of {@link applyRemoteInvalidationFor}.
+   */
+  public applyRemoteInvalidationForGroup(group: string): void {
+    this.runningLoads.delete(group)
+    this.inMemoryCache.deleteGroup(group)
+  }
+
+  /**
+   * Applies a value that was set elsewhere and broadcast to this node. Fences the running load for
+   * the same reason {@link applyRemoteInvalidationFor} does: an older in-flight load must not
+   * overwrite the newer value that just arrived.
+   */
+  public applyRemoteValue(key: string, value: LoadedValue | null, group: string): void {
+    this.evictGroupRunningLoad(group, key)
+    this.inMemoryCache.setForGroup(key, value, group)
+  }
+
+  protected override createRemoteInvalidationTarget(): SynchronousGroupCache<LoadedValue> {
+    const inMemoryCache = this.inMemoryCache
+    return {
+      ttlLeftBeforeRefreshInMsecs: inMemoryCache.ttlLeftBeforeRefreshInMsecs,
+      getFromGroup: (key, group) => inMemoryCache.getFromGroup(key, group),
+      getManyFromGroup: (keys, group) => inMemoryCache.getManyFromGroup(keys, group),
+      getExpirationTimeFromGroup: (key, group) => inMemoryCache.getExpirationTimeFromGroup(key, group),
+      resetTtlFromGroup: (key, group) => inMemoryCache.resetTtlFromGroup(key, group),
+      setForGroup: (key, value, group) => this.applyRemoteValue(key, value, group),
+      deleteFromGroup: (key, group) => this.applyRemoteInvalidationFor(key, group),
+      deleteGroup: (group) => this.applyRemoteInvalidationForGroup(group),
+      clear: () => this.applyRemoteInvalidation(),
+    }
+  }
+
   public async invalidateCacheForGroup(group: string) {
     // Evict the running loads first so in-flight results are fenced out of the caches.
     this.runningLoads.delete(group)
@@ -35,9 +86,12 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     this.inMemoryCache.deleteGroup(group)
 
     if (this.notificationPublisher) {
-      void this.notificationPublisher.deleteGroup(group).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.deleteGroup(group).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 
@@ -68,7 +122,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
    * against the in-memory value and merely bump its TTL when it is still current.
    */
   protected scheduleInMemoryRefresh(key: string, loadParams: LoadParams, group: string): void {
-    void this.getAsyncOnlyResolved(key, loadParams, group)
+    this.runInBackground(this.getAsyncOnlyResolved(key, loadParams, group), 'refresh')
   }
 
   public getManyInMemoryOnly(keys: string[], group: string) {
@@ -183,9 +237,12 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     this.inMemoryCache.deleteFromGroup(key, group)
 
     if (this.notificationPublisher) {
-      void this.notificationPublisher.deleteFromGroup(key, group).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.deleteFromGroup(key, group).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 

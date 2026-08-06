@@ -88,9 +88,12 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
 
     /* v8 ignore next -- @preserve */
     if (this.notificationPublisher) {
-      this.notificationPublisher.set(key, newValue).catch((err) => {
-        this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-      })
+      this.runInBackground(
+        this.notificationPublisher.set(key, newValue).catch((err) => {
+          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+        }),
+        'notification',
+      )
     }
   }
 
@@ -105,9 +108,12 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       // In order to keep other cluster nodes in-sync with potentially changed entry, we force them to refresh too
       /* v8 ignore next -- @preserve */
       if (this.notificationPublisher) {
-        this.notificationPublisher.delete(key).catch((err) => {
-          this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
-        })
+        this.runInBackground(
+          this.notificationPublisher.delete(key).catch((err) => {
+            this.notificationPublisher!.errorHandler(err, this.notificationPublisher!.channel, this.logger)
+          }),
+          'notification',
+        )
       }
 
       return finalValue
@@ -120,28 +126,35 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       if (cachedValue !== undefined) {
         if (this.asyncCache?.ttlLeftBeforeRefreshInMsecs) {
           if (!this.isKeyRefreshing.has(key)) {
-            this.asyncCache.expirationTimeLoadingOperation
-              .get(key)
-              .then((expirationTime) => {
-                if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
-                  // check second time, maybe someone obtained the lock while we were checking the expiration date
-                  if (!this.isKeyRefreshing.has(key)) {
-                    this.isKeyRefreshing.add(key)
-                    this.refreshOrBumpTtl(key, loadParams, cachedValue)
-                      .catch((err) => {
-                        this.logger.error(err.message)
-                      })
-                      .finally(() => {
-                        this.isKeyRefreshing.delete(key)
-                      })
+            this.runInBackground(
+              this.asyncCache.expirationTimeLoadingOperation
+                .get(key)
+                .then((expirationTime) => {
+                  if (expirationTime && expirationTime - Date.now() < this.asyncCache!.ttlLeftBeforeRefreshInMsecs!) {
+                    // check second time, maybe someone obtained the lock while we were checking the expiration date
+                    if (!this.isKeyRefreshing.has(key)) {
+                      this.isKeyRefreshing.add(key)
+                      // Returned, not detached: the promise handed to scheduleBackgroundWork has to
+                      // cover the refresh itself, not just the expiration lookup that decided it was
+                      // due. Nothing awaits this chain otherwise, so returning it changes no timing.
+                      return this.refreshOrBumpTtl(key, loadParams, cachedValue)
+                        .catch((err) => {
+                          this.logger.error(err.message)
+                        })
+                        .finally(() => {
+                          this.isKeyRefreshing.delete(key)
+                        })
+                    }
                   }
-                }
-              })
-              .catch((err) => {
-                // expiration lookup is fire-and-forget; a rejection here must not become
-                // an unhandled promise rejection
-                this.logger.error(err.message)
-              })
+                  return undefined
+                })
+                .catch((err) => {
+                  // expiration lookup is fire-and-forget; a rejection here must not become
+                  // an unhandled promise rejection
+                  this.logger.error(err.message)
+                }),
+              'refresh',
+            )
           }
         }
 
@@ -166,13 +179,16 @@ export class Loader<LoadedValue, LoadParams = string, LoadManyParams = LoadParam
       return
     }
     this.isKeyRefreshing.add(key)
-    this.refreshOrBumpInMemoryTtl(key, loadParams)
-      .catch((err) => {
-        this.logger.error(err.message)
-      })
-      .finally(() => {
-        this.isKeyRefreshing.delete(key)
-      })
+    this.runInBackground(
+      this.refreshOrBumpInMemoryTtl(key, loadParams)
+        .catch((err) => {
+          this.logger.error(err.message)
+        })
+        .finally(() => {
+          this.isKeyRefreshing.delete(key)
+        }),
+      'refresh',
+    )
   }
 
   private async refreshOrBumpInMemoryTtl(key: string, loadParams: LoadParams): Promise<void> {

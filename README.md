@@ -41,6 +41,14 @@ You can watch [NodeConf EU 2023 talk](https://www.youtube.com/watch?v=O0Nk3XhxxY
 - [Flexible invalidation triggers](#flexible-invalidation-triggers)
   - [Recommended pattern: Redis fanout + SQS trigger](#recommended-pattern-redis-fanout--sqs-trigger)
   - [SNS/SQS adapter](#snssqs-adapter)
+- [Applying invalidations from your own transport](#applying-invalidations-from-your-own-transport)
+- [Background work](#background-work)
+- [Isolate runtimes with no invalidation bus](#isolate-runtimes-with-no-invalidation-bus)
+  - [Hoist the loader to isolate scope](#hoist-the-loader-to-isolate-scope)
+  - [Pull invalidations instead of pushing them](#pull-invalidations-instead-of-pushing-them)
+  - [Hand background work to the request](#hand-background-work-to-the-request)
+  - [Validating on every read](#validating-on-every-read)
+  - [What the library does not do](#what-the-library-does-not-do)
 - [Cache statistics](#cache-statistics)
 - [Cache-only operations](#cache-only-operations)
   - [Forcing an update](#forcing-an-update)
@@ -93,7 +101,11 @@ const loader = new Loader<string>({
 ```
 
 Nothing reachable from `layered-loader/core` imports `ioredis`, or even a `node:` builtin — its
-only runtime dependency is `toad-cache`.
+only runtime dependency is `toad-cache`. Importing cleanly is necessary but not sufficient on an
+isolate runtime, though: see
+[Isolate runtimes with no invalidation bus](#isolate-runtimes-with-no-invalidation-bus) for how to
+keep the cache alive across invocations, invalidate it without a bus, and stop background work from
+outliving its request.
 
 Redis usage keeps its own entrypoint:
 
@@ -376,12 +388,14 @@ Loader has the following config parameters:
 - `cacheKeyFromLoadParamsResolver: CacheKeyResolver<LoadParams>` - mapper from LoadParams to a cache key. Defaults to a simple string passthrough when LoadParams are just a string key to begin with (which is the default)
 - `cacheKeyFromValueResolver: CacheKeyResolver<LoadParams>` - mapper from entity to be cached to a cache key. Defaults to a dummy resolver which throws an error when methods that depend on it are used. Make sure to provide a real resolver if you are using the bulk API (getMany/getManyFromGroup)
 - `isEntryStillCurrentFn` - optional lightweight staleness check that lets an entry entering the refresh window bump its TTL instead of refetching. See [Conditional refresh with a staleness check](#conditional-refresh-with-a-staleness-check).
+- `scheduleBackgroundWork: BackgroundWorkScheduler` - optional hook for work the loader starts and does not await (background refreshes, staleness probes, notification publishes). Defaults to leaving that work detached. See [Background work](#background-work).
 
 Loader provides following methods:
 
 - `invalidateCacheFor(key: string): Promise<void>` - expunge all entries for given key from all caches of this Loader;
 - `invalidateCacheForMany(keys: string[]): Promise<void>` - expunge all entries for given keys from all caches of this Loader;
 - `invalidateCache(): Promise<void>` - expunge all entries from all caches of this Loader;
+- `applyRemoteInvalidationFor(key: string): void`, `applyRemoteInvalidationForMany(keys: string[]): void`, `applyRemoteValue(key: string, value: T | null): void`, `applyRemoteInvalidation(): void` - apply an invalidation (or a value) that originated on another node, without re-publishing it. See [Applying invalidations from your own transport](#applying-invalidations-from-your-own-transport);
 - `get(loadParams: LoadParams = string): Promise<T>` - sequentially attempt to retrieve data for specified key from all caches and loaders, in an order in which those data sources passed to the Loader constructor.
 - `getMany(keys: string[], loadManyParams?: LoadManyParams = LoadParams): Promise<T>` - sequentially attempt to retrieve data for specified keys from all caches and data sources, in an order in which those data sources were passed to the Loader constructor. Duplicate keys in the input array are automatically deduplicated to optimize performance and prevent redundant data source calls. Note that this retrieval mode doesn't support preemptive background refresh. Note that you need to manually resolve all keys upfront for this retrieval method (e. g. by using cacheKeyFromLoadParamsResolver from the Loader).
 
@@ -674,6 +688,223 @@ Each trigger takes a single `dependencies` block and an array of `sources` (queu
 
 Future adapters (RabbitMQ, Kafka, Google Pub/Sub, ...) reuse the same `InvalidationAction` / resolver primitives — only the consumer wiring changes. See the [package README](packages/sqs/README.md#flexible-invalidation-triggers) for the full reference, including group triggers, multi-source / multi-binding configuration, mixing source kinds via `composeTriggers`, and error handling.
 
+## Applying invalidations from your own transport
+
+Applying an invalidation that arrived from somewhere else is **not** the same operation as
+originating one, and the library has separate methods for the two:
+
+| | originating (`invalidateCacheFor`, `invalidateCacheForGroup`, ...) | applying (`applyRemoteInvalidationFor`, ...) |
+| --- | --- | --- |
+| in-memory cache | deletes | deletes |
+| running loads | fences | fences |
+| async cache (Redis) | deletes | leaves alone — the origin already deleted it from the shared tier |
+| notification publisher | publishes | publishes nothing — the origin already broadcast it |
+| return type | `Promise<void>` (awaits the async tier) | `void` (purely local, synchronous) |
+
+Do not reach for `invalidateCacheFor` to apply an invalidation you received. It re-publishes, so on a
+node that also has a publisher configured it echoes the invalidation straight back onto the bus.
+
+The `applyRemote*` methods exist for transports the library does not ship, and in particular for
+**pull-based** ones: a host that reads "what changed since cursor N" at the start of a request and
+applies the result, because the runtime cannot hold a subscription open (see
+[Isolate runtimes with no invalidation bus](#isolate-runtimes-with-no-invalidation-bus)).
+
+```ts
+// at the start of a request, on a runtime where nothing can hold a subscription
+const { keys, cursor } = await readInvalidationsSince(lastCursor)
+for (const key of keys) {
+  loader.applyRemoteInvalidationFor(key)
+}
+lastCursor = cursor
+```
+
+Flat caches (`Loader`, `ManualCache`):
+
+- `applyRemoteInvalidationFor(key)`
+- `applyRemoteInvalidationForMany(keys)`
+- `applyRemoteValue(key, value)` — a value that was set on another node and broadcast here
+- `applyRemoteInvalidation()` — a cache-wide clear
+
+Group caches (`GroupLoader`, `ManualGroupCache`):
+
+- `applyRemoteInvalidationFor(key, group)`
+- `applyRemoteInvalidationForGroup(group)`
+- `applyRemoteValue(key, value, group)`
+- `applyRemoteInvalidation()`
+
+All of them fence the running load for the affected key, so a load that started *before* the
+invalidation arrived cannot write its pre-invalidation snapshot back into the cache when it resolves.
+A caller that was already awaiting that load still receives its value — exactly as for a locally
+originated invalidation.
+
+If you implement `AbstractNotificationConsumer` yourself you get this behaviour for free: the target
+cache handed to `setTargetCache` is a facade over the owning loader that routes deletions and sets
+through these methods, so `this.targetCache.delete(key)` fences running loads too.
+
+## Background work
+
+The loader starts some work it does not await: preemptive background refreshes, staleness probes, and
+notification publishes. By default those promises are simply left detached, which is the right
+behaviour on Node.
+
+`scheduleBackgroundWork` hands each of them to you instead:
+
+```ts
+const loader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 60_000, ttlLeftBeforeRefreshInMsecs: 20_000, cacheId: 'users' },
+  dataSources: [userDataSource],
+
+  scheduleBackgroundWork: (work, meta) => {
+    // meta is { cacheId: 'users', reason: 'refresh' | 'notification' }
+    pending.add(work)
+    void work.finally(() => pending.delete(work))
+  },
+})
+```
+
+`meta.reason` is a closed set (`'refresh' | 'notification'`) rather than a free-form string, because
+hosts branch on it in practice. `meta.cacheId` is the `cacheId` configured on `inMemoryCache`, so work
+from several loaders can be told apart in logs.
+
+The promise you are given is guaranteed to settle **fulfilled**. The loader has already routed any
+error to `loadErrorHandler` / `cacheUpdateErrorHandler` / the publisher's error handler and attached
+its own handler before handing it over. That matters on runtimes where these promises get adopted by
+a request: `ctx.waitUntil()` on a rejecting promise fails the request that adopted it.
+
+Three things this is useful for:
+
+- **Isolate runtimes**, where a promise that outlives its request faults rather than merely leaking.
+  See [Hand background work to the request](#hand-background-work-to-the-request).
+- **Tests**, which can await quiescence instead of sleeping and hoping.
+- **Graceful shutdown**, which can drain in-flight refreshes before closing Redis connections.
+
+## Isolate runtimes with no invalidation bus
+
+Cloudflare Workers — and by extension any target made of many short-lived, mutually unreachable
+instances (Deno Deploy, Vercel edge, Lambda@Edge, aggressively-scaled serverless Node) — break three
+assumptions that the notification pair is built on:
+
+- there is no pub/sub any instance can reach;
+- nothing can hold a subscription open between requests, so push is structurally unavailable and the
+  answer has to be pull;
+- I/O is scoped to the request that created it, so a promise that outlives its request faults with
+  *"Cannot perform I/O on behalf of a different request"* unless it was handed to `ctx.waitUntil()`.
+
+`layered-loader/core` imports cleanly on those runtimes, and everything below is runtime-neutral — the
+library never learns what a Worker is. What follows is the deployment shape that works.
+
+### Hoist the loader to isolate scope
+
+Construct the loader at module scope, once per isolate, not per request. A cache rebuilt on every
+invocation is a memo, not a cache — it can only ever serve the request that filled it.
+
+This is also a *correctness* requirement once `scheduleBackgroundWork` is in play, not just a
+performance one: see below.
+
+### Pull invalidations instead of pushing them
+
+`notificationConsumer` cannot be implemented where nothing can hold a subscription. Read what changed
+at the start of a request and apply it with
+[`applyRemoteInvalidationFor` and friends](#applying-invalidations-from-your-own-transport). That is a
+supported use of the public API, and the `applyRemote*` methods exist precisely for it.
+
+For a scope-wide generation counter — one row, or one Durable Object read, per tenant — the whole
+mechanism is a counter comparison plus one `applyRemoteInvalidationForGroup` when it moved:
+
+```ts
+const generation = await readTenantGeneration(tenantId)   // once per request, memoised
+if (generation !== lastSeenGeneration.get(tenantId)) {
+  loader.applyRemoteInvalidationForGroup(tenantId)
+  lastSeenGeneration.set(tenantId, generation)
+}
+```
+
+This is O(1) reads per request regardless of how many keys the request touches, and it needs nothing
+from the library beyond the methods above. Reach for it before reaching for a per-entry probe.
+
+### Hand background work to the request
+
+Supply [`scheduleBackgroundWork`](#background-work) so detached promises get adopted by the request
+that spawned them:
+
+```ts
+import { AsyncLocalStorage } from 'node:async_hooks'   // available on workerd
+
+const requestCtx = new AsyncLocalStorage<ExecutionContext>()
+
+// module scope: one loader per isolate, NOT one per request
+const loader = new Loader<User>({
+  inMemoryCache: { ttlInMsecs: 60_000 },
+  dataSources: [userDataSource],
+  scheduleBackgroundWork: (work) => {
+    const ctx = requestCtx.getStore()
+    if (ctx) {
+      ctx.waitUntil(work)
+    } else {
+      void work
+    }
+  },
+})
+
+export default {
+  fetch: (request, env, ctx) => requestCtx.run(ctx, () => handle(request, env)),
+}
+```
+
+The hook **must** resolve the context at call time, as above. Closing over a `ctx` at construction is
+wrong: the loader lives at isolate scope, so that `ctx` belongs to whichever request happened to build
+it, and using it from a later request reintroduces the exact fault the hook exists to avoid.
+
+### Validating on every read
+
+If you have a cheap per-entry version token (a document version, a branch head sha, a JWKS key id),
+`isEntryStillCurrentFn` can validate against it on *every* read rather than only near expiry — set
+`ttlLeftBeforeRefreshInMsecs` equal to `ttlInMsecs`, which puts every entry permanently inside the
+refresh window:
+
+```ts
+const loader = new Loader<Doc>({
+  inMemoryCache: { ttlInMsecs: 60_000, ttlLeftBeforeRefreshInMsecs: 60_000 },
+  dataSources: [docDataSource],
+  isEntryStillCurrentFn: async (cachedValue, loadParams) =>
+    (await readDocVersion(loadParams)) === cachedValue!.version,
+})
+```
+
+Note what this does and does not give you. The probe runs on every hit, but it does **not** block the
+read: the cached value is served immediately and the probe decides what the *next* read sees. This is
+stale-while-revalidate, not `must-revalidate`. It shrinks the staleness window from `ttlInMsecs` to
+roughly one read, which is enough for most content, and is not enough where serving one stale answer
+is itself the bug (an authorization decision, say). For those, either do not cache, or invalidate on
+the write path via a generation counter as [above](#pull-invalidations-instead-of-pushing-them).
+
+Two properties of the probe worth knowing before you build on it:
+
+- Concurrent reads of the **same key** share a single probe — the loader deduplicates them the same
+  way it deduplicates loads, so you do not need to memoise on your side.
+- Reads of **different keys** do not. `isEntryStillCurrentFn` is per entry, so a token shared across
+  many keys (one branch head sha covering many files) is read once per key. If that is your shape, a
+  scope-wide generation counter is the better fit, for the reason given above.
+
+### What the library does not do
+
+- **Nothing runs on a timer.** There is no eviction sweep and no refresh tick; in-memory entries
+  expire lazily when they are read. An in-memory-only loader schedules no periodic work at all, so
+  there is nothing here that behaves differently under `workerd`'s timer restrictions.
+- **There is no blocking (`must-revalidate`) read mode.** A cache hit is never delayed by a probe.
+  Adding one is not simply an extra option: `getInMemoryOnly` is synchronous and cannot await
+  anything, and `getMany` serves an all-hit batch straight from memory without entering the refresh
+  path at all — so a "no hit is ever served unvalidated" guarantee would be quietly false for two of
+  the three read methods. If you need that guarantee today, use a generation counter on the write
+  path rather than a per-read probe.
+- **No async cache tier is provided for edge KV stores.** That is deliberate rather than missing:
+  Redis in this library is an invalidation bus, not a data tier, and a store whose writes propagate
+  eventually would be a weaker coherence story than the primary database it is meant to protect.
+
+If your deployment *can* reach a message bus but you would rather not run Redis,
+[`@layered-loader/sqs`](packages/sqs/README.md) gives you cross-instance invalidation over SNS/SQS and
+imports from `layered-loader/core`.
+
 ## Cache statistics
 
 You can keep track of your in-memory cache usage is by using special cache type - `lru-object-statistics`:
@@ -832,7 +1063,9 @@ const asyncCache = new RedisCache<string>(redis, {
 ```
 
 Note that there is overhead involved in performing refresh checks (especially for Redis). Always measure performance before and after enabling preemptive refresh in order to determine, whether it improves or worsens the performance of your system.
-Bulk operations (`getMany()`) do not support preemptive background refresh.
+Bulk operations (`getMany()`) do not support preemptive background refresh — when every requested key hits in memory, the batch is served without entering the refresh path at all.
+
+The refresh itself is fire-and-forget: nothing schedules it on a timer, and the read that triggers it is not delayed by it. If your runtime needs those promises tracked rather than detached, supply [`scheduleBackgroundWork`](#background-work).
 
 ### Conditional refresh with a staleness check
 
@@ -842,6 +1075,8 @@ When an entry enters the `ttlLeftBeforeRefreshInMsecs` window, the loader first 
 
 - if it resolves to `true`, the entry's TTL is reset to the full `ttlInMsecs`, and no data source call is made;
 - if it resolves to `false` (or throws, or the entry disappeared in the meantime), the usual full background refresh from the data sources runs.
+
+The check never delays the read that triggered it. That read is served the cached value either way, and the check decides what the *next* read sees — this is stale-while-revalidate, not `must-revalidate`. There is no blocking read mode; see [What the library does not do](#what-the-library-does-not-do) for why.
 
 The check works both with an async cache and with an in-memory-only loader. It only needs a preemptive refresh window (`ttlLeftBeforeRefreshInMsecs`) to fire inside: configure it on the `asyncCache`, or, for a loader that has no async tier, on the `inMemoryCache`. When both tiers have a refresh window, the async cache takes precedence and the check runs on its refresh path.
 
@@ -899,7 +1134,9 @@ Things to keep in mind:
 
 - `isEntryStillCurrentFn` requires a preemptive refresh window (`ttlLeftBeforeRefreshInMsecs`) to run inside, on either the `asyncCache` or the `inMemoryCache`. When it runs on the async path, the async cache must implement `resetTtl` (`resetTtlFromGroup` for group caches); `RedisCache` and `RedisGroupCache` implement it, and if you implement the `Cache` interface yourself, add the method to support conditional refresh. The in-memory caches implement the reset natively, so an in-memory-only loader needs no extra wiring. When both tiers have a refresh window, the async cache takes precedence. The loader throws at construction time if no refresh-capable tier is configured.
 - Errors thrown by the check are routed to `loadErrorHandler` and treated as "stale", so the worst case degrades to a regular full background refresh.
-- Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis.
+- Staleness checks are deduplicated the same way background refreshes are - only one check runs per key at a time, and `ttlCacheTtl` limits how often expiration times are read from Redis. Deduplication is per key: the check is a per-entry function, so a version token shared across many keys (one branch head sha covering many files, say) is still read once per key. If that is your shape, prefer a scope-wide generation counter and [`applyRemoteInvalidationForGroup`](#applying-invalidations-from-your-own-transport) over a per-entry probe.
+- To validate on *every* hit rather than only near expiry, set `ttlLeftBeforeRefreshInMsecs` equal to `ttlInMsecs`. That keeps every entry permanently inside the refresh window, so every read runs the check. It is still non-blocking - see [Validating on every read](#validating-on-every-read).
+- The check runs as background work, so it is handed to [`scheduleBackgroundWork`](#background-work) if you configured one.
 - No update notifications are published when a TTL is merely bumped, since the data has not changed; in-memory copies on other nodes expire on their own schedule and re-read the shared cache.
 - The check receives the value exactly as the async cache returns it. `RedisCache` / `RedisGroupCache` with `json: true` store an explicitly cached `null` as an empty string, so a null entry is passed to the check as `''`, not `null`. If you cache null values, handle that representation in your check.
 - A successful TTL bump extends only the entry, not the group index. Like adding entries to a group, it does not reset `groupTtlInMsecs`, so a bumped entry still becomes inaccessible once its group index expires and is reloaded from the data sources on the next read.
@@ -1038,7 +1275,7 @@ It has following configuration options:
 - `json: boolean` - if false, all passed data will be sent to Redis and returned from it as-is. If true, it will be serialized using `JSON.stringify` and deserialized, using `JSON.parse`;
 - `timeoutInMsecs?: number` - if set, Redis operations will automatically fail after specified execution threshold in milliseconds is exceeded. Next data source in the sequence will be used instead.
 - `separator?: number` - What text should be used between different parts of the key prefix. Default is `':'`
-- `ttlLeftBeforeRefreshInMsecs?: number` - if set within a Loader or GroupLoader, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening.
+- `ttlLeftBeforeRefreshInMsecs?: number` - if set within a Loader or GroupLoader, when remaining ttl is equal or lower to specified value, loading will be started in background, and all caches will be updated. It is recommended to set this value for heavy loaded system, to prevent requests from stalling while cache refresh is happening. Setting it equal to `ttlInMsecs` keeps every entry permanently inside the refresh window, which is how you get a check on every read - see [Validating on every read](#validating-on-every-read).
 
 ## Redis connection safety
 
