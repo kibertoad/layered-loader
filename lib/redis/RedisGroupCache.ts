@@ -83,6 +83,11 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   }
 
   async getManyFromGroup(keys: string[], groupId: string): Promise<GetManyResult<T>> {
+    // MGET rejects a call with no keys, and there is nothing to look up anyway
+    if (keys.length === 0) {
+      return { resolvedValues: [], unresolvedKeys: [] }
+    }
+
     const currentGroupKey = await this.redis.get(this.resolveGroupIndexPrefix(groupId))
     if (!currentGroupKey) {
       return {
@@ -181,6 +186,12 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
   }
 
   async setManyForGroup(entries: readonly CacheEntry<T>[], groupId: string): Promise<unknown> {
+    // MSET rejects a call with no pairs. Returning before the group index is resolved also stops a
+    // write of nothing from bringing the group into existence.
+    if (entries.length === 0) {
+      return
+    }
+
     const currentGroupKey = await this.getOrCreateGroupIndexKey(groupId)
 
     const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)

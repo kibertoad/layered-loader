@@ -1,6 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RedisGroupCache } from '../../lib/redis/RedisGroupCache'
 import { redisOptions } from '../fakes/TestRedisConfig'
 
@@ -155,6 +155,20 @@ describe('RedisGroupCache', () => {
   })
 
   describe('getManyFromGroup', () => {
+    it('does not issue an MGET for an empty key list', async () => {
+      const cache = new RedisGroupCache(redis)
+      await cache.setForGroup('key', 'value', 'group')
+      const mget = vi.spyOn(redis, 'mget')
+
+      await expect(cache.getManyFromGroup([], 'group')).resolves.toEqual({
+        resolvedValues: [],
+        unresolvedKeys: [],
+      })
+
+      expect(mget).not.toHaveBeenCalled()
+      mget.mockRestore()
+    })
+
     it('returns unresolved keys', async () => {
       const cache = new RedisGroupCache(redis)
       await cache.setForGroup('key2', 'value2', 'group')
@@ -210,6 +224,17 @@ describe('RedisGroupCache', () => {
   })
 
   describe('setManyForGroup', () => {
+    it('does not issue an MSET for an empty entry list, and leaves the group uncreated', async () => {
+      const cache = new RedisGroupCache(redis, { ttlInMsecs: undefined })
+      const mset = vi.spyOn(redis, 'mset')
+
+      await expect(cache.setManyForGroup([], 'group')).resolves.toBeUndefined()
+
+      expect(mset).not.toHaveBeenCalled()
+      expect(await redis.keys('*')).toEqual([])
+      mset.mockRestore()
+    })
+
     it('stores several items without ttl', async () => {
       const cache = new RedisGroupCache(redis, {
         ttlInMsecs: undefined,

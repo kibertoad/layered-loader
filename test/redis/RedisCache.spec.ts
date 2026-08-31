@@ -1,6 +1,6 @@
 import { setTimeout } from 'node:timers/promises'
 import Redis from 'ioredis'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RedisCache } from '../../lib/redis/RedisCache'
 import { redisOptions } from '../fakes/TestRedisConfig'
 
@@ -243,7 +243,32 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('getMany', () => {
+    it('does not issue an MGET for an empty key list', async () => {
+      const cache = new RedisCache(redis)
+      const mget = vi.spyOn(redis, 'mget')
+
+      await expect(cache.getMany([])).resolves.toEqual({
+        resolvedValues: [],
+        unresolvedKeys: [],
+      })
+
+      expect(mget).not.toHaveBeenCalled()
+      mget.mockRestore()
+    })
+  })
+
   describe('deleteMany', () => {
+    it('does not issue a DEL for an empty key list', async () => {
+      const cache = new RedisCache(redis)
+      const del = vi.spyOn(redis, 'del')
+
+      await expect(cache.deleteMany([])).resolves.toBe(0)
+
+      expect(del).not.toHaveBeenCalled()
+      del.mockRestore()
+    })
+
     it('deletes values', async () => {
       const cache = new RedisCache(redis)
       await cache.set('key', 'value')
@@ -371,6 +396,16 @@ describe('RedisCache', () => {
   })
 
   describe('setMany', () => {
+    it('does not issue an MSET for an empty entry list', async () => {
+      const cache = new RedisCache(redis, { ttlInMsecs: undefined })
+      const mset = vi.spyOn(redis, 'mset')
+
+      await expect(cache.setMany([])).resolves.toBeUndefined()
+
+      expect(mset).not.toHaveBeenCalled()
+      mset.mockRestore()
+    })
+
     it('stores several items without ttl', async () => {
       const cache = new RedisCache(redis, {
         ttlInMsecs: undefined,

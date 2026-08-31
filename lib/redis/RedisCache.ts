@@ -36,6 +36,11 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   }
 
   deleteMany(keys: string[]): Promise<unknown> {
+    // DEL rejects a call with no keys, and there is nothing to delete anyway
+    if (keys.length === 0) {
+      return Promise.resolve(0)
+    }
+
     const processedKeys = keys.map((key) => {
       return this.resolveKey(key)
     })
@@ -49,6 +54,11 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   }
 
   getMany(keys: string[]): Promise<GetManyResult<T>> {
+    // MGET rejects a call with no keys, and there is nothing to look up anyway
+    if (keys.length === 0) {
+      return Promise.resolve({ resolvedValues: [], unresolvedKeys: [] })
+    }
+
     const transformedKeys = keys.map((entry) => this.resolveKey(entry))
     const resolvedValues: T[] = []
     const unresolvedKeys: string[] = []
@@ -108,6 +118,11 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
   }
 
   setMany(entries: readonly CacheEntry<T>[]): Promise<unknown> {
+    // MSET rejects a call with no pairs, and there is nothing to store anyway
+    if (entries.length === 0) {
+      return Promise.resolve()
+    }
+
     if (this.config.ttlInMsecs) {
       const setCommands = []
       for (let i = 0; i < entries.length; i++) {
