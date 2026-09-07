@@ -1,31 +1,54 @@
 name: publish
 
+# Changesets-driven release pipeline.
+#
+# Pushes to `main` land in one of three modes, decided by `changesets/action/select-mode`:
+#
+#   version — unreleased changesets exist. Opens (or refreshes) the "chore: release" pull
+#             request holding the version bumps and CHANGELOG entries, and turns on
+#             auto-merge for it when a RELEASE_TOKEN secret is configured.
+#   publish — no changesets left and a package version is not on the registry yet, i.e. the
+#             release pull request has just been merged. Publishes it, tags it, and creates
+#             the GitHub release.
+#   none    — nothing to do.
+#
+# IMPORTANT: the *file name* of this workflow is part of the npm trusted publisher
+# configuration for `layered-loader` and `@layered-loader/sqs`. Renaming this file breaks
+# OIDC publishing until the trusted publisher is updated on npmjs.com.
+#
+# Auto-merging the release pull request needs a RELEASE_TOKEN secret (a fine-grained PAT or
+# GitHub App token with `contents: write` + `pull-requests: write`). Pull requests opened by
+# the built-in GITHUB_TOKEN do not start workflow runs, so a merge performed with it would
+# never reach the publish mode above. Without the secret the release pull request is still
+# opened and kept up to date — it just waits for a human to merge it.
+
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - main
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions: {}
 
 jobs:
-  publish:
-    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'patch') || contains(github.event.pull_request.labels.*.name, 'minor') || contains(github.event.pull_request.labels.*.name, 'major'))
+  select-mode:
+    name: select mode
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
-      id-token: write
+      contents: read
+
+    outputs:
+      mode: ${{ steps.select-mode.outputs.mode }}
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Full history so we can diff between the PR's base SHA and the
-          # merge commit SHA regardless of how the PR was merged
-          # (merge commit / squash / rebase).
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Setup pnpm
@@ -34,193 +57,129 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
+          always-auth: false
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Select mode
+        id: select-mode
+        uses: changesets/action/select-mode@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+
+  version:
+    name: version
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'version'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    env:
+      # `secrets` is not available in `if:` conditions, so surface its presence as an env var.
+      HAS_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN != '' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          always-auth: false
+          node-version: 24.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The action pushes the release branch through the GitHub API rather than the Git CLI,
+      # so no credentials need to be persisted by the checkout above.
+      - name: Create or update the release pull request
+        id: changesets
+        uses: changesets/action/version@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          github-token: ${{ secrets.RELEASE_TOKEN || github.token }}
+          script: pnpm run changeset:version
+          commit-message: 'chore: release'
+          pr-title: 'chore: release'
+
+      - name: Enable auto-merge on the release pull request
+        if: env.HAS_RELEASE_TOKEN == 'true' && steps.changesets.outputs.pr-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ steps.changesets.outputs.pr-number }}
+        run: |
+          set -euo pipefail
+
+          # Auto-merge queues the merge behind the required checks. GitHub rejects it when the
+          # repository has "Allow auto-merge" turned off, and also when the pull request is
+          # already mergeable with nothing to wait for; both fall back to merging outright —
+          # the contents of a release pull request are generated, not authored.
+          if ! gh pr merge "$PR" --auto --squash; then
+            echo "::notice::Could not queue an auto-merge for #$PR, merging it directly instead"
+            gh pr merge "$PR" --squash
+          fi
+
+  publish:
+    name: publish
+    needs: select-mode
+    if: needs.select-mode.outputs.mode == 'publish'
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Git tags and GitHub releases for the published versions.
+      contents: write
+      # npm trusted publishing (OIDC) — this is what authenticates the publish, and what
+      # gets the published packages their provenance attestation.
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          always-auth: false
           node-version: 24.x
           registry-url: 'https://registry.npmjs.org'
           cache: 'pnpm'
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Determine version bump
-        id: version
-        env:
-          IS_MAJOR: ${{ contains(github.event.pull_request.labels.*.name, 'major') }}
-          IS_MINOR: ${{ contains(github.event.pull_request.labels.*.name, 'minor') }}
-        run: |
-          if [ "$IS_MAJOR" = "true" ]; then
-            echo "bump=major" >> "$GITHUB_OUTPUT"
-          elif [ "$IS_MINOR" = "true" ]; then
-            echo "bump=minor" >> "$GITHUB_OUTPUT"
-          else
-            echo "bump=patch" >> "$GITHUB_OUTPUT"
-          fi
-
-      # Diff between the PR's base SHA and merge commit SHA to find which
-      # workspace packages received source-level changes. Only those packages
-      # are bumped, tagged, and published.
-      - name: Detect changed packages
-        id: changes
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-        run: |
-          set -euo pipefail
-          echo "Diffing $BASE_SHA..$MERGE_SHA"
-          changed_files=$(git diff --name-only "$BASE_SHA" "$MERGE_SHA")
-          echo "Changed files:"
-          echo "$changed_files"
-
-          root=false
-          sqs=false
-
-          while IFS= read -r file; do
-            [ -z "$file" ] && continue
-            case "$file" in
-              benchmark/*)
-                # The benchmark workspace project is private and never
-                # published, so changes to it must not trigger a release.
-                ;;
-              packages/sqs/lib/*|packages/sqs/index.ts|packages/sqs/package.json|packages/sqs/README.md|packages/sqs/LICENSE|packages/sqs/tsconfig.json)
-                sqs=true
-                ;;
-              packages/*)
-                # Other workspace packages — currently no other publishable
-                # packages exist but this prevents future packages from
-                # accidentally triggering a root release.
-                ;;
-              lib/*|index.ts|core.ts|redis.ts|package.json|README.md|LICENSE|tsconfig.json)
-                root=true
-                ;;
-            esac
-          done <<< "$changed_files"
-
-          echo "root=$root" >> $GITHUB_OUTPUT
-          echo "sqs=$sqs" >> $GITHUB_OUTPUT
-          echo "Detected: root=$root, @layered-loader/sqs=$sqs"
-
-      - name: Skip — no publishable changes
-        if: steps.changes.outputs.root != 'true' && steps.changes.outputs.sqs != 'true'
-        run: |
-          echo "::warning::PR is labelled for release but contains no source changes in any publishable package. Nothing to publish."
-          exit 0
-
       - name: Install dependencies
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: pnpm install --frozen-lockfile
 
-      # Build must run before lint: @layered-loader/sqs type-checks against the
-      # root package's published types (dist/index.d.ts), which only exist once
-      # the root package has been built. The `benchmark` workspace project is
-      # never published, so it is excluded from both steps.
+      # Build before publishing so a broken build fails the run before anything reaches the
+      # registry. @layered-loader/sqs type-checks against the root package's published types
+      # (dist/index.d.ts), so the root has to be built first — which `-r` orders for us. The
+      # `benchmark` workspace project is never published and has nothing to build.
       - name: Build
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: pnpm -r --include-workspace-root --filter '!benchmark' run build
 
       - name: Lint
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
         run: pnpm -r --include-workspace-root --filter '!benchmark' run lint
 
-      - name: Bump root version
-        if: steps.changes.outputs.root == 'true'
+      - name: Publish to npm
+        uses: changesets/action/publish@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
+        with:
+          script: pnpm run changeset:publish
         env:
-          BUMP: ${{ steps.version.outputs.bump }}
-        run: npm version "$BUMP" --no-git-tag-version
-
-      - name: Bump @layered-loader/sqs version
-        if: steps.changes.outputs.sqs == 'true'
-        working-directory: packages/sqs
-        env:
-          BUMP: ${{ steps.version.outputs.bump }}
-        run: npm version "$BUMP" --no-git-tag-version
-
-      - name: Fix formatting
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
-        run: pnpm run lint:fix
-
-      - name: Commit and tag releases
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
-        env:
-          ROOT_CHANGED: ${{ steps.changes.outputs.root }}
-          SQS_CHANGED: ${{ steps.changes.outputs.sqs }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          git add .
-
-          message="chore: release"
-          tags=()
-
-          if [ "$ROOT_CHANGED" = "true" ]; then
-            v=$(node -p "require('./package.json').version")
-            message="$message layered-loader@$v"
-            tags+=("v$v")
-          fi
-          if [ "$SQS_CHANGED" = "true" ]; then
-            v=$(node -p "require('./packages/sqs/package.json').version")
-            message="$message @layered-loader/sqs@$v"
-            tags+=("@layered-loader/sqs@$v")
-          fi
-
-          git commit -m "$message"
-          for t in "${tags[@]}"; do
-            git tag "$t"
-          done
-
-          # Auth for push: checkout used persist-credentials: false, so we
-          # configure the remote with the workflow token explicitly here.
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git push
-          git push --tags
-
-      # Publish layered-loader BEFORE @layered-loader/sqs: the child package
-      # declares a peer dependency on the new layered-loader version, so the
-      # parent must be visible on the registry first.
-      - name: Publish layered-loader
-        if: steps.changes.outputs.root == 'true'
-        run: pnpm publish --provenance --access public --no-git-checks
-
-      - name: Publish @layered-loader/sqs
-        if: steps.changes.outputs.sqs == 'true'
-        working-directory: packages/sqs
-        run: pnpm publish --provenance --access public --no-git-checks
-
-      # Runs last, so a release only ever shows up for a version that actually
-      # made it to the registry. Notes are generated from the commits since the
-      # previous tag of the same package.
-      - name: Create GitHub releases
-        if: steps.changes.outputs.root == 'true' || steps.changes.outputs.sqs == 'true'
-        env:
-          ROOT_CHANGED: ${{ steps.changes.outputs.root }}
-          SQS_CHANGED: ${{ steps.changes.outputs.sqs }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-
-          # Most recent tag matching a pattern, excluding the one just created.
-          previous_tag() {
-            git tag --list "$1" --sort=-creatordate | grep -vxF "$2" | head -n 1 || true
-          }
-
-          create_release() {
-            tag="$1"
-            previous="$2"
-
-            args=(--title "$tag" --generate-notes)
-            if [ -n "$previous" ]; then
-              args+=(--notes-start-tag "$previous")
-            fi
-
-            gh release create "$tag" "${args[@]}"
-          }
-
-          if [ "$ROOT_CHANGED" = "true" ]; then
-            v=$(node -p "require('./package.json').version")
-            create_release "v$v" "$(previous_tag 'v*' "v$v")"
-          fi
-          if [ "$SQS_CHANGED" = "true" ]; then
-            v=$(node -p "require('./packages/sqs/package.json').version")
-            create_release "@layered-loader/sqs@$v" "$(previous_tag '@layered-loader/sqs@*' "@layered-loader/sqs@$v")"
-          fi
+          # Belt and braces: trusted publishing attaches provenance on its own, this makes it
+          # explicit for the `pnpm publish` invocations `changeset publish` shells out to.
+          NPM_CONFIG_PROVENANCE: true
