@@ -36,10 +36,15 @@ API moves — a `layered-loader` major that forces adapter users to change code 
 - No changesets left, versions not yet on the registry (i.e. that PR was just merged) → it publishes
   to npm over trusted publishing (OIDC, no token), pushes the tags, and creates the GitHub releases.
 
-Two things about that pipeline are load-bearing:
+Three things about that pipeline are load-bearing:
 
 - **The workflow's file name.** npm's trusted publisher config for both packages names
   `publish.yml`; renaming the file breaks publishing until that config is updated on npmjs.com.
+- **The repository setting _Allow GitHub Actions to create and approve pull requests_**
+  (Settings → Actions → General). The `version` job grants `contents: write` and
+  `pull-requests: write`, but that setting still gates the built-in `GITHUB_TOKEN`: with it off,
+  opening the release PR fails with `Resource not accessible by integration`. A `RELEASE_TOKEN`
+  is not subject to it.
 - **The `RELEASE_TOKEN` secret** (fine-grained PAT or GitHub App token, `contents: write` +
   `pull-requests: write`). It is what lets the release PR auto-merge: PRs opened by the built-in
   `GITHUB_TOKEN` never start workflow runs, so a merge performed with it would never reach the
