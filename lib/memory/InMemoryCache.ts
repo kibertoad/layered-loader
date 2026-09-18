@@ -55,14 +55,14 @@ export class InMemoryCache<T> implements SynchronousCache<T> {
   }
 
   getMany(keys: string[]): GetManyResult<T> {
-    const resolvedValues: T[] = []
+    const resolvedValues: (T | null)[] = []
     const unresolvedKeys: string[] = []
 
     for (let i = 0; i < keys.length; i++) {
       const resolvedValue = this.cache.get(keys[i])
       // null is a valid cached value ("resolved to empty"), only undefined means a miss
       if (resolvedValue !== undefined) {
-        resolvedValues.push(resolvedValue as T)
+        resolvedValues.push(resolvedValue)
       } else {
         unresolvedKeys.push(keys[i])
       }

@@ -160,6 +160,95 @@ describe('RedisCache', () => {
     })
   })
 
+  describe('explicitly cached empty values', () => {
+    it('round-trips an explicitly cached null', async () => {
+      const cache = new RedisCache<string>(redis, { json: true, ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('key', null)
+
+      expect(await cache.get('key')).toBeNull()
+      expect(await cache.getMany(['key'])).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null],
+      })
+    })
+
+    it('distinguishes an explicitly cached null from a missing key', async () => {
+      const cache = new RedisCache<string>(redis, { json: true, ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('key', null)
+
+      expect(await cache.get('missing')).toBeUndefined()
+      expect(await cache.getMany(['key', 'missing'])).toEqual({
+        unresolvedKeys: ['missing'],
+        resolvedValues: [null],
+      })
+    })
+
+    it('keeps an explicitly cached null distinct from the string "null" and from an empty string', async () => {
+      const cache = new RedisCache<string | null>(redis, { json: true, ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('nullValue', null)
+      await cache.set('nullString', 'null')
+      await cache.set('emptyString', '')
+
+      expect(await cache.get('nullValue')).toBeNull()
+      expect(await cache.get('nullString')).toBe('null')
+      expect(await cache.get('emptyString')).toBe('')
+      expect(await cache.get('missing')).toBeUndefined()
+
+      // JSON quoting is what keeps them apart on the wire
+      expect(await redis.get('layered-cache:nullValue')).toBe('null')
+      expect(await redis.get('layered-cache:nullString')).toBe('"null"')
+      expect(await redis.get('layered-cache:emptyString')).toBe('""')
+    })
+
+    it('cannot represent an explicitly cached null without json', async () => {
+      const cache = new RedisCache<string>(redis, { ttlInMsecs: TTL_IN_MSECS })
+      await cache.set('key', null)
+
+      expect(await cache.get('key')).toBe('')
+      expect(await redis.get('layered-cache:key')).toBe('')
+    })
+
+    it('round-trips falsy values', async () => {
+      const cache = new RedisCache<number | boolean | string>(redis, {
+        json: true,
+        ttlInMsecs: TTL_IN_MSECS,
+      })
+      await cache.set('zero', 0)
+      await cache.set('untrue', false)
+      await cache.set('empty', '')
+
+      expect(await cache.get('zero')).toBe(0)
+      expect(await cache.get('untrue')).toBe(false)
+      expect(await cache.get('empty')).toBe('')
+    })
+
+    it('round-trips an explicitly cached null written through setMany with a ttl', async () => {
+      const cache = new RedisCache<string | null>(redis, { json: true, ttlInMsecs: TTL_IN_MSECS })
+      await cache.setMany([
+        { key: 'key', value: null },
+        { key: 'key2', value: 'value2' },
+      ])
+
+      expect(await cache.getMany(['key', 'key2'])).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null, 'value2'],
+      })
+    })
+
+    it('round-trips an explicitly cached null written through setMany without a ttl', async () => {
+      const cache = new RedisCache<string | null>(redis, { json: true })
+      await cache.setMany([
+        { key: 'key', value: null },
+        { key: 'key2', value: 'value2' },
+      ])
+
+      expect(await cache.getMany(['key', 'key2'])).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null, 'value2'],
+      })
+    })
+  })
+
   describe('clear', () => {
     it('clears values', async () => {
       const cache = new RedisCache(redis)

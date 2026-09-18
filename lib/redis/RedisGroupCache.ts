@@ -98,7 +98,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
 
     const entryPrefix = this.resolveGroupEntryPrefix(groupId, currentGroupKey)
     const transformedKeys = keys.map((key) => entryPrefix + key)
-    const resolvedValues: T[] = []
+    const resolvedValues: (T | null)[] = []
     const unresolvedKeys: string[] = []
 
     return this.redis.mget(transformedKeys).then((redisResult) => {
@@ -202,7 +202,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
         setCommands.push([
           'set',
           entryPrefix + entry.key,
-          entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
+          this.config.json ? JSON.stringify(entry.value) : entry.value,
           'PX',
           this.config.ttlInMsecs,
         ])
@@ -216,7 +216,7 @@ export class RedisGroupCache<T> extends AbstractRedisCache<RedisGroupCacheConfig
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       commandParam.push(entryPrefix + entry.key)
-      commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
+      commandParam.push(this.config.json ? JSON.stringify(entry.value) : entry.value)
     }
     return this.redis.mset(commandParam)
   }

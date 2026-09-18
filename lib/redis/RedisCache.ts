@@ -47,7 +47,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     return this.redis.del(processedKeys)
   }
 
-  get(key: string): Promise<T | undefined> {
+  get(key: string): Promise<T | null | undefined> {
     return this.redis.get(this.resolveKey(key)).then((redisResult) => {
       return this.postprocessResult(redisResult)
     })
@@ -60,7 +60,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     }
 
     const transformedKeys = keys.map((entry) => this.resolveKey(entry))
-    const resolvedValues: T[] = []
+    const resolvedValues: (T | null)[] = []
     const unresolvedKeys: string[] = []
 
     return this.redis.mget(transformedKeys).then((redisResult) => {
@@ -130,7 +130,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
         setCommands.push([
           'set',
           this.resolveKey(entry.key),
-          entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value,
+          this.config.json ? JSON.stringify(entry.value) : entry.value,
           'PX',
           this.config.ttlInMsecs,
         ])
@@ -144,7 +144,7 @@ export class RedisCache<T> extends AbstractRedisCache<RedisCacheConfiguration, T
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]
       commandParam.push(this.resolveKey(entry.key))
-      commandParam.push(entry.value && this.config.json ? JSON.stringify(entry.value) : entry.value)
+      commandParam.push(this.config.json ? JSON.stringify(entry.value) : entry.value)
     }
     return this.redis.mset(commandParam)
   }

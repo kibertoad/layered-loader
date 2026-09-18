@@ -15,7 +15,7 @@ export interface GroupCacheConfiguration extends CommonCacheConfiguration {
 
 export type CacheEntry<LoadedValue> = {
   key: string
-  value: LoadedValue
+  value: LoadedValue | null
 }
 
 /**
