@@ -26,6 +26,18 @@
     `GroupDataSource.getManyFromGroup` still return `T[]`, and must go on leaving nulls out: the
     loader keys each loaded value with `cacheKeyFromValueResolver`, which cannot key a `null`.
 
+- **`RedisCache.get` is now typed `Promise<T | null | undefined>`** (was `Promise<T | undefined>`),
+  matching the `Cache` interface it implements and the fact that a cached `null` now round-trips.
+  Source-breaking if you use `RedisCache` directly rather than through a `Loader`:
+  `const value: T | undefined = await redisCache.get(key)` no longer compiles.
+  `RedisGroupCache.getFromGroup` was already nullable and is unchanged.
+
+- **`CacheEntry.value` is now `LoadedValue | null`**, mirroring `set`, so `setMany` /
+  `setManyForGroup` can carry an explicitly cached `null`. A custom cache keeps compiling, but
+  typed caller code can now hand it a `null` `value` — handle that at runtime if you implement
+  either method. The loaders themselves only ever pass values loaded from a data source, which are
+  never null.
+
 - **`RedisCache` / `RedisGroupCache` no longer mangle an explicitly cached `null`.** `internalSet`
   guarded serialisation on truthiness, so a `null` skipped `JSON.stringify`, reached `redis.set`
   as a non-string, and was coerced to an empty string — it then read back as `''`, never as

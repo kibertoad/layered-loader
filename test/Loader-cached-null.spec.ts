@@ -7,6 +7,7 @@ import type { InMemoryCacheConfiguration } from '../lib/memory/InMemoryCache'
 import type { InMemoryGroupCacheConfiguration } from '../lib/memory/InMemoryGroupCache'
 import { RedisCache } from '../lib/redis/RedisCache'
 import { RedisGroupCache } from '../lib/redis/RedisGroupCache'
+import type { DataSource, GroupDataSource } from '../lib/types/DataSources'
 import { CountingDataSource } from './fakes/CountingDataSource'
 import { CountingGroupedLoader } from './fakes/CountingGroupedLoader'
 import { redisOptions } from './fakes/TestRedisConfig'
@@ -26,6 +27,8 @@ const stringIdResolver: CacheKeyResolver<string> = (value) => {
 }
 
 const userIdResolver: CacheKeyResolver<User> = (value) => value.userId
+
+const user2: User = { companyId: 'company1', userId: '2' }
 
 describe('Loader cached null', () => {
   let redis: Redis
@@ -76,6 +79,44 @@ describe('Loader cached null', () => {
 
     expect(operation.getInMemoryOnly('key2')).toBe('value2')
     expect(operation.getInMemoryOnly('key1')).toBeUndefined()
+  })
+
+  it('skips a null returned by a data source instead of failing the whole batch', async () => {
+    const dataSource: DataSource<string> = {
+      name: 'nullReturningDataSource',
+      get: () => Promise.resolve(undefined),
+      getMany: () => Promise.resolve([null as unknown as string, 'value2']),
+    }
+    const asyncCache = new RedisCache<string>(redis, { json: true, ttlInMsecs: 9999 })
+
+    const operation = new Loader<string>({
+      inMemoryCache: IN_MEMORY_CACHE_CONFIG,
+      asyncCache,
+      dataSources: [dataSource],
+      cacheKeyFromValueResolver: stringIdResolver,
+    })
+
+    expect(await operation.getMany(['key1', 'key2'])).toEqual([null, 'value2'])
+    expect(await asyncCache.get('key2')).toBe('value2')
+  })
+
+  it('skips a null returned by a group data source instead of failing the whole batch', async () => {
+    const dataSource: GroupDataSource<User> = {
+      name: 'nullReturningGroupDataSource',
+      getFromGroup: () => Promise.resolve(undefined),
+      getManyFromGroup: () => Promise.resolve([null as unknown as User, user2]),
+    }
+    const asyncCache = new RedisGroupCache<User>(redis, { json: true, ttlInMsecs: 9999 })
+
+    const operation = new GroupLoader<User>({
+      inMemoryCache: IN_MEMORY_GROUP_CACHE_CONFIG,
+      asyncCache,
+      dataSources: [dataSource],
+      cacheKeyFromValueResolver: userIdResolver,
+    })
+
+    expect(await operation.getMany(['1', '2'], 'company1')).toEqual([null, user2])
+    expect(await asyncCache.getFromGroup('2', 'company1')).toEqual(user2)
   })
 
   it('serves a null cached in the async group cache through getMany', async () => {
