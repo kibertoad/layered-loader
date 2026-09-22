@@ -164,6 +164,11 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     return loadingPromise.then((result) => {
       for (let i = 0; i < result.resolvedValues.length; i++) {
         const resolvedValue = result.resolvedValues[i]
+        // cacheKeyFromValueResolver cannot key a null, so it is passed through to the caller
+        // without being promoted into the in-memory tier (we can't infer key from null value)
+        if (resolvedValue === null) {
+          continue
+        }
         const id = this.cacheKeyFromValueResolver(resolvedValue)
         this.inMemoryCache.set(id, resolvedValue)
       }
@@ -181,7 +186,7 @@ export abstract class AbstractFlatCache<LoadedValue, LoadParams = string, LoadMa
     return this.getAsyncOnlyResolved(key, loadParams)
   }
 
-  public getMany(keys: string[], loadParams?: LoadManyParams): Promise<LoadedValue[]> {
+  public getMany(keys: string[], loadParams?: LoadManyParams): Promise<(LoadedValue | null)[]> {
     const uniqueKeys = unique(keys)
     const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys)
     // everything is in memory, hurray

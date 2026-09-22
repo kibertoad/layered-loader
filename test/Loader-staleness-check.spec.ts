@@ -296,7 +296,7 @@ describe('Loader staleness check', () => {
       expect(loader.counter).toBe(1)
     })
 
-    it('passes the cached representation of a null value to the staleness check', async () => {
+    it('passes an explicitly cached null value to the staleness check', async () => {
       const loader = new CountingDataSource(null)
       const asyncCache = new RedisCache<string>(redis, {
         ttlInMsecs: 150,
@@ -314,8 +314,8 @@ describe('Loader staleness check', () => {
       expect(loader.counter).toBe(1)
 
       await setTimeout(100)
-      // kick off the check; Redis stores explicitly cached null as an empty string
-      expect(await operation.get('key')).toBe('')
+      // kick off the check; an explicitly cached null round-trips as null
+      expect(await operation.get('key')).toBe(null)
       for (
         let attempt = 0;
         attempt < 20 && isEntryStillCurrentFn.mock.calls.length < 1;
@@ -323,7 +323,7 @@ describe('Loader staleness check', () => {
       ) {
         await setTimeout(10)
       }
-      expect(isEntryStillCurrentFn).toHaveBeenCalledWith('', 'key')
+      expect(isEntryStillCurrentFn).toHaveBeenCalledWith(null, 'key')
       await setTimeout(10)
       expect(loader.counter).toBe(1)
     })

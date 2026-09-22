@@ -392,6 +392,54 @@ describe('RedisGroupCache', () => {
     })
   })
 
+  describe('explicitly cached empty values', () => {
+    it('round-trips an explicitly cached null', async () => {
+      const cache = new RedisGroupCache<string>(redis, { json: true, ttlInMsecs: TTL_IN_MSECS })
+      await cache.setForGroup('key', null, 'group')
+
+      expect(await cache.getFromGroup('key', 'group')).toBeNull()
+      expect(await cache.getManyFromGroup(['key'], 'group')).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null],
+      })
+    })
+
+    it('round-trips an explicitly cached null written through setManyForGroup with a ttl', async () => {
+      const cache = new RedisGroupCache<string | null>(redis, {
+        json: true,
+        ttlInMsecs: TTL_IN_MSECS,
+      })
+      await cache.setManyForGroup(
+        [
+          { key: 'key', value: null },
+          { key: 'key2', value: 'value2' },
+        ],
+        'group',
+      )
+
+      expect(await cache.getManyFromGroup(['key', 'key2'], 'group')).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null, 'value2'],
+      })
+    })
+
+    it('round-trips an explicitly cached null written through setManyForGroup without a ttl', async () => {
+      const cache = new RedisGroupCache<string | null>(redis, { json: true })
+      await cache.setManyForGroup(
+        [
+          { key: 'key', value: null },
+          { key: 'key2', value: 'value2' },
+        ],
+        'group',
+      )
+
+      expect(await cache.getManyFromGroup(['key', 'key2'], 'group')).toEqual({
+        unresolvedKeys: [],
+        resolvedValues: [null, 'value2'],
+      })
+    })
+  })
+
   describe('clear', () => {
     it('clears values', async () => {
       const cache = new RedisGroupCache(redis)

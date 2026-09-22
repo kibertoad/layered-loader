@@ -236,9 +236,15 @@ export class GroupLoader<LoadedValue, LoadParams = string, LoadManyParams = Load
     if (this.asyncCache) {
       const cacheEntries: CacheEntry<LoadedValue>[] = []
       for (let i = 0; i < loadValues.length; i++) {
+        const loadedValue = loadValues[i]
+        // data sources omit unresolved keys rather than returning nulls; skip one anyway
+        // instead of failing the whole batch on a resolver that cannot key it
+        if (loadedValue === null) {
+          continue
+        }
         cacheEntries.push({
-          key: this.cacheKeyFromValueResolver(loadValues[i]),
-          value: loadValues[i],
+          key: this.cacheKeyFromValueResolver(loadedValue),
+          value: loadedValue,
         })
       }
 

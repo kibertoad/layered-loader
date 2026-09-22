@@ -83,7 +83,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
   }
 
   getManyFromGroup(keys: string[], group: string): GetManyResult<T> {
-    const resolvedValues: T[] = []
+    const resolvedValues: (T | null)[] = []
     const unresolvedKeys: string[] = []
     const groupCache = this.groups.get(group)
 
@@ -98,7 +98,7 @@ export class InMemoryGroupCache<T> implements SynchronousGroupCache<T> {
       const resolvedValue = groupCache.get(keys[i])
       // null is a valid cached value ("resolved to empty"), only undefined means a miss
       if (resolvedValue !== undefined) {
-        resolvedValues.push(resolvedValue as T)
+        resolvedValues.push(resolvedValue)
       } else {
         unresolvedKeys.push(keys[i])
       }

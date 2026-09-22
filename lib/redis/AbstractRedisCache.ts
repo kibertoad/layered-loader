@@ -31,25 +31,27 @@ export abstract class AbstractRedisCache<ConfigType extends RedisCacheConfigurat
   }
 
   protected internalSet(resolvedKey: string, value: LoadedValue | null) {
-    const resolvedValue: string = value && this.config.json ? JSON.stringify(value) : (value as unknown as string)
+    const resolvedValue: string = this.config.json ? JSON.stringify(value) : (value as unknown as string)
     if (this.config.ttlInMsecs) {
       return this.redis.set(resolvedKey, resolvedValue, 'PX', this.config.ttlInMsecs)
     }
     return this.redis.set(resolvedKey, resolvedValue)
   }
 
-  protected postprocessResult(redisResult: string | null) {
+  protected postprocessResult(redisResult: string): LoadedValue | null
+  protected postprocessResult(redisResult: string | null): LoadedValue | null | undefined
+  protected postprocessResult(redisResult: string | null): LoadedValue | null | undefined {
+    // keep the truthiness check: JSON.parse('') throws, and older versions stored null as ''
     if (redisResult && this.config.json) {
       return JSON.parse(redisResult)
     }
 
-    // Redis returns "null" for unknown values
-    // ToDo We should create some fictional value for explicitly null values for redis
+    // A missing key is a miss; an explicitly cached null is only distinguishable with json: true
     if (redisResult === null) {
       return undefined
     }
 
-    return redisResult as unknown as ConfigType
+    return redisResult as unknown as LoadedValue
   }
 
   async clear(): Promise<void> {

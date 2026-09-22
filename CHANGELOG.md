@@ -1,5 +1,69 @@
 # Changelog
 
+## 17.0.0
+
+### Breaking
+
+- **Batch reads are now typed as nullable.** `GetManyResult<T>.resolvedValues` is `(T | null)[]`
+  instead of `T[]`, and `Loader.getMany` / `GroupLoader.getMany` return `Promise<(T | null)[]>`.
+
+  This is a type fix, not a behaviour change: `null` has always meant "resolved to an empty value,
+  cache it", and the in-memory tier has always returned cached nulls from batch reads — the
+  nullability was only missing from the return type declarations.
+
+  **If you call `getMany`**, narrow before using the values:
+
+  ```ts
+  const values = await loader.getMany(keys)
+  const present = values.filter((value) => value !== null)
+  ```
+
+  Nothing else needs changing:
+
+  - **Custom caches** (`Cache`, `SynchronousCache`, `GroupCache`, `SynchronousGroupCache`) keep
+    compiling as they are: a `resolvedValues` you build as `T[]` still satisfies `(T | null)[]`.
+  - **Custom data sources** keep their current signatures. `DataSource.getMany` and
+    `GroupDataSource.getManyFromGroup` still return `T[]`, and must go on leaving nulls out: the
+    loader keys each loaded value with `cacheKeyFromValueResolver`, which cannot key a `null`.
+
+- **`RedisCache.get` is now typed `Promise<T | null | undefined>`** (was `Promise<T | undefined>`),
+  matching the `Cache` interface it implements and the fact that a cached `null` now round-trips.
+  Source-breaking if you use `RedisCache` directly rather than through a `Loader`:
+  `const value: T | undefined = await redisCache.get(key)` no longer compiles.
+  `RedisGroupCache.getFromGroup` was already nullable and is unchanged.
+
+- **`CacheEntry.value` is now `LoadedValue | null`**, mirroring `set`, so `setMany` /
+  `setManyForGroup` can carry an explicitly cached `null`. A custom cache keeps compiling, but
+  typed caller code can now hand it a `null` `value` — handle that at runtime if you implement
+  either method. The loaders themselves only ever pass values loaded from a data source, which are
+  never null.
+
+- **`RedisCache` / `RedisGroupCache` no longer mangle an explicitly cached `null`.** `internalSet`
+  guarded serialisation on truthiness, so a `null` skipped `JSON.stringify`, reached `redis.set`
+  as a non-string, and was coerced to an empty string — it then read back as `''`, never as
+  `null`. With `json: true` a `null` is now stored as the JSON document `null` and round-trips
+  correctly; a missing key is still a miss (`undefined`), so the two remain distinguishable.
+
+  Values written by earlier versions are unaffected in place: an entry stored as `''` still reads
+  back as `''` until its TTL expires. If you rely on the old representation — for instance in an
+  `isEntryStillCurrentFn` that compares against `''` — update it to compare against `null`.
+
+  Without `json`, values are raw strings and an explicit `null` still cannot be represented; it is
+  written as an empty string, as before.
+
+### Fixed
+
+- A `null` resolved from the async cache during a batch read is no longer handed to
+  `cacheKeyFromValueResolver`. Previously this threw for an `id`-style resolver. Such a value is
+  now returned to the caller without being promoted into the in-memory tier, since there is no key
+  to store it under.
+
+  This covers a `null`, which is what `RedisCache` with `json: true` and any correctly implemented
+  custom cache now return. It does **not** cover a cache that hands back `''` for a null, which is
+  still what `RedisCache` without `json` does: that value is not a `null`, so it is passed to the
+  resolver as before, and an `id`-style resolver still computes an `undefined` cache key and writes
+  an in-memory entry that cannot be read back. Use `json: true` if you cache null values.
+
 ## 16.0.0
 
 ### Breaking

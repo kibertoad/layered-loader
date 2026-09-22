@@ -6,7 +6,8 @@ export interface SynchronousWriteCache<T> {
 }
 
 export type GetManyResult<T> = {
-  resolvedValues: T[]
+  /** Resolved values only, in no guaranteed order - not positionally aligned with the keys. */
+  resolvedValues: (T | null)[]
   unresolvedKeys: string[]
 }
 

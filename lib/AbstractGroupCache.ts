@@ -230,6 +230,11 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     return this.resolveManyGroupValues(keys, group, loadParams).then((result) => {
       for (let i = 0; i < result.resolvedValues.length; i++) {
         const resolvedValue = result.resolvedValues[i]
+        // cacheKeyFromValueResolver cannot key a null, so it is passed through to the caller
+        // without being promoted into the in-memory tier (we can't infer key from null value)
+        if (resolvedValue === null) {
+          continue
+        }
         const id = this.cacheKeyFromValueResolver(resolvedValue)
         this.inMemoryCache.setForGroup(id, resolvedValue, group)
       }
@@ -251,7 +256,7 @@ export abstract class AbstractGroupCache<LoadedValue, LoadParams = string, LoadM
     keys: string[],
     group: string,
     loadParams?: LoadManyParams,
-  ): Promise<LoadedValue[]> {
+  ): Promise<(LoadedValue | null)[]> {
     const uniqueKeys = unique(keys)
     const inMemoryValues = this.getManyInMemoryOnly(uniqueKeys, group)
     // everything is in memory, hurray
