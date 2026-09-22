@@ -422,7 +422,7 @@ class MyParametrizedDataSource implements DataSource<string, MyLoaderParams, MyL
     return resolvedValue
   }
 
-  async getMany(entityIds: string[], params?: MyLoaderManyParams): Promise<string>[] {
+  async getMany(entityIds: string[], params?: MyLoaderManyParams): Promise<string[]> {
     if (!params) {
         throw new Error('Load params are mandatory for MyParametrizedDataSource')
     } 
