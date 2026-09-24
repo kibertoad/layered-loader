@@ -31,6 +31,9 @@
   "scripts": {
     "build": "tsc",
     "build:release": "del-cli dist && del-cli coverage && pnpm run lint && pnpm run build",
+    "changeset": "changeset",
+    "changeset:version": "changeset version && pnpm run lint:fix",
+    "changeset:publish": "changeset publish",
     "docker:start": "docker compose -f docker-compose.yml up --build -d redis && docker compose -f docker-compose.yml up --build -d wait_for_redis",
     "docker:stop": "docker compose -f docker-compose.yml down",
     "test": "vitest",
@@ -48,7 +51,7 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@11.18.0",
+  "packageManager": "pnpm@12.3.4",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kibertoad/layered-loader.git"
@@ -77,6 +80,8 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
     "@biomejs/biome": "^2.5.6",
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.2",
     "@types/node": "^26.1.2",
     "@vitest/coverage-v8": "^4.1.10",
     "del-cli": "^7.0.0",

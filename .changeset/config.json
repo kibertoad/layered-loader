@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/@changesets/config/schema.json",
+  "changelog": ["@changesets/changelog-github", { "repo": "kibertoad/layered-loader" }],
+  "commit": false,
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch"
+}
