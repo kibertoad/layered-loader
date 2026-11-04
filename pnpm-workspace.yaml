@@ -1,4 +1,7 @@
 packages:
+  # The root project is itself a published package. pnpm treats it as a workspace project
+  # either way, but listing it is what makes Changesets version and publish it.
+  - '.'
   - 'packages/*'
   - 'benchmark'
 
